@@ -34,6 +34,7 @@ import lib_store
 import marketplace
 import remote_fetch
 import plugin_units
+import plugin_state   # Claude Code 플러그인 레지스트리 읽기(마켓 발견용). 순수 리더
 import paths
 from lib_store import norm as _norm   # 정규화 규칙을 한 곳에서만 정의
 
@@ -282,7 +283,7 @@ def cmd_scan(a):
         # 빠지기 전) os.path.exists 는 예외 없이 False 를 준다 - os.walk 가 아니라 exists 2회뿐이라
         # 카테고리 나열과 달리 실패할 여지도, 느려질 여지도 없다.
         has_hooks = os.path.exists(os.path.join(lib, plugin_units.HOOKS_REL))
-        has_mcp = os.path.exists(os.path.join(lib, plugin_units.MCP_REL))
+        has_mcp = plugin_units.has_mcp(lib)   # .mcp.json + plugin.json 인라인 둘 다(위 주석 참고)
         # 설치 여부는 원장(타깃 기준)에서 읽는다. 원장 키는 플러그인 **이름**이라 서로 다른
         # 마켓의 동명 플러그인이 한 칸을 공유한다 - origin 이 일치할 때만 "설치됨"으로 본다
         # (남의 설치를 내 행의 배지로 표시하고 제거 버튼까지 띄우는 오작동 방지).
@@ -704,6 +705,41 @@ def cmd_market_add(a):
                      ensure_ascii=False))
 
 
+def cmd_market_discover(a):
+    """Claude Code(`/plugins`)에 등록된 마켓을 읽어 이 스토어와 대조한다.
+
+    **네트워크를 타지 않는다.** 읽는 파일은 known_marketplaces.json 하나뿐이고, 실제 등록은
+    사용자가 후보를 골라 market-add 를 눌렀을 때만 일어난다. Claude Code 의 플러그인 캐시는
+    건드리지 않는다 - .in_use / GC 가 딸린 비공개 수명주기다.
+
+    양쪽에 다 등록된 마켓은 숨기지 않고 both 로 돌려준다. 두 도구가 같은 레포를 **각자의
+    캐시에 서로 다른 시점으로** 들고 있기 때문에, 그 어긋남은 감추는 것보다 보이는 게 낫다.
+    Claude Code 쪽은 sha 를 기록하지 않으므로(lastUpdated 만 있다) 시각끼리 비교한다."""
+    pdir = a.plugins_dir or plugin_state.DEFAULT_PLUGINS_DIR
+    mks = lib_store.load_cfg(a.store).get("marketplaces", []) or []
+    mine = {plugin_state.norm_url(m.get("url")): m for m in mks if m.get("url")}
+    new, both, unusable = [], [], []
+    for name, m in sorted(plugin_state.read_markets(pdir).items()):
+        row = {"name": name, "kind": m["kind"], "repo": m["repo"], "url": m["url"],
+               "claude_updated": m["updated"]}
+        if not m["url"]:
+            # 로컬 경로로 등록된 마켓(source=path 등)은 URL 이 없어 가져올 수 없다.
+            # 조용히 빼면 "왜 N개가 아니지"가 되므로 이유와 함께 돌려준다.
+            unusable.append({**row, "reason": "URL 이 없는 소스(로컬 경로 등록)"})
+            continue
+        got = mine.get(plugin_state.norm_url(m["url"]))
+        if got:
+            both.append({**row, "id": got.get("id"), "sha": got.get("sha"),
+                         "fetched_at": got.get("fetched_at")})
+        else:
+            new.append(row)
+    print(json.dumps({"ok": True, "plugins_dir": pdir, "new": new, "both": both,
+                      "unusable": unusable,
+                      "message": (f"가져올 수 있는 마켓 {len(new)}개 · 양쪽 등록 {len(both)}개"
+                                  + (f" · 가져올 수 없음 {len(unusable)}개" if unusable else ""))},
+                     ensure_ascii=False))
+
+
 def cmd_catalog(a):
     """등록된 마켓의 카탈로그. **네트워크를 타지 않는다** - 캐시된 매니페스트만 읽는다.
 
@@ -893,7 +929,7 @@ def cmd_plugin_fetch(a):
                       "cache": root, "sha": sha, "components": comp["counts"],
                       "components_failed": comp["failed"],
                       "has_hooks": os.path.exists(os.path.join(root, "hooks", "hooks.json")),
-                      "has_mcp": os.path.exists(os.path.join(root, ".mcp.json")),
+                      "has_mcp": plugin_units.has_mcp(root),
                       "message": f"가져옴: {canon}", "warning": warning}, ensure_ascii=False))
 
 
@@ -1121,7 +1157,7 @@ def cmd_mcp_install(a):
                               "available": sorted(servers)}, ensure_ascii=False)); return
         servers = {a.server: servers[a.server]}
     if not servers:
-        print(json.dumps({"ok": False, "message": f".mcp.json 서버가 없습니다: {a.origin}"},
+        print(json.dumps({"ok": False, "message": f"MCP 서버 선언이 없습니다(.mcp.json / plugin.json): {a.origin}"},
                          ensure_ascii=False)); return
     servers = plugin_units.substitute(servers, root)
 
@@ -1226,6 +1262,9 @@ def main():
     p.add_argument("--url", required=True); p.add_argument("--ref", default=None)
     p.add_argument("--id", default=None)
     p.set_defaults(func=cmd_market_add)
+    p = sub.add_parser("market-discover")
+    p.add_argument("--plugins-dir", default=None, help="기본 ~/.claude/plugins")
+    p.set_defaults(func=cmd_market_discover)
     p = sub.add_parser("catalog")
     p.add_argument("--marketplace", default=None); p.add_argument("--query", default=None)
     p.add_argument("--category", default=None)

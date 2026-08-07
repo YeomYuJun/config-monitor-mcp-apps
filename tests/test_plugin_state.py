@@ -1,0 +1,274 @@
+#!/usr/bin/env python3
+r"""test_plugin_state.py - 플러그인 가시화 + 토글.
+
+의존성 0: 표준 unittest(pytest 로도 실행됨). 네트워크 없음 - 가짜 플러그인 트리를
+임시 디렉토리에 만들어 검증한다.
+
+위험한 순수 함수만 본다(docs/PLUGIN-VISIBILITY.md §검증):
+  - id != ns 분리(notion 회귀 픽스처). 합치면 토글이 조용히 no-op 한다
+  - 4상태 ok / disabled / stale / missing
+  - dot 디렉토리(.agents) 제외. 읽으면 세션에 없는 항목이 유령으로 뜬다
+  - plugin.json 인라인 mcpServers
+  - 토글 대상 파일 격리(프로젝트 토글이 전역 파일을 안 건드릴 것)
+"""
+import json, os, shutil, sys, tempfile, unittest
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+SRC = os.path.join(os.path.dirname(HERE), "src")
+EDIT = os.path.join(SRC, "config_edit.py")
+sys.path.insert(0, SRC)
+sys.path.insert(0, HERE)
+from test_smoke import run       # noqa: E402
+
+import plugin_state              # noqa: E402
+import plugin_units              # noqa: E402
+import config_edit               # noqa: E402
+
+
+def write(path, text):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(text)
+
+
+def wjson(path, obj):
+    write(path, json.dumps(obj, ensure_ascii=False, indent=2))
+
+
+class Fixture(unittest.TestCase):
+    """<tmp>/plugins 아래에 Claude Code 와 같은 배치의 가짜 레지스트리를 만든다."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="plugin_state_test_")
+        self.pdir = os.path.join(self.tmp, "plugins")
+        self.cache = os.path.join(self.pdir, "cache")
+        self.settings = os.path.join(self.tmp, "settings.json")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def plugin(self, market, name, version="1.0.0", meta=None, files=None):
+        """플러그인 루트를 만들고 절대경로를 돌려준다. meta 는 plugin.json 에 병합."""
+        root = os.path.join(self.cache, market, name, version)
+        m = {"name": name, "version": version, "description": f"{name} desc"}
+        m.update(meta or {})
+        wjson(os.path.join(root, ".claude-plugin", "plugin.json"), m)
+        for rel, body in (files or {}).items():
+            write(os.path.join(root, rel.replace("/", os.sep)), body)
+        return root
+
+    def installed(self, mapping):
+        """mapping: {id: root}. installed_plugins.json(version 2) 로 기록."""
+        wjson(os.path.join(self.pdir, "installed_plugins.json"), {
+            "version": 2,
+            "plugins": {pid: [{"scope": "user", "installPath": root, "version": "1.0.0"}]
+                        for pid, root in mapping.items()},
+        })
+
+    def enabled(self, mapping, path=None):
+        wjson(path or self.settings, {"enabledPlugins": mapping})
+
+    def read(self, settings=None):
+        return {r["id"]: r for r in
+                plugin_state.read_plugins(self.pdir, settings or [self.settings])}
+
+
+class IdVersusNamespace(Fixture):
+    """토글 키(id)와 표시 네임스페이스(ns)는 다르다. 실측 회귀 픽스처: notion."""
+
+    def test_ns_comes_from_plugin_json_and_id_is_untouched(self):
+        # 마켓 매니페스트 엔트리는 'notion'(소문자), plugin.json 은 'Notion'(대문자).
+        root = self.plugin("official", "notion", meta={"name": "Notion"})
+        self.installed({"notion@official": root})
+        self.enabled({"notion@official": True})
+        r = self.read()["notion@official"]
+        self.assertEqual(r["id"], "notion@official")     # 토글 키는 매니페스트 쪽 그대로
+        self.assertEqual(r["ns"], "Notion")              # 표시는 plugin.json 쪽
+        self.assertEqual(r["name"], "notion")
+
+    def test_ns_falls_back_to_id_name_when_plugin_json_missing(self):
+        root = os.path.join(self.cache, "m", "solo", "1.0.0")
+        os.makedirs(root)                                 # plugin.json 없음
+        self.installed({"solo@m": root})
+        self.enabled({"solo@m": True})
+        self.assertEqual(self.read()["solo@m"]["ns"], "solo")
+
+    def test_split_id_uses_last_at(self):
+        self.assertEqual(plugin_state.split_id("a@b"), ("a", "b"))
+        self.assertEqual(plugin_state.split_id("we@ird@market"), ("we@ird", "market"))
+        self.assertEqual(plugin_state.split_id("bare"), ("bare", ""))
+
+
+class FourStates(Fixture):
+    """ok / disabled / stale / missing. 설치됨 != 적용됨."""
+
+    def test_ok_and_disabled(self):
+        a = self.plugin("m", "on")
+        b = self.plugin("m", "off")
+        self.installed({"on@m": a, "off@m": b})
+        self.enabled({"on@m": True, "off@m": False})
+        got = self.read()
+        self.assertEqual(got["on@m"]["state"], "ok")
+        self.assertEqual(got["off@m"]["state"], "disabled")
+
+    def test_missing_when_install_path_gone(self):
+        root = self.plugin("m", "ghost")
+        self.installed({"ghost@m": root})
+        self.enabled({"ghost@m": True})
+        shutil.rmtree(root)                               # 캐시 GC / 수동 삭제
+        r = self.read()["ghost@m"]
+        self.assertEqual(r["state"], "missing")
+        self.assertEqual(r["items"]["skills"], [])        # 없는 경로를 읽지 않는다
+
+    def test_stale_key_without_install_record_is_surfaced_not_dropped(self):
+        # 실측: enabledPlugins 에 vibe-kit@inline 이 있는데 설치 원장에는 없다.
+        self.installed({})
+        self.enabled({"vibe-kit@inline": False})
+        r = self.read()["vibe-kit@inline"]
+        self.assertEqual(r["state"], "stale")
+        self.assertEqual(r["root"], "")
+
+    def test_absent_enabled_key_defaults_to_enabled(self):
+        # enabledPlugins 에 키가 없으면 설치=적용으로 본다. 추정임을 explicit 가 알린다.
+        root = self.plugin("m", "implicit")
+        self.installed({"implicit@m": root})
+        self.enabled({})
+        r = self.read()["implicit@m"]
+        self.assertEqual(r["state"], "ok")
+        self.assertFalse(r["enabled_explicit"])
+        self.assertIsNone(r["enabled_from"])
+
+
+class ComponentScan(Fixture):
+    def test_dot_directories_are_not_scanned(self):
+        # superpowers 는 agents/ 가 아니라 .agents/ 를 담고 있고 Claude Code 가 안 읽는다.
+        root = self.plugin("m", "sp", files={
+            "skills/alpha/SKILL.md": "---\nname: alpha\n---\n",
+            ".agents/ghost.md": "---\nname: ghost\n---\n",
+            "agents/.hidden.md": "---\nname: hidden\n---\n",
+            "commands/ns/deep.md": "---\ndescription: d\n---\n",
+        })
+        items = plugin_state.scan_items(root)
+        self.assertEqual([s["name"] for s in items["skills"]], ["alpha"])
+        self.assertEqual(items["agents"], [])
+        self.assertEqual([c["name"] for c in items["commands"]], ["ns/deep"])
+
+    def test_skill_without_skill_md_is_not_counted(self):
+        root = self.plugin("m", "s", files={"skills/empty/README.md": "x"})
+        self.assertEqual(plugin_state.scan_items(root)["skills"], [])
+
+    def test_hooks_are_read_through_plugin_units(self):
+        root = self.plugin("m", "h", files={"hooks/hooks.json": json.dumps(
+            {"hooks": {"PostToolUse": [{"matcher": "Edit",
+                                        "hooks": [{"type": "command", "command": 'node "a b.js"'}]}]}})})
+        hooks = plugin_state.scan_items(root)["hooks"]
+        self.assertEqual(len(hooks), 1)
+        self.assertEqual(hooks[0]["event"], "PostToolUse")
+        # 정규식으로 뽑으면 따옴표에서 잘린다. 파싱된 구조에서 읽는지 확인.
+        self.assertEqual(hooks[0]["commands"], ['node "a b.js"'])
+
+
+class InlineMcpDeclaration(Fixture):
+    """plugin.json 이 mcpServers 를 인라인 선언할 수 있다(실측: chrome-devtools-mcp)."""
+
+    def test_inline_mcp_servers_are_found(self):
+        root = self.plugin("m", "cdp", meta={
+            "mcpServers": {"chrome-devtools": {"command": "npx", "args": ["chrome-devtools-mcp"]}}})
+        self.assertTrue(plugin_units.has_mcp(root))
+        self.assertEqual([m["name"] for m in plugin_state.scan_items(root)["mcp"]],
+                         ["chrome-devtools"])
+
+    def test_mcp_json_file_wins_over_inline(self):
+        root = self.plugin("m", "both", meta={"mcpServers": {"inline": {"command": "a"}}},
+                           files={".mcp.json": json.dumps({"mcpServers": {"fromfile": {"command": "b"}}})})
+        self.assertEqual([m["name"] for m in plugin_state.scan_items(root)["mcp"]], ["fromfile"])
+
+    def test_no_declaration_at_all(self):
+        root = self.plugin("m", "none")
+        self.assertFalse(plugin_units.has_mcp(root))
+        self.assertIsNone(plugin_units.load_mcp_json(root))
+
+
+class EnabledPrecedence(Fixture):
+    """settings 는 우선순위 오름차순으로 들어온다. 이긴 파일이 토글 대상이 된다."""
+
+    def test_later_file_wins_and_records_its_path(self):
+        root = self.plugin("m", "p")
+        self.installed({"p@m": root})
+        proj = os.path.join(self.tmp, "proj", "settings.json")
+        self.enabled({"p@m": True})                       # 전역
+        self.enabled({"p@m": False}, proj)                # 프로젝트(뒤 = 우선)
+        r = self.read([self.settings, proj])["p@m"]
+        self.assertFalse(r["enabled"])
+        self.assertEqual(r["enabled_from"], proj)         # 토글은 이 파일로 가야 한다
+        self.assertEqual(r["state"], "disabled")
+
+
+class MarketDiscovery(Fixture):
+    def _markets(self, mapping):
+        wjson(os.path.join(self.pdir, "known_marketplaces.json"), mapping)
+
+    def test_github_source_is_expanded_to_url(self):
+        self._markets({"ua": {"source": {"source": "github", "repo": "o/r"}}})
+        self.assertEqual(plugin_state.read_markets(self.pdir)["ua"]["url"],
+                         "https://github.com/o/r.git")
+
+    def test_candidate_matching_ignores_git_suffix_and_case(self):
+        self._markets({"ua": {"source": {"source": "github", "repo": "O/R"}}})
+        # 스토어에 .git 없이 등록돼 있어도 같은 레포로 봐야 한다(중복 등록이 유일한 실패 모드).
+        self.assertEqual(plugin_state.import_candidates(self.pdir, ["https://github.com/o/r"]), [])
+        self.assertEqual(len(plugin_state.import_candidates(self.pdir, [])), 1)
+
+    def test_source_without_url_is_not_a_candidate(self):
+        self._markets({"local": {"source": {"source": "path", "path": "/x"}}})
+        self.assertEqual(plugin_state.import_candidates(self.pdir, []), [])
+
+
+class ToggleOp(unittest.TestCase):
+    """enabledPlugins 만 건드리고, id 를 정규화하지 않으며, 대상 파일을 넘나들지 않는다."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="plugin_toggle_test_")
+        self.g = os.path.join(self.tmp, "settings.json")
+        self.p = os.path.join(self.tmp, "proj", "settings.json")
+        wjson(self.g, {"permissions": {"allow": ["Read(**)"]},
+                       "enabledPlugins": {"notion@official": True}})
+        wjson(self.p, {"enabledPlugins": {"notion@official": True}})
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def load(self, path):
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+
+    def test_op_is_idempotent(self):
+        s = {"enabledPlugins": {"a@m": False}}
+        _, _, changed = config_edit.op_plugin_toggle(s, "a@m", False)
+        self.assertFalse(changed)
+        _, _, changed = config_edit.op_plugin_toggle(s, "a@m", True)
+        self.assertTrue(changed)
+
+    def test_op_does_not_normalize_case(self):
+        # 'notion' 과 'Notion' 은 서로 다른 키다. 고쳐 주면 토글이 엉뚱한 키를 만든다.
+        s, _, _ = config_edit.op_plugin_toggle({}, "Notion@official", True)
+        self.assertEqual(list(s["enabledPlugins"]), ["Notion@official"])
+
+    def test_cli_touches_only_target_file_and_only_that_key(self):
+        rc, out, _ = run(EDIT, "--settings", self.p, "--no-snapshot",
+                         "plugin-toggle", "notion@official", "off")
+        self.assertEqual(rc, 0, out)
+        self.assertTrue(json.loads(out)["ok"])
+        self.assertFalse(self.load(self.p)["enabledPlugins"]["notion@official"])
+        # 전역은 손대지 않는다 - 프로젝트에서 켠 것을 전역에서 끄는 오작동의 반대 방향 가드.
+        g = self.load(self.g)
+        self.assertTrue(g["enabledPlugins"]["notion@official"])
+        self.assertEqual(g["permissions"]["allow"], ["Read(**)"])
+
+    def test_cli_backs_up_before_writing(self):
+        run(EDIT, "--settings", self.g, "--no-snapshot", "plugin-toggle", "notion@official", "off")
+        self.assertTrue([f for f in os.listdir(self.tmp) if f.endswith(".bak")])
+
+
+if __name__ == "__main__":
+    unittest.main()

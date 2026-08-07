@@ -168,6 +168,10 @@
   .card.shadowed{border:1px dashed #C9CFD8;background:#FBFBFC}
   .shbadge{background:rgba(180,83,9,.11);color:#B45309;font-size:10px;font-weight:600;padding:2px 7px;
     border-radius:4px;white-space:nowrap}
+  /* 플러그인 출처 배지. shadowed(앰버 점선)와 다른 축이다 - 이름 충돌 경고가 아니라 출처 표시다.
+     플러그인 항목은 <ns>:<item> 으로 네임스페이스가 붙어 로컬 항목과 이름이 겹치지 않는다. */
+  .badge.plg{background:rgba(43,92,230,.12);color:var(--accent)}
+  .plgnote{font-size:10px;color:var(--mut);align-self:center}
 
   .card{background:var(--panel);border:1px solid var(--line2);border-radius:6px;padding:12px 13px;
     box-shadow:0 1px 2px rgba(20,24,34,.05)}
@@ -272,6 +276,11 @@
     padding:10px 12px;font-family:var(--mono);font-size:11px;line-height:1.55;color:#A3312A;
     word-break:break-word;max-height:170px;overflow:auto}
   .modalerr[hidden]{display:none}
+  /* Claude Code 에 등록된 마켓 제안. 고른 URL 도 기존 '등록 전 확인' 단계를 그대로 거친다. */
+  .modaldisc{display:flex;flex-direction:column;gap:6px}
+  .modaldisc .chip.pick{cursor:pointer;align-self:flex-start;max-width:100%}
+  .modaldisc .chip.pick:hover{border-color:var(--accent);color:var(--accent)}
+  .modalnote{font-size:11px;color:var(--mut);font-family:var(--mono);overflow-wrap:anywhere}
   .catpager{display:flex;align-items:center;gap:10px;margin-top:11px}
   .catpager .pinfo{font-family:var(--mono);font-size:11px;color:var(--mut2)}
   .catpager button:disabled{opacity:.42;cursor:default}

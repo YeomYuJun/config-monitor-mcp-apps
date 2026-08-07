@@ -97,6 +97,13 @@ const I18N: Record<string, Record<string, string>> = {
     unitConfirm: "설치 확정 — 매 세션 실행됨", unitFetchFirst: "가져오기 먼저",
     unitInterpWarn: "없음", unitInterpStub: "스텁(실행 실패)",
     unitCmdTitle: "설치될 명령(치환 완료)", unitScopeUser: "user", unitScopeDesktop: "desktop",
+    plgOn: "켜기", plgOff: "끄기", plgEnabled: "적용 중", plgDisabled: "꺼짐",
+    plgRestart: "다음 세션부터 적용",
+    plgToggleTip: "settings.json 의 enabledPlugins 만 바꿉니다 — 플러그인을 지우지 않습니다",
+    plgDiscover: "Claude Code 에 등록된 마켓 — 눌러서 URL 채우기",
+    plgDiscoverNone: "가져올 새 마켓 없음", plgDiscoverBoth: "양쪽 등록됨",
+    plgStaleTip: "enabledPlugins 에만 남은 키입니다 — 설치 기록이 없습니다",
+    plgMissingTip: "설치 경로가 없습니다 — 캐시가 지워졌거나 수동 삭제되었습니다",
   },
   en: {
     newFile: "New", modified: "Modified", deleted: "Deleted", unchanged: "Same",
@@ -166,6 +173,13 @@ const I18N: Record<string, Record<string, string>> = {
     unitConfirm: "Confirm — runs every session", unitFetchFirst: "Fetch first",
     unitInterpWarn: "missing", unitInterpStub: "stub (fails to run)",
     unitCmdTitle: "Commands to install (substituted)", unitScopeUser: "user", unitScopeDesktop: "desktop",
+    plgOn: "Enable", plgOff: "Disable", plgEnabled: "active", plgDisabled: "off",
+    plgRestart: "applies from the next session",
+    plgToggleTip: "Only flips enabledPlugins in settings.json — does not uninstall the plugin",
+    plgDiscover: "Marketplaces registered in Claude Code — click to fill the URL",
+    plgDiscoverNone: "No new marketplace to import", plgDiscoverBoth: "registered in both",
+    plgStaleTip: "Key left over in enabledPlugins — no install record",
+    plgMissingTip: "Install path is gone — cache was pruned or deleted manually",
   },
 };
 
@@ -572,10 +586,17 @@ function renderConfigCard(c: any, shadowOf: ((c: any) => Shadow | null) | null):
     card.title = sh.tip;
     shadowBadge = `<span class="shbadge">${esc(sh.label)}</span>`;
   }
+  // 플러그인 카드/항목의 배지: 출처 색(plg) + 비정상 상태는 warn. 배지 문자열만으로는
+  // "stale 이 뭔데"가 되므로 tooltip 으로 이유를 붙인다.
+  const plgTip: Record<string, string> =
+    { stale: t("plgStaleTip"), missing: t("plgMissingTip") };
+  const badgeCls = (c.ok ? "ok" : "") + (c.plugin ? " plg" : "") +
+    (c.plugin && plgTip[c.badge] ? " warn" : "");
+  const badgeTip = c.plugin ? (plgTip[c.badge] || "") : "";
   card.innerHTML =
     `<div class="cname"><span class="nm">${esc(c.name)}</span>` +
     `<span class="cbadges">${shadowBadge}` +
-    (c.badge ? `<span class="badge ${c.ok ? "ok" : ""}">${esc(c.badge)}</span>` : "") +
+    (c.badge ? `<span class="badge ${badgeCls}"${badgeTip ? ` title="${esc(badgeTip)}"` : ""}>${esc(c.badge)}</span>` : "") +
     `</span></div>` +
     (c.kv || [])
       .map(([k, v]: [string, string]) =>
@@ -707,6 +728,7 @@ function renderConfigSection(host: HTMLElement, sec: any): void {
 //   mcp-add/skill-add/agent-add : adder 만 (입력 파싱 후 해당 add 도구 호출)
 // removal uses inline confirm (window.confirm may be blocked in iframe sandbox).
 function buildEditUI(edit: any): HTMLElement {
+  if (edit.kind === "plugin") return buildPluginToggleUI(edit);
   if (["mcp", "skill", "agent"].includes(edit.kind)) return buildRemoveUI(edit);
   if (["mcp-add", "skill-add", "agent-add"].includes(edit.kind)) return buildAddUI(edit);
   const isPerm = edit.kind === "perm";
@@ -792,6 +814,37 @@ function buildEditUI(edit: any): HTMLElement {
   input.addEventListener("keydown", (e) => { if ((e as KeyboardEvent).key === "Enter") submit(); });
   adder.append(input, add);
   wrap.appendChild(adder);
+  return wrap;
+}
+
+// 플러그인 on/off. 확인 단계를 두지 않는다 - 파일도 설정도 지우지 않고 enabledPlugins 의
+// bool 하나만 뒤집으며, 되돌리는 조작이 같은 버튼이기 때문이다(제거와 성질이 다르다).
+// edit.settings 는 **그 값을 정한 파일**이다(plugin_state.enabled_from). 프로젝트에서 켠
+// 플러그인을 전역 파일에서 끄면 안 먹으므로 카드가 들고 온 경로를 그대로 넘긴다.
+function buildPluginToggleUI(edit: any): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "edit";
+  const on = !!edit.on;
+  const btn = document.createElement("button");
+  btn.className = on ? "cx" : "ok";
+  btn.textContent = on ? t("plgOff") : t("plgOn");
+  btn.title = t("plgToggleTip") + (edit.settings ? ` · ${edit.settings}` : "");
+  btn.addEventListener("click", async () => {
+    setPending(btn);
+    try {
+      const res = jparse(await callTool("config_plugin_toggle", {
+        id: edit.id, on: !on, ...(edit.settings ? { settings: edit.settings } : {}),
+      }));
+      if (res && res.ok === false) { clearPending(btn, t("failed")); flashToast(res.message || t("failed")); return; }
+      // 재시작 전까지는 세션에 반영되지 않는다 - 토글이 고장난 것처럼 보이지 않게 명시한다.
+      flashToast(`${edit.id} · ${!on ? t("plgEnabled") : t("plgDisabled")} — ${t("plgRestart")}`);
+      await refresh();
+    } catch (e) { clearPending(btn, t("failed")); console.error("[config-monitor] plugin toggle", e); }
+  });
+  const note = document.createElement("span");
+  note.className = "plgnote";
+  note.textContent = t("plgRestart");
+  wrap.append(btn, note);
   return wrap;
 }
 
@@ -1666,9 +1719,54 @@ function openMarketAdd(url: string): void {
     };
     input.addEventListener("input", () => { err.hidden = true; });
     input.addEventListener("keydown", (e) => { if ((e as KeyboardEvent).key === "Enter") submit(); });
-    body.append(hint, input, err, modalActions(t("catMarketSubmit"), submit, close));
+    const disc = document.createElement("div");
+    disc.className = "modaldisc";
+    body.append(hint, input, err, disc, modalActions(t("catMarketSubmit"), submit, close));
     setTimeout(() => input.focus(), 0);
+    // Claude Code 의 known_marketplaces.json 을 읽어 후보를 제안한다. **네트워크를 타지 않고**,
+    // 고른 URL 도 아래 submit -> openMarketWarn 의 기존 경고 단계를 그대로 거친다.
+    // 실패해도 조용히 넘긴다 - 등록 자체는 URL 직접 입력으로 항상 가능해야 한다.
+    void (async () => {
+      try {
+        const r = jparse(await callTool("library_market_discover", {}));
+        if (!r || r.ok === false) return;
+        renderDiscover(disc, r, (u: string) => { input.value = u; err.hidden = true; input.focus(); });
+      } catch (e) { console.error("[config-monitor] market discover", e); }
+    })();
   });
+}
+
+// 후보 목록. new = 가져올 수 있는 것(누르면 URL 입력칸을 채움),
+// both = 양쪽에 등록된 것. 두 도구가 같은 레포를 각자 캐시에 다른 시점으로 들고 있으므로
+// 그 어긋남을 감추지 않고 sha / 갱신 시각을 나란히 적는다.
+function renderDiscover(host: HTMLElement, r: any, pick: (u: string) => void): void {
+  const news: any[] = r.new || [], both: any[] = r.both || [];
+  if (!news.length && !both.length) return;
+  const h = document.createElement("div");
+  h.className = "modaltext";
+  h.textContent = t("plgDiscover");
+  host.appendChild(h);
+  for (const m of news) {
+    const b = document.createElement("button");
+    b.className = "chip pick";
+    b.textContent = `${m.name} · ${m.repo || m.url}`;
+    b.title = m.url;
+    b.addEventListener("click", () => pick(m.url));
+    host.appendChild(b);
+  }
+  if (!news.length) {
+    const n = document.createElement("div");
+    n.className = "modalnote";
+    n.textContent = t("plgDiscoverNone");
+    host.appendChild(n);
+  }
+  for (const m of both) {
+    const n = document.createElement("div");
+    n.className = "modalnote";
+    n.textContent = `${m.name} — ${t("plgDiscoverBoth")} · ` +
+      `${String(m.sha || "").slice(0, 12) || "-"} / Claude Code ${String(m.claude_updated || "").slice(0, 10) || "-"}`;
+    host.appendChild(n);
+  }
 }
 
 function openMarketWarn(url: string): void {

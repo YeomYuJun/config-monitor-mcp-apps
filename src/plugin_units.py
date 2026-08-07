@@ -21,6 +21,7 @@ import json, os, shutil
 PLUGIN_ROOT_VAR = "${CLAUDE_PLUGIN_ROOT}"
 HOOKS_REL = os.path.join("hooks", "hooks.json")
 MCP_REL = ".mcp.json"
+PLUGIN_JSON_REL = os.path.join(".claude-plugin", "plugin.json")
 
 
 def substitute(obj, root: str):
@@ -43,11 +44,38 @@ def load_hooks_json(plugin_root: str):
 
 
 def load_mcp_json(plugin_root: str):
+    """플러그인의 MCP 서버 선언. **소스가 둘이다.**
+
+    표준은 루트의 `.mcp.json` 이지만, plugin.json 안에 mcpServers 를 인라인으로 선언하는
+    플러그인도 있다(실측: chrome-devtools-mcp 1.6.0). `.mcp.json` 만 보면 그런 플러그인은
+    조용히 "MCP 0건"이 되어 설치할 게 없다고 나온다 - 대시보드 표시와 설치 가능 건수가
+    어긋나는 자리다. 공식 마켓 레포 내 40개는 전부 파일 방식이고 인라인은 외부 레포에서
+    가져온 플러그인 쪽에서 나온다.
+
+    반환 형태는 두 경로가 같다(`{"mcpServers": {...}}`) - 호출부는 구분할 필요가 없다.
+    `.mcp.json` 이 있으면 그쪽이 이긴다(명시 파일이 더 구체적인 선언이다)."""
     p = os.path.join(plugin_root, MCP_REL)
-    if not os.path.exists(p):
+    if os.path.exists(p):
+        with open(p, encoding="utf-8") as f:
+            return json.load(f)
+    meta = os.path.join(plugin_root, PLUGIN_JSON_REL)
+    if not os.path.exists(meta):
         return None
-    with open(p, encoding="utf-8") as f:
-        return json.load(f)
+    with open(meta, encoding="utf-8") as f:
+        data = json.load(f)
+    servers = data.get("mcpServers") if isinstance(data, dict) else None
+    return {"mcpServers": servers} if isinstance(servers, dict) and servers else None
+
+
+def has_mcp(plugin_root: str) -> bool:
+    """설치 버튼을 띄울지 판정. load_mcp_json 과 **같은 두 소스**를 본다 -
+    exists(".mcp.json") 만 보던 자리가 인라인 선언 플러그인에서 버튼을 안 띄웠다."""
+    if os.path.exists(os.path.join(plugin_root, MCP_REL)):
+        return True
+    try:
+        return bool((load_mcp_json(plugin_root) or {}).get("mcpServers"))
+    except (OSError, ValueError):
+        return False
 
 
 def hook_commands(hooks_cfg) -> list:

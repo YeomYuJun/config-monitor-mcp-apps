@@ -29,6 +29,7 @@ Sources can be local folders, remote git repos, or plugin marketplaces. Remote o
     - [Remote libraries](#remote-libraries)
     - [Marketplaces](#marketplaces)
     - [Hooks and MCP servers](#hooks-and-mcp-servers)
+  - [Plugins](#plugins)
   - [History / Diff](#history--diff)
   - [Safety](#safety)
 - [What It Reads](#what-it-reads)
@@ -48,6 +49,7 @@ Cowork supports both inline and fullscreen; Code supports inline only (following
 - **Library install** — install/remove a library (agents / commands / skills) into the global config or a specific project. Additive, not an overwrite, so existing settings stay intact.
 - **Remote libraries & marketplaces** — register any git repo as a library, or a repo carrying `.claude-plugin/marketplace.json` as a browsable catalog. Plugins are fetched one at a time, pinned to a commit, and only then join the Library.
 - **Hooks & MCP servers from plugins** — install a plugin's hooks into `settings.json` and its MCP servers into Claude Code or Claude Desktop, with the exact commands shown for approval first.
+- **Claude Code plugins, made visible** — the skills, agents, commands, hooks, and MCP servers that installed plugins contribute, merged into the same cards as your local ones with a `plugin` badge, plus a per-plugin on/off toggle.
 - **Provenance tracking** — the dashboard records which source owns each installed item, so a second plugin shipping the same name shows as `conflict` instead of silently overwriting the first.
 - **Override badges** — when two items share a name, the one that is *not* actually applied is flagged, following the real precedence rules (project wins for agents, global wins for skills).
 - **Reversible by default** — auto-snapshot before every edit; `.bak` / `.trash` backups before every overwrite or delete.
@@ -152,6 +154,18 @@ Because installing a hook means arbitrary code runs every session, the confirmat
 
 MCP servers can target Claude Code or **Claude Desktop**. Desktop has no plugin marketplace of its own, so this is currently the only way to get a plugin's MCP server into it.
 
+### Plugins
+
+Plugins installed through Claude Code's own `/plugins` command were previously invisible here: their skills, agents, commands, hooks, and MCP servers live under `~/.claude/plugins/cache/`, not `~/.claude/skills/`, so none of the sections above picked them up.
+
+They now appear twice. A **Plugins** section lists them one card per plugin — marketplace, version, what it contributes, and the settings file that decided its state — and their components are also merged into the ordinary Skills / Agents / Commands / Hooks / MCP cards, each carrying a `plugin` badge and the `plugin@marketplace` it came from. Names never collide with your local items, because Claude Code namespaces plugin components as `<plugin>:<item>`.
+
+Only plugins that are actually **enabled** are merged. Installed-but-disabled ones stay in the Plugins section alone — installed is not the same as applied. Two more states are surfaced rather than hidden: `stale` (a leftover key in `enabledPlugins` with no install record) and `missing` (an install record whose cache directory is gone).
+
+The per-plugin toggle writes `enabledPlugins` in the settings file that currently decides that plugin's state — global or project — through the same snapshot / `.bak` / atomic-write path as every other edit. It does not install or remove anything; that stays with `claude plugin`. Because Claude Code reads `enabledPlugins` at session start, the change applies from the **next session**, which the button says out loud.
+
+Registering a marketplace also reads the ones Claude Code already knows about and offers them as one-click fills in the URL box. Nothing is fetched from that read, and a picked URL still goes through the same confirmation step. Marketplaces registered on both sides are shown with both pinned commits side by side rather than being quietly reconciled — the two tools keep separate caches on purpose.
+
 ### History / Diff
 
 <img src="/assets/img/right-pannel.png" width="440" alt="History and diff panel">
@@ -185,6 +199,7 @@ The dashboard does not dump whole files — it extracts only the fields it needs
 | Skills (code) | `~/.claude/skills/` | immediate subfolders; `SKILL.md` `description` |
 | Agents | `~/.claude/agents/` | frontmatter `name`, `description`, `tools` |
 | Commands | `~/.claude/commands/` | frontmatter `description` (subfolders are namespaces) |
+| Plugins | `~/.claude/plugins/{installed_plugins,known_marketplaces}.json` + each plugin's `.claude-plugin/plugin.json` | per-plugin market, version, install path, enabled state, and the components it contributes |
 | Scheduled Tasks | `~/Claude/Scheduled/*/SKILL.md` | `description`, `cron`/`schedule`/`fireAt` |
 | Desktop Skills | `<Desktop>/.../skills-plugin/**/manifest.json` | `description`, `creatorType`, `enabled`, `updatedAt` |
 

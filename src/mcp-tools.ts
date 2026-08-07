@@ -320,6 +320,23 @@ export function buildTools(scriptDir: string): ToolDef[] {
       },
     },
     {
+      name: "config_plugin_toggle",
+      meta: {
+        title: "Toggle Claude Code Plugin",
+        description: "settings.json 의 enabledPlugins[<id>] 만 켜고 끈다. **적용은 다음 세션부터** — Claude Code 가 세션 시작 시 읽기 때문. id 는 '<플러그인 이름>@<마켓 이름>' 이고 **마켓 매니페스트 엔트리 이름** 쪽에서 온다(plugin.json 의 name/표시 네임스페이스와 다를 수 있다: 실측 notion vs 'Notion'). Plugins 카드의 edit.id 를 그대로 넘길 것 — 대소문자를 고치면 다른 키가 된다. settings 는 그 값을 정한 파일(카드의 edit.settings)을 넘긴다. 플러그인 설치/제거는 하지 않는다(그건 `claude plugin` 의 몫)",
+        inputSchema: z.object({
+          id: z.string().describe("plugin@marketplace — Plugins 카드의 edit.id 원문"),
+          on: z.boolean(),
+          settings: z.string().optional().describe("대상 settings.json(카드의 edit.settings). 미지정 시 전역"),
+        }), annotations: EDIT,
+      },
+      run: async (a: { id: string; on: boolean; settings?: string }) => {
+        const args = a.settings ? ["--settings", a.settings] : [];
+        args.push("plugin-toggle", a.id, a.on ? "on" : "off");
+        return jsonResult(await runPy("config_edit.py", args));
+      },
+    },
+    {
       name: "skill_scaffold",
       meta: {
         title: "Scaffold Code Skill",
@@ -534,6 +551,21 @@ export function buildTools(scriptDir: string): ToolDef[] {
         const args = ["market-add", "--url", a.url];
         if (a.ref) args.push("--ref", a.ref);
         if (a.id) args.push("--id", a.id);
+        return jsonResult(await runPy("library.py", args));
+      },
+    },
+    {
+      name: "library_market_discover",
+      meta: {
+        title: "Discover Marketplaces from Claude Code",
+        description: "Claude Code(`/plugins`)에 등록된 마켓플레이스를 읽어 이 스토어와 대조한다. **네트워크를 타지 않는다** — known_marketplaces.json 하나만 읽고, 실제 등록은 사용자가 후보를 골라 library_marketplace_add 를 눌렀을 때만 일어난다. new=가져올 수 있는 것 / both=양쪽 등록(두 도구가 같은 레포를 각자 캐시에 다른 시점으로 들고 있으므로 sha·시각을 나란히 돌려준다) / unusable=URL 이 없어 가져올 수 없는 것",
+        inputSchema: z.object({
+          pluginsDir: z.string().optional().describe("기본 ~/.claude/plugins"),
+        }), annotations: READ,
+      },
+      run: async (a: { pluginsDir?: string }) => {
+        const args = ["market-discover"];
+        if (a.pluginsDir) args.push("--plugins-dir", a.pluginsDir);
         return jsonResult(await runPy("library.py", args));
       },
     },
