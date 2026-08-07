@@ -9,6 +9,8 @@ origin 은 항상 현재 이름으로 정규화해 저장하고 별칭을 원장
 
 순수 함수 모듈: 네트워크/git/subprocess 를 타지 않는다. remote_fetch/lib_store/library 를
 import 하지 않는다 - 이미 받아둔 매니페스트 파일 위의 로직만 다룬다.
+(예외 하나: classify_source 는 '존재하는 디렉토리인가'만 확인한다 - 로컬 경로 형식을
+판별하려면 그 질문을 피할 수 없다. 읽기도 쓰기도 하지 않는다.)
 """
 from __future__ import annotations
 import json, os, re
@@ -31,6 +33,15 @@ _SCP_STYLE_RE = re.compile(r"^[A-Za-z0-9_.~-]+@[A-Za-z0-9_.-]+:[A-Za-z0-9_./~-].
 # 찾으면 IPv6 리터럴 URL(https://[::1]/r.git) 을 오탐하므로 앞에 anchor 한다.
 _TRANSPORT_HELPER_RE = re.compile(r"^[A-Za-z0-9+.-]*::")
 _HEX_RE = re.compile(r"^[0-9a-fA-F]+$")
+
+
+# 마켓 소스 형식 판별용. Claude Code 의 Add Marketplace 가 받는 4형식 중 이 도구는 git
+# 으로 clone 되는 둘(scp/전체 URL)만 받아왔다 - 나머지 둘(owner/repo 축약, marketplace.json
+# 직접)과 로컬 경로를 여기서 판정한다. 판정만 하고 물질화는 호출부가 한다.
+_LOCAL_PREFIXES = ("./", "../", ".\\", "..\\")
+_DRIVE_ABS_RE = re.compile(r"^[A-Za-z]:[\\/]")   # os.path.isabs 는 OS 마다 답이 달라 판정이 흔들린다
+_JSON_SCHEMES = ("http://", "https://")          # JSON 본문은 http(s) 로만 받는다
+_GENERIC_JSON_STEMS = ("marketplace", "index")   # 파일명이 이거면 id 로 쓸 정보가 없다
 
 
 class ManifestError(Exception):
@@ -161,6 +172,109 @@ def _validate_sha(sha, what="sha"):
     if not isinstance(sha, str) or not sha or sha.startswith("-") or not _HEX_RE.match(sha):
         raise ManifestError(f"{what}가 유효하지 않음(hex 아님): {sha!r}")
     return sha
+
+
+def _url_path_part(u):
+    """쿼리/프래그먼트를 떼어낸 부분. 이걸 안 떼면 '.../marketplace.json?token=x' 가
+    .json 으로 안 끝나 git 으로 오판되고, 결국 JSON 주소를 clone 하려 든다."""
+    for sep in ("#", "?"):
+        u = u.split(sep, 1)[0]
+    return u
+
+
+def _last_segment(u):
+    return _url_path_part(u).replace("\\", "/").rstrip("/").split("/")[-1]
+
+
+def _safe_id(cand):
+    """id 후보를 세그먼트 규칙으로 거른다. 못 만들면 빈 문자열 - 호출부가 --id 를 요구한다."""
+    try:
+        return safe_segment(cand or "", "id")
+    except ManifestError:
+        return ""
+
+
+def _id_for_json(url):
+    """.../marketplace.json 처럼 파일명이 정보가 없으면 한 단계 위 세그먼트를 쓴다.
+    등록된 마켓 여럿이 전부 'marketplace' 라는 같은 id 를 두고 싸우는 걸 막는다."""
+    segs = [s for s in _url_path_part(url).split("//")[-1].split("/") if s]
+    base = segs[-1] if segs else ""
+    stem = base[:-5] if base.lower().endswith(".json") else base
+    if stem.casefold() in _GENERIC_JSON_STEMS or not stem:
+        return _safe_id(segs[-2] if len(segs) >= 2 else "")
+    return _safe_id(stem)
+
+
+def _id_for_git(url):
+    """library._id_from_url 과 같은 규칙(레포명에서 .git 제거) - 두 경로가 같은 id 를 내야
+    owner/repo 축약과 전체 URL 이 서로 중복으로 잡힌다."""
+    base = _last_segment(url)
+    return _safe_id(base[:-4] if base.lower().endswith(".git") else base)
+
+
+def _local_source(p):
+    """로컬 경로는 복사하지 않고 그 자리를 캐시로 삼으므로 realpath 로 고정해 둔다 -
+    같은 디렉토리를 ./x 와 절대경로로 두 번 등록하는 걸 중복 검사가 잡아내려면 표기가
+    하나여야 한다. 없는 경로는 여기서 거부한다: '../../etc' 같은 값이 형식만 맞다고
+    통과하면 존재하지도 않는 캐시를 가리키는 레코드가 스토어에 남는다."""
+    real = os.path.realpath(p)
+    if not os.path.isdir(real):
+        raise ManifestError(f"로컬 마켓 경로가 디렉토리가 아닙니다: {p!r}")
+    return {"kind": "local", "url": None, "path": real,
+            "id": _safe_id(os.path.basename(real.rstrip("\\/")))}
+
+
+def classify_source(src: str) -> dict:
+    """마켓 소스 문자열을 {"kind": "git"|"json"|"local", "url", "path", "id"} 로 판별.
+
+    id 는 **제안값**이다 - 최종 id 는 library 가 --id 와 중복 검사를 거쳐 정한다.
+
+    주입 가드(옵션형 시작, 전송 헬퍼 구문)를 분기보다 **먼저** 돌린다. 뒤쪽 분기가 어차피
+    거부한다는 이유로 가드를 건너뛰면 분기 하나만 늘어도 가드가 조용히 무력해지고, 거부
+    사유도 실제 위험과 다른 걸 말하게 된다.
+
+    판정 순서가 곧 규칙이다:
+      1) 명시적 로컬 표기(./ ../ 절대경로 드라이브)  - 축약보다 먼저 본다
+      2) 허용 스킴 URL / scp 스타일
+      3) owner/repo 축약
+      4) 마지막에만 '존재하는 디렉토리'로 본다 - 이 검사를 3)보다 앞에 두면 cwd 아래에
+         우연히 owner/repo 디렉토리가 있는 사람에게만 축약이 로컬로 바뀐다(cwd 의존)."""
+    if not isinstance(src, str) or not src.strip():
+        raise ManifestError(f"마켓 소스가 비어 있습니다: {src!r}")
+    s = src.strip()
+    if s.startswith("-"):
+        raise ManifestError(f"마켓 소스가 옵션처럼 시작함(주입 위험): {s!r}")
+    if _TRANSPORT_HELPER_RE.match(s):
+        raise ManifestError(f"마켓 소스에 전송 헬퍼 구문은 허용하지 않음(예: ext::): {s!r}")
+
+    if s.startswith(_LOCAL_PREFIXES) or s in (".", "..") or \
+       s.startswith(("/", "\\")) or _DRIVE_ABS_RE.match(s):
+        return _local_source(s)
+
+    low = s.lower()
+    if low.startswith(_ALLOWED_URL_SCHEMES) or _SCP_STYLE_RE.match(s):
+        _validate_source_url(s, "마켓 소스")
+        if _url_path_part(s).lower().endswith(".json"):
+            # .json 은 git 레포가 아니라 매니페스트 본문이다. 본문은 http(s) 로만 받으므로
+            # ssh/git/file 로 온 .json 은 등록해봤자 영원히 못 가져온다 - 여기서 끊는다.
+            if not low.startswith(_JSON_SCHEMES):
+                raise ManifestError(f"marketplace.json 은 http/https 로만 받습니다: {s!r}")
+            return {"kind": "json", "url": s, "path": None, "id": _id_for_json(s)}
+        return {"kind": "git", "url": s, "path": None, "id": _id_for_git(s)}
+
+    if s.count("/") == 1:
+        owner, repo = s.split("/")
+        safe_segment(owner, "마켓 소스")
+        safe_segment(repo, "마켓 소스")
+        return {"kind": "git", "url": f"https://github.com/{owner}/{repo}.git",
+                "path": None, "id": _safe_id(repo)}
+
+    if os.path.isdir(s):
+        return _local_source(s)
+
+    raise ManifestError(
+        f"마켓 소스 형식을 알 수 없습니다: {src!r} - owner/repo, git URL, "
+        f"marketplace.json URL, 로컬 경로 중 하나여야 합니다")
 
 
 def source_spec(entry: dict) -> dict:

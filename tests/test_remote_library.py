@@ -7,7 +7,7 @@ r"""test_remote_library.py - 원격 라이브러리 & 마켓플레이스 서브�
 
 fetch 계열은 네트워크 대신 로컬 `git init` 픽스처 레포로 검증한다.
 """
-import json, os, shutil, subprocess, sys, tempfile, unittest
+import hashlib, http.server, json, os, shutil, subprocess, sys, tempfile, threading, unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(os.path.dirname(HERE), "src")
@@ -2208,3 +2208,393 @@ class ScanHooksMcpFlags(unittest.TestCase):
         self.assertEqual(row.get("error"), "경로 없음")
         self.assertFalse(row["has_hooks"])
         self.assertFalse(row["has_mcp"])
+
+
+class ClassifySource(unittest.TestCase):
+    """classify_source: Claude Code 가 받는 4형식 판별 + 주입성 입력 거부.
+
+    순수 함수라 네트워크/git 이 필요 없다. 디스크는 '그 경로가 디렉토리인가'만 본다."""
+
+    def setUp(self):
+        self.tmp = os.path.realpath(tempfile.mkdtemp(prefix="classify_test_"))
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def cs(self, s):
+        import marketplace
+        return marketplace.classify_source(s)
+
+    def reject(self, s):
+        import marketplace
+        with self.assertRaises(marketplace.ManifestError, msg=s):
+            marketplace.classify_source(s)
+
+    def test_owner_repo_shorthand_becomes_github_url(self):
+        r = self.cs("anthropics/claude-code")
+        self.assertEqual(r["kind"], "git")
+        self.assertEqual(r["url"], "https://github.com/anthropics/claude-code.git")
+        self.assertEqual(r["id"], "claude-code")
+
+    def test_shorthand_id_matches_full_url_id_so_both_notations_dedupe(self):
+        # 중복 검사는 정규화된 url 로 한다 - 축약과 전체 URL 이 같은 값으로 수렴해야
+        # 같은 레포를 두 번 등록하는 걸 잡는다.
+        import library
+        short = self.cs("anthropics/claude-code")
+        full = self.cs("https://github.com/anthropics/claude-code.git")
+        self.assertEqual(library._norm_url(short["url"]), library._norm_url(full["url"]))
+        self.assertEqual(short["id"], full["id"])
+
+    def test_scp_style_stays_git_and_is_not_rewritten(self):
+        r = self.cs("git@github.com:owner/repo.git")
+        self.assertEqual(r["kind"], "git")
+        self.assertEqual(r["url"], "git@github.com:owner/repo.git")
+        self.assertEqual(r["id"], "repo")
+
+    def test_https_json_is_json_kind(self):
+        r = self.cs("https://example.com/team/marketplace.json")
+        self.assertEqual(r["kind"], "json")
+        self.assertEqual(r["id"], "team")          # 파일명이 generic 이라 한 단계 위를 쓴다
+
+    def test_json_with_query_string_is_not_mistaken_for_git(self):
+        self.assertEqual(self.cs("https://example.com/a/mk.json?token=x")["kind"], "json")
+
+    def test_json_over_non_http_scheme_is_rejected_not_stored(self):
+        # 등록은 되는데 영원히 못 받는 레코드를 만들지 않는다.
+        self.reject("ssh://git@example.com/mk.json")
+        self.reject("git@example.com:mk.json")
+
+    def test_explicit_relative_and_absolute_paths_are_local(self):
+        sib = os.path.join(self.tmp, "a", "sib")
+        os.makedirs(os.path.join(self.tmp, "a", "b"))
+        os.makedirs(sib)
+        r = self.cs(self.tmp)
+        self.assertEqual(r["kind"], "local")
+        self.assertEqual(r["path"], self.tmp)
+        self.assertIsNone(r["url"])
+        cwd = os.getcwd()
+        os.chdir(os.path.join(self.tmp, "a", "b"))
+        try:
+            self.assertEqual(self.cs("../sib")["path"], sib)
+            self.assertEqual(self.cs("./")["path"], os.path.join(self.tmp, "a", "b"))
+        finally:
+            os.chdir(cwd)
+
+    def test_drive_absolute_path_is_local_on_any_platform(self):
+        # 판정이 os.path.isabs 에 의존하면 POSIX 에서 'C:\x' 가 상대경로로 새어 축약 분기로 간다.
+        import marketplace
+        self.assertTrue(marketplace._DRIVE_ABS_RE.match(r"C:\abs\mk"))
+        self.reject(r"C:\definitely\not\here\mk")   # 형식은 로컬, 없으면 거부
+
+    def test_existing_directory_without_marker_is_local_but_checked_last(self):
+        rel = os.path.basename(self.tmp)
+        cwd = os.getcwd()
+        os.chdir(os.path.dirname(self.tmp))
+        try:
+            self.assertEqual(self.cs(rel)["kind"], "local")
+            # 같은 이름의 디렉토리가 cwd 에 있어도 축약이 로컬로 바뀌면 안 된다(cwd 의존 금지).
+            os.makedirs(os.path.join(self.tmp, "owner", "repo"))
+            os.chdir(self.tmp)
+            self.assertEqual(self.cs("owner/repo")["kind"], "git")
+        finally:
+            os.chdir(cwd)
+
+    def test_parent_traversal_to_nowhere_is_rejected(self):
+        """로컬 소스의 거부 근거는 '상위로 올라갔다'가 아니라 '그런 디렉토리가 없다'이다.
+        사용자는 어차피 절대경로로 아무 데나 가리킬 수 있으므로 이탈 자체는 막을 것이 아니고,
+        막아야 하는 건 존재하지 않는 캐시를 가리키는 레코드가 스토어에 남는 것이다."""
+        deep = os.path.join(self.tmp, "a", "b")
+        os.makedirs(deep)
+        cwd = os.getcwd()
+        os.chdir(deep)
+        try:
+            self.reject("../../etc")
+            self.assertEqual(self.cs("../..")["path"], self.tmp)   # 실재하면 로컬이 맞다
+        finally:
+            os.chdir(cwd)
+
+    def test_injection_guards_run_before_any_branching(self):
+        """뒤쪽 분기가 어차피 거부한다는 이유로 가드를 건너뛰면 분기 추가만으로 무력해진다 -
+        거부 '사유'까지 확인해 가드가 실제로 돌았음을 못 박는다."""
+        import marketplace
+        with self.assertRaises(marketplace.ManifestError) as e1:
+            marketplace.classify_source("-upload-pack=evil")
+        self.assertIn("옵션", str(e1.exception))
+        with self.assertRaises(marketplace.ManifestError) as e2:
+            marketplace.classify_source("ext::sh -c evil")
+        self.assertIn("전송 헬퍼", str(e2.exception))
+
+    def test_unsafe_shorthand_segments_are_rejected(self):
+        for bad in ("owner/re:po", "owner/con", "own\\er/repo", "owner/", "owner/..",
+                    "/owner/repo/extra", "", "   ", "C:foo", "owner/repo/extra"):
+            self.reject(bad)
+
+    def test_ipv6_literal_url_is_not_mistaken_for_transport_helper(self):
+        self.assertEqual(self.cs("https://[::1]/r.git")["kind"], "git")
+
+
+def _start_json_server(routes):
+    """로컬 픽스처 HTTP 서버. 테스트는 네트워크로 나가지 않는다.
+    routes: {"/경로": (status, body_bytes)}"""
+    class H(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            hit = routes.get(self.path)
+            if hit is None:
+                self.send_error(404)
+                return
+            status, body = hit
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *a):
+            pass
+
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv, f"http://127.0.0.1:{srv.server_address[1]}"
+
+
+MANIFEST_BODY = json.dumps({"name": "jsonmarket", "plugins": [
+    {"name": "ext1", "description": "remote only", "category": "development",
+     "source": {"source": "url", "url": "https://example.invalid/x.git", "sha": "0" * 40}},
+]}).encode()
+
+
+class ManifestJsonFetch(unittest.TestCase):
+    """fetch_manifest_json: 검증 -> 쓰기 순서, 크기 상한, http(s) 전용."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="jsonfetch_test_")
+        self.dest = os.path.join(self.tmp, "repo")
+        self.srv, self.base = _start_json_server({
+            "/ok/marketplace.json": (200, MANIFEST_BODY),
+            "/bad/marketplace.json": (200, b"{not json"),
+            "/noplugins/marketplace.json": (200, b'{"name": "x"}'),
+            "/big/marketplace.json": (200, b'{"plugins": [], "pad": "' + b"a" * 4096 + b'"}'),
+        })
+
+    def tearDown(self):
+        self.srv.shutdown()
+        self.srv.server_close()
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def manifest_path(self):
+        return os.path.join(self.dest, ".claude-plugin", "marketplace.json")
+
+    def test_manifest_is_written_where_the_git_path_puts_it(self):
+        import remote_fetch
+        sha = remote_fetch.fetch_manifest_json(self.dest, self.base + "/ok/marketplace.json")
+        self.assertEqual(sha, hashlib.sha256(MANIFEST_BODY).hexdigest()[:12])
+        with open(self.manifest_path(), "rb") as f:
+            self.assertEqual(f.read(), MANIFEST_BODY)
+
+    def test_malformed_json_leaves_no_partial_cache(self):
+        import remote_fetch
+        with self.assertRaises(remote_fetch.FetchError):
+            remote_fetch.fetch_manifest_json(self.dest, self.base + "/bad/marketplace.json")
+        self.assertFalse(os.path.exists(self.dest))
+
+    def test_missing_plugins_array_is_rejected(self):
+        import remote_fetch
+        with self.assertRaises(remote_fetch.FetchError):
+            remote_fetch.fetch_manifest_json(self.dest, self.base + "/noplugins/marketplace.json")
+        self.assertFalse(os.path.exists(self.dest))
+
+    def test_oversized_body_is_refused_by_the_cap(self):
+        import remote_fetch
+        keep = remote_fetch.MANIFEST_MAX_BYTES
+        remote_fetch.MANIFEST_MAX_BYTES = 512
+        try:
+            with self.assertRaises(remote_fetch.FetchError) as e:
+                remote_fetch.fetch_manifest_json(self.dest, self.base + "/big/marketplace.json")
+            self.assertIn("상한", str(e.exception))
+        finally:
+            remote_fetch.MANIFEST_MAX_BYTES = keep
+        self.assertFalse(os.path.exists(self.dest))
+
+    def test_non_http_scheme_is_refused_without_touching_disk(self):
+        import remote_fetch
+        for url in ("file:///c:/x/marketplace.json", "ssh://h/m.json", "-x", "git://h/m.json"):
+            with self.assertRaises(remote_fetch.FetchError):
+                remote_fetch.fetch_manifest_json(self.dest, url)
+        self.assertFalse(os.path.exists(self.dest))
+
+    def test_failed_refetch_does_not_clobber_the_cached_manifest(self):
+        """검증을 쓰기 뒤에 하면 잘못된 응답 한 번이 멀쩡한 카탈로그를 지운다."""
+        import remote_fetch
+        remote_fetch.fetch_manifest_json(self.dest, self.base + "/ok/marketplace.json")
+        with self.assertRaises(remote_fetch.FetchError):
+            remote_fetch.fetch_manifest_json(self.dest, self.base + "/bad/marketplace.json")
+        with open(self.manifest_path(), "rb") as f:
+            self.assertEqual(f.read(), MANIFEST_BODY)
+        self.assertFalse(os.path.exists(self.manifest_path() + ".tmp"))
+
+    def test_error_messages_do_not_talk_about_git(self):
+        import remote_fetch
+        with self.assertRaises(remote_fetch.FetchError) as e:
+            remote_fetch.fetch_manifest_json(self.dest, self.base + "/noplugins/marketplace.json")
+        self.assertNotIn("git", str(e.exception).lower())
+
+
+class MarketSourceForms(unittest.TestCase):
+    """market-add 가 git 이외의 형식(json/local)을 받는다. git 회귀는 MarketAdd 가 지킨다."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="mksrc_test_")
+        self.store = os.path.join(self.tmp, "store")
+        self.target = os.path.join(self.tmp, "live")
+        self.local = os.path.join(self.tmp, "localmk")
+        os.makedirs(os.path.join(self.local, ".claude-plugin"))
+        with open(os.path.join(self.local, ".claude-plugin", "marketplace.json"),
+                  "w", encoding="utf-8") as f:
+            json.dump({"name": "localmarket", "plugins": [
+                {"name": "bundled", "description": "on disk", "category": "development",
+                 "source": "./plugins/bundled"},
+            ]}, f)
+        self.srv, self.base = _start_json_server({
+            "/mk/marketplace.json": (200, MANIFEST_BODY),
+            "/mk/broken.json": (200, b"nope"),
+            "/marketplace.json": (200, MANIFEST_BODY),
+        })
+        run(CAS, "--store", self.store, "init")
+
+    def tearDown(self):
+        self.srv.shutdown()
+        self.srv.server_close()
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def libcmd(self, *args, env=None):
+        return run(LIB, "--store", self.store, "--target", self.target, "--no-snapshot",
+                   *args, env=env)
+
+    def rec(self, mid):
+        import lib_store
+        cfg = lib_store.load_cfg(self.store)
+        return next(m for m in cfg["marketplaces"] if m["id"] == mid)
+
+    def test_local_directory_registers_without_git_or_copying(self):
+        # PATH 를 비워 git 이 없는 상태를 만든다 - 로컬 등록이 git 게이트를 타면 여기서 죽는다.
+        rc, out, err = self.libcmd("market-add", "--url", self.local, env={"PATH": ""})
+        self.assertEqual(rc, 0, err)
+        res = json.loads(out)
+        self.assertTrue(res["ok"], res)
+        self.assertEqual(res["kind"], "local")
+        self.assertEqual(res["name"], "localmarket")
+        self.assertEqual(res["cache"], os.path.realpath(self.local))   # 복사하지 않는다
+        self.assertFalse(os.path.exists(os.path.join(self.store, "lib-cache", "markets",
+                                                     "localmk", "repo")))
+
+    def test_local_without_manifest_is_refused_as_not_a_marketplace(self):
+        plain = os.path.join(self.tmp, "plain")
+        os.makedirs(plain)
+        rc, out, err = self.libcmd("market-add", "--url", plain)
+        res = json.loads(out)
+        self.assertFalse(res["ok"])
+        self.assertIn("마켓플레이스가 아닙니다", res["message"])
+
+    def test_local_notations_of_the_same_dir_are_one_registration(self):
+        self.libcmd("market-add", "--url", self.local)
+        rc, out, err = self.libcmd("market-add", "--url",
+                                   os.path.join(self.local, "sub", "..") + os.sep)
+        res = json.loads(out)
+        self.assertTrue(res["ok"], res)
+        self.assertTrue(res["already"])          # 다른 표기라고 두 번 등록되지 않는다
+        self.assertIn("디스크에서 다시 읽었습니다", res["message"])
+
+    def test_local_fetch_rereads_the_edited_manifest_instead_of_no_op(self):
+        """로컬 마켓의 '갱신'은 사용자가 파일을 고치는 것이다 - fetch 는 다시 읽어야 한다."""
+        before = json.loads(self.libcmd("market-add", "--url", self.local)[1])
+        mpath = os.path.join(self.local, ".claude-plugin", "marketplace.json")
+        with open(mpath, "w", encoding="utf-8") as f:
+            json.dump({"name": "localmarket", "plugins": [
+                {"name": "bundled", "category": "development", "source": "./plugins/bundled"},
+                {"name": "added", "category": "database", "source": "./plugins/added"},
+            ]}, f)
+        rc, out, err = self.libcmd("fetch", "--origin", "market:localmk")
+        self.assertEqual(rc, 0, err)
+        res = json.loads(out)
+        self.assertTrue(res["ok"], res)
+        self.assertEqual(res["plugins"], 2)
+        self.assertNotEqual(res["sha"], before["sha"])     # 내용 해시가 바뀌어 갱신이 보인다
+        self.assertEqual(self.rec("localmk")["kind"], "local")   # kind 가 왕복해도 유지된다
+
+    def test_local_bundled_plugin_fetch_says_why_instead_of_a_git_error(self):
+        self.libcmd("market-add", "--url", self.local)
+        rc, out, err = self.libcmd("plugin-fetch", "--marketplace", "localmk",
+                                   "--plugin", "bundled")
+        res = json.loads(out)
+        self.assertFalse(res["ok"])
+        self.assertIn("레포가 없어", res["message"])
+
+    def test_unregistering_a_local_market_never_deletes_the_users_directory(self):
+        """로컬 마켓의 캐시는 사용자 소유 디렉토리다. 해제가 캐시를 지우는 기존 규칙을
+        그대로 적용하면 사용자의 원본을 지운다 - 지우는 건 스토어 안쪽뿐이어야 한다."""
+        self.libcmd("market-add", "--url", self.local)
+        rc, out, err = self.libcmd("unregister", "--origin", "market:localmk")
+        self.assertEqual(rc, 0, err)
+        self.assertTrue(json.loads(out)["removed"])
+        self.assertTrue(os.path.exists(os.path.join(self.local, ".claude-plugin",
+                                                    "marketplace.json")))
+
+    def test_json_url_registers_and_lands_in_the_catalog(self):
+        rc, out, err = self.libcmd("market-add", "--url", self.base + "/mk/marketplace.json")
+        self.assertEqual(rc, 0, err)
+        res = json.loads(out)
+        self.assertTrue(res["ok"], res)
+        self.assertEqual(res["kind"], "json")
+        self.assertEqual(res["id"], "mk")          # generic 파일명이면 한 단계 위 세그먼트
+        self.assertEqual(res["plugins"], 1)
+        cat = json.loads(self.libcmd("catalog")[1])
+        self.assertEqual([r["name"] for r in cat["rows"]], ["ext1"])
+
+    def test_undeducible_id_asks_for_id_with_exit_zero_not_a_thrown_error(self):
+        """호스트 루트의 marketplace.json 은 id 로 쓸 세그먼트가 없다(호스트는 콜론 때문에
+        세그먼트가 못 된다). 이때 exit 1 로 끝내면 호출부(runPy)가 throw 해서 안내 문구가
+        UI 에 닿지 못한다 - 평범한 입력이므로 JSON 으로 답해야 한다."""
+        rc, out, err = self.libcmd("market-add", "--url", self.base + "/marketplace.json")
+        self.assertEqual(rc, 0, err)
+        res = json.loads(out)
+        self.assertFalse(res["ok"])
+        self.assertIn("--id", res["message"])
+        # --id 를 주면 같은 주소가 그대로 등록된다.
+        rc, out, err = self.libcmd("market-add", "--url", self.base + "/marketplace.json",
+                                   "--id", "root")
+        self.assertEqual(rc, 0, err)
+        self.assertTrue(json.loads(out)["ok"], out)
+
+    def test_json_market_survives_a_fetch_round_trip(self):
+        self.libcmd("market-add", "--url", self.base + "/mk/marketplace.json")
+        rc, out, err = self.libcmd("fetch", "--origin", "market:mk")
+        res = json.loads(out)
+        self.assertTrue(res["ok"], res)
+        self.assertEqual(res["kind"], "json")
+        self.assertEqual(self.rec("mk")["kind"], "json")
+
+    def test_broken_json_url_is_refused_and_registers_nothing(self):
+        rc, out, err = self.libcmd("market-add", "--url", self.base + "/mk/broken.json")
+        res = json.loads(out)
+        self.assertFalse(res["ok"])
+        import lib_store
+        self.assertEqual(lib_store.load_cfg(self.store).get("marketplaces", []), [])
+
+    def test_unknown_source_form_is_refused_with_the_four_forms_named(self):
+        rc, out, err = self.libcmd("market-add", "--url", "ext::sh -c evil")
+        res = json.loads(out)
+        self.assertFalse(res["ok"])
+        self.assertIn("전송 헬퍼", res["message"])
+
+    def test_existing_records_without_kind_are_treated_as_git(self):
+        """하위호환: kind 필드가 없던 시절의 레코드도 그대로 동작해야 한다."""
+        import lib_store
+        cfg = lib_store.load_cfg(self.store)
+        cfg["marketplaces"] = [{"id": "old", "url": "https://example.invalid/x.git",
+                                "cache": self.local, "name": "old", "plugins": []}]
+        lib_store.save_cfg(self.store, cfg)
+        rc, out, err = self.libcmd("plugin-fetch", "--marketplace", "old", "--plugin", "bundled")
+        res = json.loads(out)
+        # kind 가 없으니 git 으로 보고 예전 경로를 탄다(= 여기서는 clone 실패). 새 가드에 걸리지 않는다.
+        self.assertFalse(res["ok"])
+        self.assertNotIn("레포가 없어", res["message"])

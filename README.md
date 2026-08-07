@@ -49,7 +49,8 @@ Cowork supports both inline and fullscreen; Code supports inline only (following
 - **Library install** — install/remove a library (agents / commands / skills) into the global config or a specific project. Additive, not an overwrite, so existing settings stay intact.
 - **Remote libraries & marketplaces** — register any git repo as a library, or a repo carrying `.claude-plugin/marketplace.json` as a browsable catalog. Plugins are fetched one at a time, pinned to a commit, and only then join the Library.
 - **Hooks & MCP servers from plugins** — install a plugin's hooks into `settings.json` and its MCP servers into Claude Code or Claude Desktop, with the exact commands shown for approval first.
-- **Claude Code plugins, made visible** — the skills, agents, commands, hooks, and MCP servers that installed plugins contribute, merged into the same cards as your local ones with a `plugin` badge, plus a per-plugin on/off toggle.
+- **Claude Code plugins, made visible** — the skills, agents, commands, hooks, and MCP servers that installed plugins contribute, merged into the same cards as your local ones with a `plugin` badge.
+- **The `/plugins` surface as a GUI** — browse and search a marketplace, see what a plugin will install and what it costs in tokens *before* installing, install at user / project / local scope, then enable, disable, update, or uninstall it from the same panel.
 - **Provenance tracking** — the dashboard records which source owns each installed item, so a second plugin shipping the same name shows as `conflict` instead of silently overwriting the first.
 - **Override badges** — when two items share a name, the one that is *not* actually applied is flagged, following the real precedence rules (project wins for agents, global wins for skills).
 - **Reversible by default** — auto-snapshot before every edit; `.bak` / `.trash` backups before every overwrite or delete.
@@ -60,6 +61,7 @@ Cowork supports both inline and fullscreen; Code supports inline only (following
 - **Python 3.10+** on `PATH` — verify with `python --version`
 - **Windows** with **Claude Desktop** — the widget probes Windows desktop config paths and the file watcher runs on PowerShell.
 - **git** on `PATH` — only for remote libraries and marketplaces. Everything else works without it, and the Library panel keeps working offline either way.
+- **`claude` on `PATH`** — only for the actions that install, update, or remove a *whole plugin* or a Claude Code marketplace, which are delegated to the CLI. Viewing plugins, toggling them on and off, and the entire Library side work without it; the delegated buttons report that `claude` was not found instead of failing silently.
 
 ## Setup
 
@@ -144,6 +146,8 @@ Registration is persistent, but **nothing is ever fetched automatically**. The c
 
 A repo containing `.claude-plugin/marketplace.json` registers as a catalog instead. Only the manifest is checked out up front (~340 KB for the official marketplace's 278 plugins, versus ~9.7 MB for the whole repo), and the catalog is browsable offline with search and category filters.
 
+Four source forms are accepted, matching what Claude Code's own Add Marketplace takes: `owner/repo`, a git URL (`https://`, `ssh://`, `git://`, `file://`, or `user@host:path`), a direct `https://…/marketplace.json`, and a local directory. A local marketplace is **not copied** — the directory you point at becomes the cache, so editing its manifest *is* how you update it, and pressing refresh re-reads it from disk and re-hashes the content. Unregistering a local marketplace removes only the registration; your directory is left untouched.
+
 Fetching is per-plugin and explicit. Only fetched plugins join the Library panel; the rest stay in the catalog. There is deliberately no "installable items" count in the catalog — barely any manifest entries declare their components, so the number simply isn't knowable before fetching, and showing a guess would be worse than showing nothing.
 
 A marketplace is an *index*, not a store: of the official marketplace's 278 entries only 53 actually live in that repo, and the rest point at other repositories. "Official" describes where a plugin is listed, not who wrote it — 38 of the 280 entries are authored by Anthropic, the rest by Google, SAP, AWS, and individual developers.
@@ -162,6 +166,8 @@ A marketplace is an *index*, not a store: of the official marketplace's 278 entr
 
 "Install plugin" delegates to `claude plugin install`, so the result is a real Claude Code plugin and shows up in the Plugins section. It is disabled when the marketplace is not registered in Claude Code, since the install would not resolve. Note that the reverse never happens: picking 3 items out of a 12-item plugin cannot be recorded in Claude Code's registry, so item-level installs stay this dashboard's own.
 
+Each marketplace header also carries the Claude Code side of the same registration: **Add to CC** when it is only registered here, or **Update in CC** / **Remove from CC** when it exists on both. The two keep separate caches on purpose, so these are distinct actions rather than a sync.
+
 #### Hooks and MCP servers
 
 Plugins can also carry hooks and MCP servers. These aren't copied into `~/.claude` like skills are: some plugins reference files that sit *beside* their `hooks/` folder, so the whole plugin root stays in the cache and the config points at it. That makes the cache load-bearing, which is why unregistering a source is refused while installed hooks still reference it — the dashboard tells you what's holding it rather than breaking your config.
@@ -178,7 +184,11 @@ They now appear twice. A **Plugins** section lists them one card per plugin — 
 
 Only plugins that are actually **enabled** are merged. Installed-but-disabled ones stay in the Plugins section alone — installed is not the same as applied. Two more states are surfaced rather than hidden: `stale` (a leftover key in `enabledPlugins` with no install record) and `missing` (an install record whose cache directory is gone).
 
-The per-plugin toggle writes `enabledPlugins` in the settings file that currently decides that plugin's state — global or project — through the same snapshot / `.bak` / atomic-write path as every other edit. It does not install or remove anything; that stays with `claude plugin`. Because Claude Code reads `enabledPlugins` at session start, the change applies from the **next session**, which the button says out loud.
+The per-plugin toggle writes `enabledPlugins` in the settings file that currently decides that plugin's state — global or project — through the same snapshot / `.bak` / atomic-write path as every other edit. Because Claude Code reads `enabledPlugins` at session start, the change applies from the **next session**, which the button says out loud. **Update** and **Uninstall** sit beside it and delegate to `claude plugin update` / `uninstall`; uninstall asks for confirmation, since unlike the toggle it is not undone by pressing the same button again.
+
+Clicking a catalog row opens the same inventory the CLI's plugin details screen shows — what the plugin will install (commands, agents, skills, hooks, MCP and LSP servers, by name), its projected token cost split into always-on and on-invoke, cumulative installs, author, and homepage — followed by the three install scopes (you / everyone on a repo / this repo, you only). None of that requires fetching the plugin first: Claude Code ships a precomputed inventory in `plugin-catalog-cache.json` and the dashboard reads it. That cache covers the official marketplace only, so rows from other marketplaces say the inventory is unknown rather than reporting zero.
+
+What the dashboard deliberately does **not** replicate from the `/plugins` TUI is marketplace auto-update, favorites, and mark-for-update. Those have no CLI subcommand and leave no trace on disk, so supporting them would mean guessing a settings key and writing it into your config.
 
 Registering a marketplace also reads the ones Claude Code already knows about and offers them as one-click fills in the URL box. Nothing is fetched from that read, and a picked URL still goes through the same confirmation step. Marketplaces registered on both sides are shown with both pinned commits side by side rather than being quietly reconciled — the two tools keep separate caches on purpose.
 
@@ -216,6 +226,7 @@ The dashboard does not dump whole files — it extracts only the fields it needs
 | Agents | `~/.claude/agents/` | frontmatter `name`, `description`, `tools` |
 | Commands | `~/.claude/commands/` | frontmatter `description` (subfolders are namespaces) |
 | Plugins | `~/.claude/plugins/{installed_plugins,known_marketplaces}.json` + each plugin's `.claude-plugin/plugin.json` | per-plugin market, version, install path, enabled state, and the components it contributes |
+| Plugin inventory | `~/.claude/plugins/plugin-catalog-cache.json` | pre-install component list, projected token cost, install count, homepage (official marketplace only) |
 | Scheduled Tasks | `~/Claude/Scheduled/*/SKILL.md` | `description`, `cron`/`schedule`/`fireAt` |
 | Desktop Skills | `<Desktop>/.../skills-plugin/**/manifest.json` | `description`, `creatorType`, `enabled`, `updatedAt` |
 

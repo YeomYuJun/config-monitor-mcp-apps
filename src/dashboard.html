@@ -281,6 +281,17 @@
   .modaldisc .chip.pick{cursor:pointer;align-self:flex-start;max-width:100%}
   .modaldisc .chip.pick:hover{border-color:var(--accent);color:var(--accent)}
   .modalnote{font-size:11px;color:var(--mut);font-family:var(--mono);overflow-wrap:anywhere}
+  .modallink{font-size:12px;color:var(--accent);text-decoration:none;align-self:flex-start}
+  .modallink:hover{text-decoration:underline}
+  /* 설치 스코프 3종 + 프로젝트 선택. CLI 의 Plugin details 하단과 같은 순서로 둔다. */
+  .modalscopes{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:4px}
+  /* 카탈로그 행: 이름을 눌러 상세를 연다. 버튼이지만 텍스트처럼 보여야 목록이 안 시끄럽다. */
+  .sknm.asname{background:none;border:0;padding:0;font:inherit;color:inherit;text-align:left;cursor:pointer}
+  .sknm.asname:hover{color:var(--accent);text-decoration:underline}
+  .cinstalls{font-size:10px;color:var(--mut);white-space:nowrap;flex:0 0 auto}
+  /* 마켓 헤더의 Claude Code 쪽 액션. 헤더 클릭(접기)과 겹치지 않게 오른쪽 끝에 붙인다. */
+  .mkacts{display:flex;gap:5px;margin-left:auto;flex:0 0 auto}
+  .inlineconfirm{display:inline-flex;gap:5px}
   .catpager{display:flex;align-items:center;gap:10px;margin-top:11px}
   .catpager .pinfo{font-family:var(--mono);font-size:11px;color:var(--mut2)}
   .catpager button:disabled{opacity:.42;cursor:default}

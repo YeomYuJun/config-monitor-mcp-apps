@@ -91,11 +91,11 @@ const I18N: Record<string, Record<string, string>> = {
     catTitle: "Marketplace", catSearch: "검색…", catAll: "전체", catFetch: "항목 설치",
     catFetched: "설치됨", catEmpty: "등록된 마켓플레이스 없음", catNoPlugins: "조건에 맞는 플러그인 없음",
     catPrev: "‹ 이전", catNext: "다음 ›", catPageOf: "페이지", catNoUrl: "(URL 미기록)",
-    catMarketAdd: "마켓 등록", catMarketUrlPlaceholder: "마켓 레포 URL (marketplace.json 보유)",
-    catMarketUrlHint: "등록할 마켓플레이스 레포 URL 을 입력하세요.",
+    catMarketAdd: "마켓 등록", catMarketUrlPlaceholder: "owner/repo · git URL · marketplace.json URL · 로컬 경로",
+    catMarketUrlHint: "마켓플레이스 소스를 입력하세요 — owner/repo · git URL · marketplace.json URL · 로컬 경로.",
     catMarketSubmit: "등록", catWarnTitle: "등록 전 확인",
     catSearchTip: "검색", catCategoryTip: "분류",
-    catBadUrl: "git URL 형식이 아닙니다 (https:// · ssh:// · git:// · file:// 또는 user@host:path)",
+    catBadUrl: "인식할 수 없는 소스입니다 — owner/repo · https:// · ssh:// · git:// · file:// · user@host:path · ./로컬/경로",
     unitHooks: "hooks", unitMcp: "MCP", unitInstall: "설치", unitRemove: "제거",
     unitHooksHint: "hooks/hooks.json → settings.json", unitMcpHint: ".mcp.json → ~/.claude.json",
     unitRemoveConfirm: "제거 확정", unitEmpty: "hooks/MCP 를 가진 라이브러리 없음",
@@ -107,6 +107,27 @@ const I18N: Record<string, Record<string, string>> = {
     plgToggleTip: "settings.json 의 enabledPlugins 만 바꿉니다 — 플러그인을 지우지 않습니다",
     plgDiscover: "Claude Code 에 등록된 마켓 — 눌러서 URL 채우기",
     plgDiscoverNone: "가져올 새 마켓 없음", plgDiscoverBoth: "양쪽 등록됨",
+    plgUpdate: "갱신", plgUninstall: "✕ 제거",
+    plgUpdateTip: "claude plugin update — 최신 버전으로. 다음 세션부터 적용",
+    plgUninstallTip: "claude plugin uninstall — 캐시에서 완전히 지웁니다. 끄기만 하려면 위 토글을 쓰세요",
+    catDetailsTip: "무엇이 설치되는지 보기",
+    catInstalls: "설치", catInstallsTip: "Claude Code 카탈로그의 누적 설치 수",
+    catFrom: "출처", catAuthor: "제작자", catUpdated: "최종 갱신",
+    catWillInstall: "설치될 항목",
+    catInstallsNothing: "선언된 컴포넌트 없음",
+    catNoInventory: "이 마켓은 사전 인벤토리가 없습니다 — 무엇이 들어오는지는 가져온 뒤에 알 수 있습니다",
+    catTokensTip: "always-on 은 매 세션 상시로 드는 컨텍스트 비용, on-invoke 는 실제로 불렸을 때만",
+    catTrustWarn: "설치 전에 이 플러그인을 신뢰할 수 있는지 확인하세요. Anthropic 도 config-monitor 도 플러그인에 담긴 MCP 서버·파일·코드를 통제하거나 검증하지 않습니다.",
+    catHomepage: "홈페이지 열기 ↗",
+    catScopeUser: "나에게 설치", catScopeProject: "이 저장소 전체에", catScopeLocal: "이 저장소에서 나만",
+    catScopeUserTip: "user 스코프 — ~/.claude/settings.json",
+    catScopeProjectTip: "project 스코프 — 선택한 프로젝트의 .claude/settings.json (커밋되어 팀에 공유됨)",
+    catScopeLocalTip: "local 스코프 — 그 저장소에서 나에게만",
+    catScopeNoProject: "추적 중인 프로젝트가 없습니다 — 먼저 프로젝트를 추적에 추가하세요",
+    mkOfficialPreset: "＋ 공식 마켓플레이스 (anthropics/claude-plugins-official)",
+    mkExport: "CC 에 등록", mkExportTip: "이 마켓을 Claude Code 에도 등록합니다(claude plugin marketplace add). 캐시는 서로 별개로 유지됩니다",
+    mkCcUpdate: "CC 갱신", mkCcUpdateTip: "Claude Code 쪽 마켓 매니페스트를 갱신합니다 — 설치된 플러그인 버전은 그대로입니다",
+    mkCcRemove: "CC 해제", mkCcRemoveTip: "Claude Code 에서 이 마켓 등록을 해제합니다(모든 스코프). config-monitor 스토어는 그대로입니다",
     plgStaleTip: "enabledPlugins 에만 남은 키입니다 — 설치 기록이 없습니다",
     plgMissingTip: "설치 경로가 없습니다 — 캐시가 지워졌거나 수동 삭제되었습니다",
   },
@@ -172,11 +193,11 @@ const I18N: Record<string, Record<string, string>> = {
     catTitle: "Marketplace", catSearch: "Search…", catAll: "All", catFetch: "Install items",
     catFetched: "Installed", catEmpty: "No marketplace registered", catNoPlugins: "No plugin matches",
     catPrev: "‹ Prev", catNext: "Next ›", catPageOf: "page", catNoUrl: "(no URL recorded)",
-    catMarketAdd: "Add marketplace", catMarketUrlPlaceholder: "Marketplace repo URL (has marketplace.json)",
-    catMarketUrlHint: "Enter the marketplace repo URL to register.",
+    catMarketAdd: "Add marketplace", catMarketUrlPlaceholder: "owner/repo · git URL · marketplace.json URL · local path",
+    catMarketUrlHint: "Enter a marketplace source — owner/repo, a git URL, a marketplace.json URL, or a local path.",
     catMarketSubmit: "Register", catWarnTitle: "Before you register",
     catSearchTip: "search", catCategoryTip: "category",
-    catBadUrl: "Not a git URL (https:// · ssh:// · git:// · file:// or user@host:path)",
+    catBadUrl: "Unrecognized source — owner/repo · https:// · ssh:// · git:// · file:// · user@host:path · ./local/path",
     unitHooks: "hooks", unitMcp: "MCP", unitInstall: "Install", unitRemove: "Remove",
     unitHooksHint: "hooks/hooks.json → settings.json", unitMcpHint: ".mcp.json → ~/.claude.json",
     unitRemoveConfirm: "Confirm remove", unitEmpty: "No library provides hooks/MCP",
@@ -188,6 +209,27 @@ const I18N: Record<string, Record<string, string>> = {
     plgToggleTip: "Only flips enabledPlugins in settings.json — does not uninstall the plugin",
     plgDiscover: "Marketplaces registered in Claude Code — click to fill the URL",
     plgDiscoverNone: "No new marketplace to import", plgDiscoverBoth: "registered in both",
+    plgUpdate: "Update", plgUninstall: "✕ Uninstall",
+    plgUpdateTip: "claude plugin update — pulls the latest version. Applies from the next session",
+    plgUninstallTip: "claude plugin uninstall — removes it from the cache entirely. To just switch it off, use the toggle",
+    catDetailsTip: "See what gets installed",
+    catInstalls: "installs", catInstallsTip: "Cumulative installs from the Claude Code catalog",
+    catFrom: "from", catAuthor: "Author", catUpdated: "Last updated",
+    catWillInstall: "Will install",
+    catInstallsNothing: "No components declared",
+    catNoInventory: "No pre-built inventory for this marketplace — what it contains is known only after fetching",
+    catTokensTip: "always-on is the context cost carried every session; on-invoke applies only when actually called",
+    catTrustWarn: "Make sure you trust this plugin before installing. Neither Anthropic nor config-monitor controls or verifies the MCP servers, files, or code a plugin ships.",
+    catHomepage: "Open homepage ↗",
+    catScopeUser: "Install for you", catScopeProject: "For everyone on this repo", catScopeLocal: "This repo, you only",
+    catScopeUserTip: "user scope — ~/.claude/settings.json",
+    catScopeProjectTip: "project scope — the selected project's .claude/settings.json (committed, shared with the team)",
+    catScopeLocalTip: "local scope — that repo, for you only",
+    catScopeNoProject: "No tracked project — add one to tracking first",
+    mkOfficialPreset: "＋ Official marketplace (anthropics/claude-plugins-official)",
+    mkExport: "Add to CC", mkExportTip: "Also register this marketplace in Claude Code (claude plugin marketplace add). The two caches stay separate",
+    mkCcUpdate: "Update in CC", mkCcUpdateTip: "Refreshes the marketplace manifest on the Claude Code side — installed plugin versions are untouched",
+    mkCcRemove: "Remove from CC", mkCcRemoveTip: "Removes this marketplace registration from Claude Code (all scopes). The config-monitor store is untouched",
     plgStaleTip: "Key left over in enabledPlugins — no install record",
     plgMissingTip: "Install path is gone — cache was pruned or deleted manually",
   },
@@ -357,6 +399,24 @@ const collapsed = new Set<string>(["Library", "Marketplace"]);   // 접힌 섹�
 //              저쪽에 마켓을 등록해야 하므로 버튼을 비활성화하고 이유를 표시한다.
 const ccPlugins = new Set<string>();
 const ccMarkets = new Set<string>();
+// Claude Code 가 미리 계산해 캐시해 둔 인벤토리 {id: {installs, components:{kind:n}, total}}.
+// 이게 있으면 **fetch 하기 전에** "무엇이 설치되는지"를 말할 수 있다. 공식 마켓 전용이라
+// 없는 행도 정상이다 - 그 경우 개수를 숨긴다(0 이라고 말하지 않는다. 모르는 것이다).
+let ccCatalog: Record<string, any> = {};
+// 추적 중인 프로젝트 경로. claude 는 scope=project/local 을 **cwd 로** 정하므로 설치 대상을
+// 고르려면 이 목록이 필요하다(스코프 칩과 같은 원천 - renderConfig 이 채운다).
+let knownProjects: string[] = [];
+// config-monitor 스토어에 등록된 마켓 URL(정규화). 공식 마켓 프리셋을 이미 등록된 상태에서
+// 다시 권하지 않기 위해서만 쓴다.
+const cmMarketUrls = new Set<string>();
+// Claude Code 가 기본 내장하는 마켓. 처음 쓰는 사람에게 카탈로그가 텅 빈 채로 보이지 않도록
+// 원클릭 프리셋으로 제공한다. 자동 등록은 하지 않는다 - 등록은 네트워크를 타는 행위이고,
+// "요청하지 않으면 아무것도 받지 않는다"가 이 제품의 계약이다.
+const OFFICIAL_MARKET_URL = "https://github.com/anthropics/claude-plugins-official.git";
+const normUrl = (u: string): string => {
+  const s = String(u || "").trim().replace(/\/+$/, "").toLowerCase();
+  return s.endsWith(".git") ? s.slice(0, -4) : s;
+};
 const secTitles = new Set<string>();         // 접기 가능한 섹션 title (전부 접기 대상)
 let collapsedInit = false;                    // 기본 접힘 1회만 적용
 const libGroupOpen = new Set<string>();      // 펼친 라이브러리 스킬 그룹 경로(기본 접힘)
@@ -565,6 +625,8 @@ function renderConfig(sections: any[]): void {
     // 판정하는 데 쓴다.
     if (c.plugin) ccPlugins.add(c.plugin);
   }
+  // 플러그인 상세의 project/local 설치가 cwd 로 쓸 후보. 스코프 칩과 같은 원천이다.
+  knownProjects = projects;
   if (scopeFilter !== "all" && scopeFilter !== "global" && !projSeen.has(scopeFilter)) scopeFilter = "all";
   if (projects.length) w.appendChild(buildScopeChips(projects));
   // 표시 순서만 이름 A-Z(원본 배열은 그대로 - lastConfigSections 캐시를 건드리지 않는다).
@@ -863,10 +925,65 @@ function buildPluginToggleUI(edit: any): HTMLElement {
       await refresh();
     } catch (e) { clearPending(btn, t("failed")); console.error("[config-monitor] plugin toggle", e); }
   });
+  wrap.appendChild(btn);
+  // 갱신/제거는 claude CLI 위임이라 저쪽에 설치된 플러그인에만 붙는다. stale(설정에만 남은
+  // 키)/missing(캐시가 사라짐)에는 edit 자체가 없으므로 여기 도달하지 않는다.
+  const [plugin, market] = splitPluginId(edit.id);
+  if (market) {
+    wrap.appendChild(mkPluginCliBtn(t("plgUpdate"), t("plgUpdateTip"), "claude_plugin_update",
+      { marketplace: market, plugin }, false));
+    wrap.appendChild(mkPluginCliBtn(t("plgUninstall"), t("plgUninstallTip"), "claude_plugin_uninstall",
+      { marketplace: market, plugin }, true));
+  }
   const note = document.createElement("span");
   note.className = "plgnote";
   note.textContent = t("plgRestart");
-  wrap.append(btn, note);
+  wrap.appendChild(note);
+  return wrap;
+}
+
+// 'notion@claude-plugins-official' -> ['notion', 'claude-plugins-official'].
+// 마지막 '@' 로 자른다 - 마켓 이름 쪽에 '@' 가 들어가는 게 플러그인 이름보다 흔하다.
+function splitPluginId(id: string): [string, string] {
+  const i = String(id || "").lastIndexOf("@");
+  return i < 0 ? [String(id || ""), ""] : [id.slice(0, i), id.slice(i + 1)];
+}
+
+// claude CLI 위임 버튼 하나. destructive 면 인라인 확인을 한 번 받는다(제거는 되돌릴 수 없다 -
+// 토글과 달리 같은 버튼으로 원상복구되지 않는다).
+function mkPluginCliBtn(label: string, tip: string, tool: string, args: any,
+                        destructive: boolean): HTMLElement {
+  const btn = document.createElement("button");
+  btn.className = destructive ? "cx" : "addbtn";
+  btn.textContent = label;
+  btn.title = tip;
+  const go = async (target: HTMLButtonElement) => {
+    setPending(target);
+    try {
+      const rr = jparse(await callTool(tool, args));
+      if (rr && rr.ok === false) { clearPending(target, t("failed")); flashToast(rr.message || t("failed")); return; }
+      flashToast(rr?.message || t("done"));
+      await refresh();
+    } catch (e) { clearPending(target, t("failed")); console.error("[config-monitor] " + tool, e); }
+  };
+  if (!destructive) {
+    btn.addEventListener("click", () => go(btn));
+    return btn;
+  }
+  const wrap = document.createElement("span");
+  wrap.className = "inlineconfirm";
+  btn.addEventListener("click", () => {
+    const ok = document.createElement("button");
+    ok.className = "ok";
+    ok.textContent = t("delConfirm");
+    const no = document.createElement("button");
+    no.className = "no";
+    no.textContent = t("cancel");
+    wrap.replaceChildren(ok, no);
+    no.addEventListener("click", () => wrap.replaceChildren(btn));
+    ok.addEventListener("click", () => go(ok));
+  });
+  wrap.appendChild(btn);
   return wrap;
 }
 
@@ -1542,6 +1659,12 @@ async function buildCatalog(): Promise<HTMLElement> {
       for (const m of [...(d.both || []), ...(d.new || [])]) if (m.name) ccMarkets.add(m.name);
     }
   } catch (e) { console.error("[config-monitor] market discover", e); }
+  try {
+    const s = jparse(await callTool("plugin_catalog_summary", {}));
+    if (s && s.ok !== false) ccCatalog = s.entries || {};
+  } catch (e) { console.error("[config-monitor] catalog summary", e); }
+  cmMarketUrls.clear();
+  for (const m of (res.marketplaces || [])) if (m.url) cmMarketUrls.add(normUrl(m.url));
   // 등록된 마켓이 없으면 접힌 채로 두지 않는다: "마켓 등록"은 이 섹션 본문 안에만 있어서,
   // 기본 접힘(기동 시 전 섹션 접힘)과 겹치면 처음 쓰는 사람에게 진입점이 아예 안 보인다.
   if (!(res.marketplaces || []).length) collapsed.delete(CAT_SEC);
@@ -1647,6 +1770,7 @@ function mkMarketGroup(m: any): HTMLElement {
     `<span class="seccount" title="${esc(catFilterTip())}">` +
     `${esc(countLabel(m.total, m.total_all))}</span>` +
     `<span class="murl">${esc(m.url || t("catNoUrl"))}</span>`;
+  head.appendChild(mkMarketCcActions(m));
   const gbody = document.createElement("div");
   gbody.className = "catgrpbody";
   head.addEventListener("click", () => {
@@ -1658,6 +1782,63 @@ function mkMarketGroup(m: any): HTMLElement {
   if (catOpen.has(m.id)) fillMarketBody(gbody, m);
   grp.append(head, gbody);
   return grp;
+}
+
+// 마켓 헤더의 Claude Code 쪽 액션. 이 섹션이 나열하는 건 **config-monitor 스토어**의 마켓이고,
+// 같은 레포가 Claude Code 에도 등록돼 있을 수 있다(ccMarkets). 두 등록은 캐시를 각자 유지하는
+// 별개의 것이라 합치지 않고, 어느 쪽 조작인지 라벨로 못 박은 뒤 나란히 둔다.
+//   저쪽에 없으면  -> 등록(export)
+//   저쪽에 있으면  -> 갱신 / 해제
+// auto-update 는 없다: TUI 에만 있고 CLI 서브커맨드도 저장 흔적도 없어 키를 추측해야 한다.
+function mkMarketCcActions(m: any): HTMLElement {
+  const wrap = document.createElement("span");
+  wrap.className = "mkacts";
+  const name = m.name || m.id;
+  const stop = (b: HTMLElement) =>
+    b.addEventListener("click", (e) => e.stopPropagation());   // 헤더 클릭 = 접기/펼치기
+  const call = async (btn: HTMLButtonElement, tool: string, args: any) => {
+    setPending(btn);
+    try {
+      const rr = jparse(await callTool(tool, args));
+      if (rr && rr.ok === false) { clearPending(btn, t("failed")); flashToast(rr.message || t("failed")); return; }
+      flashToast(rr?.message || t("done"));
+      await reloadCatalog();
+    } catch (e) { clearPending(btn, t("failed")); console.error("[config-monitor] " + tool, e); }
+  };
+  const mk = (label: string, tip: string, cls: string, onClick: (b: HTMLButtonElement) => void) => {
+    const b = document.createElement("button");
+    b.className = cls;
+    b.textContent = label;
+    b.title = tip;
+    stop(b);
+    b.addEventListener("click", () => onClick(b));
+    wrap.appendChild(b);
+    return b;
+  };
+  if (!ccMarkets.has(name)) {
+    if (m.url) {
+      mk(t("mkExport"), t("mkExportTip"), "addbtn",
+        (b) => call(b, "claude_marketplace_add", { source: m.url, scope: "user" }));
+    }
+    return wrap;
+  }
+  mk(t("mkCcUpdate"), t("mkCcUpdateTip"), "addbtn",
+    (b) => call(b, "claude_marketplace_update", { name }));
+  // 해제는 되돌리려면 다시 fetch 해야 하므로 확인을 한 번 받는다.
+  mk(t("mkCcRemove"), t("mkCcRemoveTip"), "cx", () => {
+    const restore = [...wrap.children];      // 확인 UI 로 갈아끼우기 전의 버튼들
+    const ok = document.createElement("button");
+    ok.className = "ok";
+    ok.textContent = t("delConfirm");
+    const no = document.createElement("button");
+    no.className = "no";
+    no.textContent = t("cancel");
+    stop(ok); stop(no);
+    wrap.replaceChildren(ok, no);
+    no.addEventListener("click", () => wrap.replaceChildren(...restore));
+    ok.addEventListener("click", () => call(ok, "claude_marketplace_remove", { name }));
+  });
+  return wrap;
 }
 
 // 한 마켓의 현재 페이지만 받아 그 본문만 갈아끼운다 - 섹션 전체를 다시 그리지 않으므로
@@ -1722,7 +1903,17 @@ function mkPager(total: number, offset: number, go: (offset: number) => void): H
 // "왜 안 되는지"를 입력칸 바로 아래에서 알려줄 수 있다.
 const GIT_URL_RE = /^(https?|ssh|git|file):\/\/\S+$/i;
 const SCP_URL_RE = /^[A-Za-z0-9_.~-]+@[A-Za-z0-9_.-]+:[A-Za-z0-9_./~-]\S*$/;
-const looksLikeGitUrl = (u: string): boolean => GIT_URL_RE.test(u) || SCP_URL_RE.test(u);
+// owner/repo 축약: 슬래시 정확히 1개, 스킴도 콜론도 없음. '..' 은 세그먼트 문자 클래스에
+// 걸리므로 따로 막는다(경로 이탈이 축약으로 위장하는 유일한 통로다).
+const SHORTHAND_RE = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+// 로컬 경로: ./ ../ / ~/ 또는 Windows 드라이브(C:\ · C:/).
+const LOCAL_PATH_RE = /^(\.\.?[\\/]|[\\/]|~[\\/]|[A-Za-z]:[\\/])/;
+// **넓히는 방향으로만 틀려야 한다.** 서버가 최종 판정자이므로 여기서 통과시킨 뒤 거부되면
+// 사용자는 이유가 담긴 메시지를 본다. 반대로 여기서 막으면 백엔드가 받아들이는 형식이
+// 화면에서 아예 닿지 않는다 - 그게 더 나쁜 실패다.
+const looksLikeMarketSource = (u: string): boolean =>
+  GIT_URL_RE.test(u) || SCP_URL_RE.test(u) || LOCAL_PATH_RE.test(u) ||
+  (SHORTHAND_RE.test(u) && !u.includes(".."));
 
 function openMarketAdd(url: string): void {
   openModal(t("catMarketAdd"), (body, close) => {
@@ -1739,7 +1930,7 @@ function openMarketAdd(url: string): void {
     const submit = () => {
       const v = input.value.trim();
       if (!v) return;
-      if (!looksLikeGitUrl(v)) {
+      if (!looksLikeMarketSource(v)) {
         err.textContent = t("catBadUrl");
         err.hidden = false;
         input.focus();
@@ -1771,6 +1962,16 @@ function openMarketAdd(url: string): void {
 // both = 양쪽에 등록된 것. 두 도구가 같은 레포를 각자 캐시에 다른 시점으로 들고 있으므로
 // 그 어긋남을 감추지 않고 sha / 갱신 시각을 나란히 적는다.
 function renderDiscover(host: HTMLElement, r: any, pick: (u: string) => void): void {
+  // 공식 마켓은 처음 쓰는 사람에게 유일한 진입점이라 목록보다 위에 프리셋으로 올린다.
+  // 이미 스토어에 있으면 권하지 않는다.
+  if (!cmMarketUrls.has(normUrl(OFFICIAL_MARKET_URL))) {
+    const b = document.createElement("button");
+    b.className = "chip pick";
+    b.textContent = t("mkOfficialPreset");
+    b.title = OFFICIAL_MARKET_URL;
+    b.addEventListener("click", () => pick(OFFICIAL_MARKET_URL));
+    host.appendChild(b);
+  }
   const news: any[] = r.new || [], both: any[] = r.both || [];
   if (!news.length && !both.length) return;
   const h = document.createElement("div");
@@ -1844,14 +2045,34 @@ function openMarketWarn(url: string): void {
 function mkCatalogRow(row: any): HTMLElement {
   const r = document.createElement("div");
   r.className = "libskill";
-  const nm = document.createElement("span");
-  nm.className = "sknm";
+  const nm = document.createElement("button");
+  nm.className = "sknm asname";
   nm.textContent = row.display || row.name;
-  nm.title = row.description || "";
+  nm.title = t("catDetailsTip");
+  nm.addEventListener("click", () => openPluginDetails(row));
   const kind = document.createElement("span");
   kind.className = "badge";
   kind.textContent = row.category || row.kind;
   r.append(nm, kind);
+  // 인벤토리가 있으면 여기서 이미 "무엇이 들어오는지"를 말할 수 있다(fetch 전에).
+  // 없으면 아무것도 그리지 않는다 - 0 개라고 말하는 것과 모른다는 건 다르다.
+  const inv = ccCatalog[`${row.name}@${row.market_name || row.marketplace}`];
+  if (inv) {
+    if (inv.total) {
+      const c = document.createElement("span");
+      c.className = "badge";
+      c.textContent = String(inv.total);
+      c.title = Object.entries(inv.components || {}).map(([k, v]) => `${k} ${v}`).join(" · ");
+      r.appendChild(c);
+    }
+    if (inv.installs) {
+      const i = document.createElement("span");
+      i.className = "cinstalls";
+      i.textContent = fmtInstalls(inv.installs);
+      i.title = t("catInstallsTip");
+      r.appendChild(i);
+    }
+  }
   if (row.fetched) {
     const done = document.createElement("span");
     done.className = "badge ok";
@@ -1912,17 +2133,161 @@ function mkActivateBtn(row: any): HTMLElement {
     return b;
   }
   b.title = t("catActivateTip");
-  b.addEventListener("click", async () => {
-    setPending(b);
-    try {
-      const rr = jparse(await callTool("claude_plugin_install",
-        { marketplace: market, plugin: row.name, scope: "user" }));
-      if (rr && rr.ok === false) { flashToast(rr.message || t("failed")); clearPending(b, t("catActivate")); return; }
-      flashToast(`${rr?.message || t("done")} · ${pid}`);
-      await refresh();
-    } catch (e) { flashToast(t("failed")); clearPending(b, t("failed")); console.error("[config-monitor] plugin install", e); }
-  });
+  b.addEventListener("click", () => openPluginDetails(row));
   return b;
+}
+
+// 404331 -> "404.3K". CLI 의 Discover 표기와 같은 자릿수로 맞춘다.
+function fmtInstalls(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
+}
+
+// 설치 **전에** 무엇이 들어오는지 보여주는 상세 화면. CLI 의 "Plugin details" 와 같은 내용을
+// 같은 출처(~/.claude/plugins/plugin-catalog-cache.json)에서 읽는다 - fetch 도 네트워크도 없다.
+// 인벤토리가 없는 마켓(공식 외)에서는 그 사실을 적고 설치 버튼은 그대로 둔다.
+function openPluginDetails(row: any): void {
+  const market = row.market_name || row.marketplace;
+  const id = `${row.name}@${market}`;
+  openModal(row.display || row.name, (body, close) => {
+    const meta = document.createElement("div");
+    meta.className = "modaltext";
+    meta.textContent = `${t("catFrom")} ${market}`;
+    const desc = document.createElement("div");
+    desc.className = "modaltext";
+    desc.textContent = row.description || "";
+    const inv = document.createElement("div");
+    inv.className = "modaldisc";
+    inv.textContent = t("loading");
+    // 신뢰 경고는 인벤토리 유무와 무관하게 항상 붙인다 - 플러그인은 임의 코드를 들여온다.
+    const warn = document.createElement("div");
+    warn.className = "modalwarn";
+    warn.innerHTML = `<span class="ico">⚠</span><span>${esc(t("catTrustWarn"))}</span>`;
+    body.append(meta, desc, inv, warn, mkInstallScopes(row, market, close));
+    void (async () => {
+      let d: any = null;
+      try {
+        const r = jparse(await callTool("plugin_catalog_details", { id }));
+        if (r && r.ok !== false) d = r;
+      } catch (e) { console.error("[config-monitor] plugin details", e); }
+      renderInventory(inv, d, row);
+    })();
+  });
+}
+
+function renderInventory(host: HTMLElement, d: any, row: any): void {
+  host.replaceChildren();
+  const line = (cls: string, text: string, tip?: string) => {
+    const el = document.createElement("div");
+    el.className = cls;
+    el.textContent = text;
+    if (tip) el.title = tip;
+    host.appendChild(el);
+    return el;
+  };
+  if (!d) {
+    // 공식 마켓 캐시에 없는 플러그인이다. "0개"가 아니라 "모른다"고 말한다.
+    line("modalnote", t("catNoInventory"));
+    if (row.homepage) mkHomepageLink(host, row.homepage);
+    return;
+  }
+  if (d.author) line("modalnote", `${t("catAuthor")}: ${d.author}`);
+  if (d.last_updated) line("modalnote", `${t("catUpdated")}: ${String(d.last_updated).slice(0, 10)}`);
+  if (d.installs) line("modalnote", `${fmtInstalls(d.installs)} ${t("catInstalls")}`);
+  const h = document.createElement("div");
+  h.className = "modaltext";
+  h.textContent = t("catWillInstall");
+  host.appendChild(h);
+  const counts = d.counts || {};
+  if (!Object.keys(counts).length) line("modalnote", t("catInstallsNothing"));
+  for (const [kindName, names] of Object.entries(d.components || {})) {
+    const list = (names as any[]) || [];
+    if (!list.length) continue;
+    line("modalnote", `${kindName}: ${list.join(", ")}`);
+  }
+  // 토큰 비용: always_on 은 매 세션 상시 비용이라 on_invoke 보다 훨씬 중요하다. 먼저 적는다.
+  for (const [model, tk] of Object.entries(d.tokens || {})) {
+    const v: any = tk;
+    line("modalnote", `${model}: always-on ${v.always_on ?? "-"} · on-invoke ${v.on_invoke ?? "-"} tok`,
+      t("catTokensTip"));
+  }
+  if (d.homepage || row.homepage) mkHomepageLink(host, d.homepage || row.homepage);
+}
+
+function mkHomepageLink(host: HTMLElement, url: string): void {
+  const a = document.createElement("a");
+  a.className = "modallink";
+  a.href = url;
+  a.target = "_blank";
+  a.rel = "noreferrer noopener";
+  a.textContent = t("catHomepage");
+  host.appendChild(a);
+}
+
+// 설치 스코프 3종. project/local 은 claude 가 **cwd 로** 프로젝트를 정하므로 추적 중인
+// 프로젝트를 골라 그 경로를 cwd 로 넘긴다. 추적 중인 프로젝트가 없으면 고를 대상이 없으므로
+// 두 버튼을 비활성화하고 이유를 말한다(눌러서 엉뚱한 디렉토리에 설치되게 두지 않는다).
+function mkInstallScopes(row: any, market: string, close: () => void): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "modalscopes";
+  // 이미 저쪽에 설치돼 있으면 설치 버튼을 다시 주지 않는다 - 켜고 끄는 건 Plugins 섹션이다.
+  if (ccPlugins.has(`${row.name}@${market}`)) {
+    const n = document.createElement("div");
+    n.className = "modalnote";
+    n.textContent = t("catActivatedTip");
+    wrap.appendChild(n);
+    return wrap;
+  }
+  // 마켓이 Claude Code 에 없으면 install 이 해석되지 않는다. 눌러서 실패하게 두지 않는다.
+  if (!ccMarkets.has(market)) {
+    const n = document.createElement("div");
+    n.className = "modalnote";
+    n.textContent = t("catActivateNoMarket");
+    wrap.appendChild(n);
+    return wrap;
+  }
+  const sel = document.createElement("select");
+  sel.className = "catsel";
+  for (const p of knownProjects) {
+    const o = document.createElement("option");
+    o.value = p;
+    o.textContent = p;
+    sel.appendChild(o);
+  }
+  const run = async (btn: HTMLButtonElement, scope: string) => {
+    setPending(btn);
+    try {
+      const rr = jparse(await callTool("claude_plugin_install", {
+        marketplace: market, plugin: row.name, scope,
+        ...(scope === "user" ? {} : { cwd: sel.value }),
+      }));
+      if (rr && rr.ok === false) { flashToast(rr.message || t("failed")); clearPending(btn, scope); return; }
+      close();
+      flashToast(`${rr?.message || t("done")} · ${row.name}@${market}`);
+      await refresh();
+      await reloadCatalog();
+    } catch (e) { clearPending(btn, scope); flashToast(t("failed")); console.error("[config-monitor] install scope", e); }
+  };
+  for (const [scope, label, tip] of [
+    ["user", t("catScopeUser"), t("catScopeUserTip")],
+    ["project", t("catScopeProject"), t("catScopeProjectTip")],
+    ["local", t("catScopeLocal"), t("catScopeLocalTip")],
+  ] as [string, string, string][]) {
+    const b = document.createElement("button");
+    b.className = "addbtn";
+    b.textContent = label;
+    b.title = tip;
+    if (scope !== "user" && !knownProjects.length) {
+      b.disabled = true;
+      b.title = t("catScopeNoProject");
+    } else {
+      b.addEventListener("click", () => run(b, scope));
+    }
+    wrap.appendChild(b);
+  }
+  if (knownProjects.length) wrap.appendChild(sel);
+  return wrap;
 }
 
 // ----- detail panel: history + diff -----

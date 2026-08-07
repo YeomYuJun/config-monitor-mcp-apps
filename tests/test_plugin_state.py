@@ -326,12 +326,40 @@ class ClaudeCliDelegation(unittest.TestCase):
         _, r = self.call("install", "--marketplace", "official", "--plugin", "notion",
                          "--scope", "project", "--dry-run")
         self.assertTrue(r["ok"])
-        self.assertEqual(r["id"], "notion@official")
+        self.assertEqual(r["target"], "notion@official")
         self.assertEqual(r["command"][1:], ["plugin", "install", "notion@official", "--scope", "project"])
 
-    def test_uninstall_takes_no_scope(self):
+    def test_uninstall_always_passes_yes(self):
+        # 비-TTY 로 부르므로 확인 프롬프트가 뜨면 응답할 수 없어 타임아웃까지 매달린다.
         _, r = self.call("uninstall", "--marketplace", "m", "--plugin", "p", "--dry-run")
-        self.assertEqual(r["command"][1:], ["plugin", "uninstall", "p@m"])
+        self.assertEqual(r["command"][1:],
+                         ["plugin", "uninstall", "p@m", "--scope", "user", "-y"])
+
+    def test_update_accepts_managed_scope(self):
+        # managed 는 update 만 받는다(claude plugin update --help 실측).
+        _, r = self.call("update", "--marketplace", "m", "--plugin", "p",
+                         "--scope", "managed", "--dry-run")
+        self.assertEqual(r["command"][1:], ["plugin", "update", "p@m", "--scope", "managed"])
+        rc, _, _ = run(self.CLI, "install", "--marketplace", "m", "--plugin", "p",
+                       "--scope", "managed", "--dry-run")
+        self.assertNotEqual(rc, 0)          # install 은 managed 를 받지 않는다
+
+    def test_market_ops_build_expected_argv(self):
+        _, r = self.call("market-add", "owner/repo", "--scope", "project", "--dry-run")
+        self.assertEqual(r["command"][1:],
+                         ["plugin", "marketplace", "add", "owner/repo", "--scope", "project"])
+        _, r = self.call("market-update", "--dry-run")
+        self.assertEqual(r["command"][1:], ["plugin", "marketplace", "update"])
+        _, r = self.call("market-remove", "--name", "m", "--dry-run")
+        # scope 생략 = 모든 스코프에서 제거(claude 기본). 임의로 user 를 끼워 넣지 않는다.
+        self.assertEqual(r["command"][1:], ["plugin", "marketplace", "remove", "m"])
+
+    def test_market_source_only_guards_option_injection(self):
+        # 소스는 owner/repo · URL · 로컬 경로 중 무엇이든 될 수 있어 세그먼트 검증을 못 한다.
+        _, r = self.call("market-add", "./some/local/path", "--dry-run")
+        self.assertTrue(r["ok"])
+        rc, r = self.call("market-add", "--dry-run", "--", "-upload-pack=evil")
+        self.assertFalse(r["ok"])
 
     def test_option_like_name_is_refused(self):
         # 리스트 인자라 셸 주입은 없지만, claude CLI 자신이 옵션으로 오인한다.
@@ -355,7 +383,7 @@ class ClaudeCliDelegation(unittest.TestCase):
                           env={"PATH": os.path.join(SRC, "no-such-dir")})
         self.assertFalse(r["ok"])
         self.assertIn("claude", r["message"])
-        self.assertEqual(r["id"], "p@m")            # 무엇을 하려 했는지는 그대로 보고한다
+        self.assertEqual(r["target"], "p@m")        # 무엇을 하려 했는지는 그대로 보고한다
 
     def test_dry_run_works_without_claude_and_says_so(self):
         _, r = self.call("install", "--marketplace", "m", "--plugin", "p", "--dry-run",

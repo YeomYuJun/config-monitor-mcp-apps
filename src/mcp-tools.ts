@@ -578,17 +578,123 @@ export function buildTools(scriptDir: string): ToolDef[] {
       name: "claude_plugin_uninstall",
       meta: {
         title: "Uninstall Plugin from Claude Code",
-        description: "`claude plugin uninstall <plugin>@<market>` 위임. Library 로 설치한 **항목**은 건드리지 않는다(모델이 다르다 — 그쪽은 library_uninstall). 끄기만 하려면 지우지 말고 config_plugin_toggle 을 쓸 것",
+        description: "`claude plugin uninstall <plugin>@<market> --scope -y` 위임. Library 로 설치한 **항목**은 건드리지 않는다(모델이 다르다 — 그쪽은 library_uninstall). **끄기만 하려면 지우지 말고 config_plugin_toggle 을 쓸 것.** keepData 는 ~/.claude/plugins/data/<id>/ 를 남긴다",
         inputSchema: z.object({
           marketplace: z.string(), plugin: z.string(),
+          scope: z.enum(["user", "project", "local"]).optional(),
+          keepData: z.boolean().optional(),
           cwd: z.string().optional(), dryRun: z.boolean().optional(),
         }), annotations: EDIT,
       },
-      run: async (a: { marketplace: string; plugin: string; cwd?: string; dryRun?: boolean }) => {
-        const args = ["uninstall", "--marketplace", a.marketplace, "--plugin", a.plugin];
+      run: async (a: { marketplace: string; plugin: string; scope?: string; keepData?: boolean; cwd?: string; dryRun?: boolean }) => {
+        const args = ["uninstall", "--marketplace", a.marketplace, "--plugin", a.plugin,
+          "--scope", a.scope || "user"];
+        if (a.keepData) args.push("--keep-data");
         if (a.cwd) args.push("--cwd", a.cwd);
         if (a.dryRun) args.push("--dry-run");
         return jsonResult(await runPy("plugin_cli.py", args));
+      },
+    },
+    {
+      name: "claude_plugin_update",
+      meta: {
+        title: "Update Claude Code Plugin",
+        description: "`claude plugin update <plugin>@<market> --scope` 위임. **네트워크를 탄다**. 적용은 다음 세션부터. scope 는 update 만 managed 를 추가로 받는다. Library 로 가져온 플러그인의 갱신은 이것과 무관하다 — 그쪽은 library_fetch(고정 sha 갱신 + 설치 전 diff)",
+        inputSchema: z.object({
+          marketplace: z.string(), plugin: z.string(),
+          scope: z.enum(["user", "project", "local", "managed"]).optional(),
+          cwd: z.string().optional(), dryRun: z.boolean().optional(),
+        }), annotations: EDIT,
+      },
+      run: async (a: { marketplace: string; plugin: string; scope?: string; cwd?: string; dryRun?: boolean }) => {
+        const args = ["update", "--marketplace", a.marketplace, "--plugin", a.plugin,
+          "--scope", a.scope || "user"];
+        if (a.cwd) args.push("--cwd", a.cwd);
+        if (a.dryRun) args.push("--dry-run");
+        return jsonResult(await runPy("plugin_cli.py", args));
+      },
+    },
+    {
+      name: "claude_marketplace_add",
+      meta: {
+        title: "Register Marketplace in Claude Code",
+        description: "`claude plugin marketplace add <source> --scope` 위임 — 대시보드에서 등록한 마켓을 Claude Code 쪽에도 올린다(export). source 는 owner/repo · git URL · marketplace.json URL · 로컬 경로 4형식. **scope=project 는 프로젝트 .claude/settings.json 에 선언이 들어가 팀에 공유된다** — cwd 로 그 프로젝트를 지정할 것. config-monitor 자기 스토어에 등록하는 건 library_marketplace_add 로, 별개다(캐시를 각자 유지한다)",
+        inputSchema: z.object({
+          source: z.string(),
+          scope: z.enum(["user", "project", "local"]).optional(),
+          sparse: z.array(z.string()).optional().describe("모노레포에서 체크아웃할 디렉토리"),
+          cwd: z.string().optional(), dryRun: z.boolean().optional(),
+        }), annotations: EDIT,
+      },
+      run: async (a: { source: string; scope?: string; sparse?: string[]; cwd?: string; dryRun?: boolean }) => {
+        const args = ["market-add", a.source, "--scope", a.scope || "user"];
+        if (a.sparse && a.sparse.length) args.push("--sparse", ...a.sparse);
+        if (a.cwd) args.push("--cwd", a.cwd);
+        if (a.dryRun) args.push("--dry-run");
+        return jsonResult(await runPy("plugin_cli.py", args));
+      },
+    },
+    {
+      name: "claude_marketplace_update",
+      meta: {
+        title: "Update Claude Code Marketplace",
+        description: "`claude plugin marketplace update [name]` 위임. name 을 생략하면 **등록된 마켓 전체**를 갱신한다. **네트워크를 탄다**. 매니페스트만 갱신하며 설치된 플러그인 버전은 그대로다(그건 claude_plugin_update)",
+        inputSchema: z.object({
+          name: z.string().optional().describe("생략하면 전체"),
+          cwd: z.string().optional(), dryRun: z.boolean().optional(),
+        }), annotations: EDIT,
+      },
+      run: async (a: { name?: string; cwd?: string; dryRun?: boolean }) => {
+        const args = ["market-update"];
+        if (a.name) args.push("--name", a.name);
+        if (a.cwd) args.push("--cwd", a.cwd);
+        if (a.dryRun) args.push("--dry-run");
+        return jsonResult(await runPy("plugin_cli.py", args));
+      },
+    },
+    {
+      name: "claude_marketplace_remove",
+      meta: {
+        title: "Remove Claude Code Marketplace",
+        description: "`claude plugin marketplace remove <name>` 위임. **scope 를 생략하면 모든 스코프의 선언을 지운다**(claude 기본). 그 마켓에서 설치한 플러그인이 남아 있으면 claude 가 거절하거나 경고할 수 있으니 stderr 를 그대로 보고할 것. config-monitor 스토어의 마켓 해제는 library_unregister 로, 별개다",
+        inputSchema: z.object({
+          name: z.string(),
+          scope: z.enum(["user", "project", "local"]).optional().describe("생략하면 모든 스코프"),
+          cwd: z.string().optional(), dryRun: z.boolean().optional(),
+        }), annotations: EDIT,
+      },
+      run: async (a: { name: string; scope?: string; cwd?: string; dryRun?: boolean }) => {
+        const args = ["market-remove", "--name", a.name];
+        if (a.scope) args.push("--scope", a.scope);
+        if (a.cwd) args.push("--cwd", a.cwd);
+        if (a.dryRun) args.push("--dry-run");
+        return jsonResult(await runPy("plugin_cli.py", args));
+      },
+    },
+    {
+      name: "plugin_catalog_details",
+      meta: {
+        title: "Plugin Inventory and Token Cost",
+        description: "설치 **전에** 그 플러그인이 무엇을 넣는지와 토큰 비용을 돌려준다 — components(commands/agents/skills/hooks/mcpServers/lspServers 이름), unique_installs, tokens(모델별 always_on / on_invoke), homepage, last_updated. Claude Code 가 캐시해 둔 ~/.claude/plugins/plugin-catalog-cache.json 을 읽을 뿐이라 **네트워크도 fetch 도 타지 않는다.** 다만 그 캐시는 **공식 마켓 전용**이라 다른 마켓 플러그인은 조회되지 않는다(오류가 아니다 — 그 경우 fetch 해야 개수를 알 수 있다). id 형식: <plugin>@<marketplace>",
+        inputSchema: z.object({ id: z.string(), cache: z.string().optional() }), annotations: READ,
+      },
+      run: async (a: { id: string; cache?: string }) => {
+        const args = ["details", a.id];
+        if (a.cache) args.push("--cache", a.cache);
+        return jsonResult(await runPy("plugin_catalog.py", args));
+      },
+    },
+    {
+      name: "plugin_catalog_summary",
+      meta: {
+        title: "Plugin Inventory Summary",
+        description: "카탈로그 행을 채우기 위한 경량 맵 — {id: {installs, components: {kind: 개수}, total}}. 컴포넌트 **이름은 담지 않는다**(255개 전부는 크다) — 이름이 필요하면 plugin_catalog_details. 공식 마켓 전용이며 네트워크를 타지 않는다",
+        inputSchema: z.object({ cache: z.string().optional() }), annotations: READ,
+      },
+      run: async (a: { cache?: string }) => {
+        const args = ["summary"];
+        if (a.cache) args.push("--cache", a.cache);
+        return jsonResult(await runPy("plugin_catalog.py", args));
       },
     },
     {

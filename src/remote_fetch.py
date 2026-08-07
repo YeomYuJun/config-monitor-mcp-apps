@@ -8,7 +8,7 @@ scan 경로에서는 import 만 하고 호출하지 않는다.
 매핑이 0 이다. 매핑이 필요한 건 my-tools 처럼 Agents/Skills 인 임의 레포뿐이다.
 """
 from __future__ import annotations
-import os, re, shutil, subprocess
+import hashlib, http.client, json, os, re, shutil, subprocess, urllib.error, urllib.request
 
 CATEGORY_NAMES = ("agents", "skills", "commands")
 SKILL_MARKER = "skill.md"          # 비교는 항상 casefold 후
@@ -84,7 +84,12 @@ def detect_layout(root: str) -> dict:
 GIT_BASE = ["git", "-c", "core.autocrlf=false", "-c", "core.longpaths=true"]
 
 
-class GitError(Exception):
+class FetchError(Exception):
+    """원격 물질화 실패의 공통 조상. git 이 아닌 경로(JSON 매니페스트 직접 다운로드)의
+    실패가 git 이야기를 하는 메시지로 나가면 안 되므로 계열을 나눈다."""
+
+
+class GitError(FetchError):
     pass
 
 
@@ -189,3 +194,80 @@ def materialize(dest: str, url: str, ref=None, sha=None, sparse=None) -> str:
         if fresh:
             shutil.rmtree(dest, ignore_errors=True)
         raise
+
+
+# ── marketplace.json 직접 다운로드 ──────────────────────────────────────────
+# git 레포가 아닌 마켓(Claude Code 가 받는 4형식 중 하나)은 매니페스트 파일 하나가 전부다.
+# 표준 라이브러리만 쓴다(의존성 추가 금지). git 경로와 캐시 레이아웃을 맞춰
+# <dest>/.claude-plugin/marketplace.json 에 두면 카탈로그/unregister 가 그대로 동작한다.
+
+MANIFEST_MAX_BYTES = 5 * 1024 * 1024   # 무한 스트림에 디스크를 내주지 않는다. 실측 최대 매니페스트 401K
+_JSON_SCHEMES = ("http://", "https://")
+
+
+def _validate_http_url(url, what="url"):
+    """JSON 본문은 http/https 로만 받는다 - ssh/git/file 은 git 전송용이지 본문 전송이 아니고,
+    file:// 을 허용하면 로컬 파일을 원격 매니페스트인 척 끌어올 수 있다."""
+    if not isinstance(url, str) or not url:
+        raise FetchError(f"{what}가 유효하지 않음: {url!r}")
+    if url.startswith("-"):
+        raise FetchError(f"{what}가 옵션처럼 시작함: {url!r}")
+    if not url.lower().startswith(_JSON_SCHEMES):
+        raise FetchError(f"{what}는 http/https 여야 합니다: {url!r}")
+    return url
+
+
+def _read_capped(url, timeout):
+    """본문을 상한까지만 읽는다. Content-Length 를 믿고 자르면 헤더를 속인 서버에
+    그대로 당한다 - 읽는 양 자체를 상한+1 로 제한하고 넘치면 거부한다."""
+    req = urllib.request.Request(url, headers={"User-Agent": "config-monitor"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            # 리다이렉트를 따라간 최종 주소도 검사한다. urllib 의 리다이렉트 핸들러는
+            # file:// 은 막지만 ftp:// 는 허용하므로 이 검사가 실제로 일한다.
+            _validate_http_url(getattr(resp, "url", None) or url, "리다이렉트된 주소")
+            data = resp.read(MANIFEST_MAX_BYTES + 1)
+    except (urllib.error.URLError, http.client.HTTPException, OSError, ValueError) as e:
+        # HTTPException 을 따로 적는 이유: 응답이 중간에 끊기는 IncompleteRead 는 OSError 가
+        # 아니라 HTTPException 계열이라 이 목록에 없으면 호출부까지 새어 트레이스백이 된다.
+        raise FetchError(f"매니페스트를 받을 수 없습니다: {e}") from e
+    if len(data) > MANIFEST_MAX_BYTES:
+        raise FetchError(f"매니페스트가 상한({MANIFEST_MAX_BYTES} 바이트)을 넘었습니다")
+    return data
+
+
+def fetch_manifest_json(dest: str, url: str, timeout: int = 30) -> str:
+    """marketplace.json 을 직접 받아 <dest>/.claude-plugin/marketplace.json 에 쓰고
+    내용 sha256 앞 12자를 반환한다(git sha 가 없으므로 그 자리를 대신한다 - 내용이 바뀌면
+    값도 바뀌어 갱신 여부가 눈에 보인다).
+
+    파싱 검증을 **쓰기 전에** 끝낸다. materialize 와 같은 계약이다: 실패하면 부분 파일을
+    남기지 않고, 이번 호출이 dest 를 새로 만들었다면 통째로 지운다. 검증을 나중에 하면
+    잘못된 응답이 이미 등록된 마켓의 매니페스트를 덮어써 카탈로그가 사라진다."""
+    _validate_http_url(url)
+    data = _read_capped(url, timeout)
+    try:
+        obj = json.loads(data.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError) as e:
+        raise FetchError(f"매니페스트가 올바른 JSON 이 아닙니다: {e}") from e
+    if not isinstance(obj, dict) or not isinstance(obj.get("plugins"), list):
+        raise FetchError("매니페스트에 plugins 배열이 없습니다")
+
+    fresh = not os.path.isdir(dest)
+    path = os.path.join(dest, ".claude-plugin", "marketplace.json")
+    tmp = path + ".tmp"
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(tmp, "wb") as f:
+            f.write(data)
+        os.replace(tmp, path)          # 원자적 교체 - 반쯤 쓰인 매니페스트가 보이지 않는다
+    except OSError as e:
+        if fresh:
+            shutil.rmtree(dest, ignore_errors=True)
+        else:
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+        raise FetchError(f"매니페스트를 저장할 수 없습니다: {e}") from e
+    return hashlib.sha256(data).hexdigest()[:12]

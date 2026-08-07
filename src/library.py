@@ -658,33 +658,78 @@ def _market_paths(store, mid):
     return base, os.path.join(base, "repo"), os.path.join(base, "plugins")
 
 
+def _local_manifest_sha(path):
+    """로컬 마켓은 리비전이 없다 - 매니페스트 내용 해시를 sha 자리에 넣는다.
+    None 을 넣으면 '갱신했는데 아무 변화가 없다'로 보이지만, 내용 해시면 사용자가 파일을
+    고친 순간 값이 달라져 다시 읽었다는 사실이 눈에 보인다."""
+    try:
+        with open(path, "rb") as f:
+            return hashlib.sha256(f.read()).hexdigest()[:12]
+    except OSError:
+        return None
+
+
 def cmd_market_add(a):
-    """마켓 레포를 .claude-plugin/ 만 sparse checkout 해 카탈로그로 등록.
-    실측: 매니페스트만 401K vs 전체 9.7M(24배). 플러그인은 선택 시점에 받는다."""
-    if not remote_fetch.git_available():
+    """마켓 소스 4형식(owner/repo · git URL · marketplace.json URL · 로컬 경로)을 등록.
+
+    git 이면 .claude-plugin/ 만 sparse checkout 한다(실측: 401K vs 전체 9.7M, 24배).
+    json 이면 매니페스트 파일 하나만 받고, local 이면 **복사하지 않고** 그 경로를 그대로
+    캐시로 삼는다 - 사용자가 이미 디스크에 들고 있는 걸 스토어에 두 벌로 만들면 어느 쪽이
+    진짜인지 모르게 되고, 원본을 고쳐도 반영되지 않는다.
+    어느 형식이든 플러그인은 선택 시점에 받는다."""
+    try:
+        cs = marketplace.classify_source(a.url)
+    except marketplace.ManifestError as e:
+        print(json.dumps({"ok": False, "message": str(e)}, ensure_ascii=False)); return
+    kind = cs["kind"]
+    # 저장하는 값은 항상 정규화된 표기다(축약 -> 전체 URL, 로컬 -> realpath). cmd_fetch 가
+    # 이 값을 다시 classify_source 에 넣으므로, 같은 kind 로 되돌아오지 않으면 갱신이 깨진다.
+    url = cs["path"] if kind == "local" else cs["url"]
+    if kind == "git" and not remote_fetch.git_available():
         print(json.dumps({"ok": False, "message": "git 을 PATH 에서 찾을 수 없습니다"}, ensure_ascii=False)); return
-    mid = a.id or _id_from_url(a.url)
+    mid = a.id or (_id_from_url(url) if kind == "git" else cs["id"])
+    if not mid:
+        # 여기는 out() 을 쓰지 않는다: out() 은 exit 1 이고 호출부 runPy 는 nonzero 를 throw 라
+        # "--id 로 지정하세요" 라는 안내가 UI 에 닿지 못한 채 예외로 바뀐다. 평범한 입력
+        # (호스트 루트의 marketplace.json 처럼 id 로 쓸 세그먼트가 없는 주소)으로 닿는 분기다.
+        print(json.dumps({"ok": False, "message":
+                          f"소스에서 유효한 id 를 만들 수 없습니다: '{a.url}' - --id 로 지정하세요"},
+                         ensure_ascii=False)); return
     if mid != os.path.basename(mid) or ":" in mid or any(c in mid for c in "\\/"):
         out(False, f"id 가 유효하지 않음: '{mid}'")
-    reason, prev0 = _dup_checks(lib_store.load_cfg(a.store).get("marketplaces", []), mid, a.url)
+    reason, prev0 = _dup_checks(lib_store.load_cfg(a.store).get("marketplaces", []), mid, url)
     if reason:
         print(json.dumps({"ok": False, "message": reason}, ensure_ascii=False)); return
     _, repo, _ = _market_paths(a.store, mid)
+    cache = repo
     try:
-        sha = remote_fetch.materialize(repo, a.url, ref=a.ref or None, sparse=[".claude-plugin"])
-    except remote_fetch.GitError as e:
+        if kind == "git":
+            sha = remote_fetch.materialize(repo, url, ref=a.ref or None, sparse=[".claude-plugin"])
+        elif kind == "json":
+            sha = remote_fetch.fetch_manifest_json(repo, url)
+        else:
+            cache = url                      # 로컬은 fetch 없이 경로 검증만 한다
+            sha = None                       # 매니페스트를 읽은 뒤 내용 해시로 채운다
+    except remote_fetch.FetchError as e:
         print(json.dumps({"ok": False, "message": str(e)}, ensure_ascii=False)); return
+    manifest_path = os.path.join(cache, marketplace.MANIFEST_REL)
     try:
-        mf = marketplace.parse_manifest(os.path.join(repo, marketplace.MANIFEST_REL))
+        mf = marketplace.parse_manifest(manifest_path)
     except marketplace.ManifestError as e:
-        print(json.dumps({"ok": False, "message": f"{e} - 마켓플레이스가 아닌 것 같습니다(remote-add 를 쓰세요)"},
-                         ensure_ascii=False)); return
+        hint = ("마켓플레이스가 아닙니다(.claude-plugin/marketplace.json 이 없습니다)" if kind == "local"
+                else "마켓플레이스가 아닌 것 같습니다(remote-add 를 쓰세요)")
+        print(json.dumps({"ok": False, "message": f"{e} - {hint}"}, ensure_ascii=False)); return
+    if kind == "local":
+        sha = _local_manifest_sha(manifest_path)
     try:
         cfg = lib_store.load_cfg(a.store)
         mks = cfg.setdefault("marketplaces", [])
         prev = next((m for m in mks if m.get("id") == mid), None)
-        rec = {"id": mid, "url": a.url, "ref": a.ref or None, "sha": sha, "fetched_at": _now(),
-               "cache": repo, "name": mf["name"],
+        # kind 를 남긴다. 없는(구버전) 레코드는 읽는 쪽에서 git 으로 간주한다 - 그때는 git 만 있었다.
+        # ref 는 git 에서만 의미가 있다(json/local 에는 브랜치라는 게 없다).
+        rec = {"id": mid, "url": url, "ref": (a.ref or None) if kind == "git" else None,
+               "kind": kind, "sha": sha, "fetched_at": _now(),
+               "cache": cache, "name": mf["name"],
                "plugins": (prev or {}).get("plugins", [])}   # 이미 fetch 한 플러그인은 보존
         if prev:
             mks[mks.index(prev)] = rec
@@ -692,15 +737,17 @@ def cmd_market_add(a):
             mks.append(rec)
         lib_store.save_cfg(a.store, cfg)
     except lib_store.StoreNotInitialized as e:
-        print(json.dumps({"ok": False, "message": str(e), "cache": repo}, ensure_ascii=False)); return
+        print(json.dumps({"ok": False, "message": str(e), "cache": cache}, ensure_ascii=False)); return
     cat = marketplace.catalog(mf, {}, limit=0)
     # 같은 URL 을 다시 등록한 경우는 거부하지 않는다(매니페스트 갱신이 정당한 동작이다) -
     # 대신 새로 등록한 것처럼 말하지 않는다. 이미 fetch 한 플러그인은 그대로 보존된다.
-    print(json.dumps({"ok": True, "id": mid, "name": mf["name"], "cache": repo, "sha": sha,
+    again = ("이미 등록된 마켓플레이스입니다 - 디스크에서 다시 읽었습니다" if kind == "local"
+             else "이미 등록된 마켓플레이스입니다 - 매니페스트를 갱신했습니다")
+    print(json.dumps({"ok": True, "id": mid, "name": mf["name"], "cache": cache, "sha": sha,
+                      "kind": kind, "url": url,
                       "plugins": cat["total"], "categories": cat["categories"],
                       "already": bool(prev0),
-                      "message": (f"이미 등록된 마켓플레이스입니다 - 매니페스트를 갱신했습니다: {mid} "
-                                  f"(플러그인 {cat['total']}개)" if prev0
+                      "message": (f"{again}: {mid} (플러그인 {cat['total']}개)" if prev0
                                   else f"마켓플레이스 등록됨: {mid} (플러그인 {cat['total']}개)")},
                      ensure_ascii=False))
 
@@ -847,6 +894,14 @@ def cmd_plugin_fetch(a):
     old_root = (prev or {}).get("cache")          # 0단계: 옛 root 를 먼저 읽어 둔다
     old_staging = (prev or {}).get("staging")      # 외부 플러그인의 옛 sha 스테이징 루트(있으면)
 
+    if spec["kind"] == "str-path" and (m.get("kind") or "git") != "git":
+        # 번들 플러그인은 "마켓 레포의 워킹트리를 넓힌다"는 뜻이라 git 마켓에서만 성립한다.
+        # json/local 마켓에는 넓힐 레포가 없다 - 그대로 두면 매니페스트 URL 이나 로컬 경로를
+        # clone 하려다 엉뚱한 git 오류를 뱉으므로 여기서 이유를 밝히고 끝낸다.
+        print(json.dumps({"ok": False, "message":
+                          f"이 마켓({m.get('kind')})은 레포가 없어 번들 플러그인을 가져올 수 없습니다: {canon}"
+                          " - 로컬 경로라면 라이브러리 경로(--lib)로 등록해 쓰세요"},
+                         ensure_ascii=False)); return
     try:
         if spec["kind"] == "str-path":
             # 번들: 마켓 레포의 sparse 집합을 확장한다(별도 클론 없음). 지울 전용 스테이징이 없다.
@@ -965,7 +1020,13 @@ def cmd_fetch(a):
         if not m:
             print(json.dumps({"ok": False, "message": f"등록되지 않은 마켓: {mid}"}, ensure_ascii=False)); return
         a.url, a.ref, a.id = m["url"], m.get("ref"), mid
-        return cmd_market_add(a)                # 매니페스트만 다시 받는다(플러그인은 보존)
+        # 매니페스트만 다시 받는다(플러그인은 보존). kind 별로 하는 일이 다르다:
+        #   git/json  - 원격에서 다시 받는다.
+        #   local     - 받을 원격이 없다. 그래도 no-op 으로 두지 않고 디스크에서 매니페스트를
+        #               다시 읽는다: 사용자가 그 파일을 직접 고치는 게 로컬 마켓의 갱신이므로,
+        #               다시 읽어야 카탈로그와 sha(내용 해시)가 실제 내용과 맞는다. 버튼이
+        #               아무 일도 안 하는 것처럼 보이는 게 조용한 실패다.
+        return cmd_market_add(a)
     print(json.dumps({"ok": False, "message": f"origin 형식이 아님(remote:<id> / market:<id>[/<plugin>]): {origin}"},
                      ensure_ascii=False))
 
@@ -1259,7 +1320,10 @@ def main():
                    help='카테고리 매핑 JSON, 예: {"agents":"Agents","skills":"Skills"}')
     p.set_defaults(func=cmd_remote_add)
     p = sub.add_parser("market-add")
-    p.add_argument("--url", required=True); p.add_argument("--ref", default=None)
+    p.add_argument("--url", required=True,
+                   help="마켓 소스 4형식: owner/repo · git URL(https/ssh/scp) · "
+                        "https://.../marketplace.json · 로컬 경로(./x, /abs, C:\\abs)")
+    p.add_argument("--ref", default=None, help="git 마켓에서만 의미가 있다")
     p.add_argument("--id", default=None)
     p.set_defaults(func=cmd_market_add)
     p = sub.add_parser("market-discover")
