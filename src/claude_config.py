@@ -358,8 +358,18 @@ PLUGIN_MERGE_SECTIONS = ("Skills (code)", "Agents", "Commands", "Hooks",
 _STATE_BADGE = {"ok": "plugin", "disabled": "disabled", "stale": "stale", "missing": "missing"}
 
 
-def _plugin_section_cards(plugins, settings_fallback):
-    """Plugins 섹션 - 플러그인 단위 카드. 토글이 여기 붙는다(토글 단위가 플러그인이므로)."""
+def norm_path(p):
+    """경로 비교용 정규화(대소문자/구분자/./.. 흡수). lib_store.norm 과 같은 규칙."""
+    return os.path.normcase(os.path.normpath(p))
+
+
+def _plugin_section_cards(plugins, settings_fallback, global_settings=()):
+    """Plugins 섹션 - 플러그인 단위 카드. 토글이 여기 붙는다(토글 단위가 플러그인이므로).
+
+    global_settings 는 전역 settings 체인이다. enabled_from 이 그 안에 없으면 프로젝트
+    settings 가 정한 값이므로 카드를 project 스코프로 태깅한다 - 안 하면 스코프 칩이
+    전역으로 분류해서 "어느 프로젝트가 이걸 껐는지"를 화면에서 못 찾는다."""
+    gset = {norm_path(p) for p in (global_settings or []) if p}
     cards = []
     for r in plugins:
         counts = plugin_state.item_counts(r)
@@ -385,8 +395,14 @@ def _plugin_section_cards(plugins, settings_fallback):
         if r["state"] in ("ok", "disabled"):
             edit = {"kind": "plugin", "id": r["id"], "on": r["enabled"],
                     "settings": r["enabled_from"] or settings_fallback}
+        # <root>/.claude/settings.json -> <root> (_append_project_cards 와 같은 라벨 기준)
+        src = r["enabled_from"]
+        scope = proj = None
+        if src and norm_path(src) not in gset:
+            scope, proj = "project", os.path.dirname(os.path.dirname(src))
         cards.append(card(r["name"], kv, badge=_STATE_BADGE.get(r["state"], r["state"]),
-                          ok=(r["state"] == "ok"), edit=edit, plugin=r["id"]))
+                          ok=(r["state"] == "ok"), edit=edit, plugin=r["id"],
+                          scope=scope, project=proj))
     return cards
 
 
@@ -564,7 +580,7 @@ def parse(found, project_dirs=None):
         if cdir and os.path.isdir(cdir):
             psettings += _dir_settings(cdir)
     plugins = plugin_state.read_plugins(pdir, psettings)
-    pcards = _plugin_section_cards(plugins, found.get("code_settings"))
+    pcards = _plugin_section_cards(plugins, found.get("code_settings"), chain)
     add({"title": f"Plugins · {len(pcards)}", "source": pdir, "cards": pcards})
 
     # 7) Scheduled tasks

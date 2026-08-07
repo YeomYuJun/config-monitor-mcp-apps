@@ -224,6 +224,45 @@ class MarketDiscovery(Fixture):
         self.assertEqual(plugin_state.import_candidates(self.pdir, []), [])
 
 
+class CardScopeTagging(Fixture):
+    """enabled_from 이 전역 체인 밖이면 project 스코프로 태깅. 안 하면 스코프 칩이
+    프로젝트가 끈 플러그인을 전역으로 분류해서 어디서 꺼졌는지 화면에서 못 찾는다."""
+
+    def setUp(self):
+        super().setUp()
+        import claude_config
+        self.cc = claude_config
+        self.root = self.plugin("m", "p")
+        self.installed({"p@m": self.root})
+        self.proj = os.path.join(self.tmp, "myproj", ".claude", "settings.json")
+
+    def cards(self, files):
+        recs = plugin_state.read_plugins(self.pdir, files)
+        return {c["name"]: c for c in
+                self.cc._plugin_section_cards(recs, self.settings, [self.settings])}
+
+    def test_global_card_has_no_scope(self):
+        self.enabled({"p@m": True})
+        c = self.cards([self.settings])["p"]
+        self.assertIsNone(c.get("scope"))
+        self.assertEqual(c["edit"]["settings"], self.settings)
+
+    def test_project_card_is_tagged_with_its_root(self):
+        self.enabled({"p@m": True})
+        self.enabled({"p@m": False}, self.proj)
+        c = self.cards([self.settings, self.proj])["p"]
+        self.assertEqual(c["scope"], "project")
+        # <root>/.claude/settings.json -> <root> (_append_project_cards 와 같은 라벨 기준)
+        self.assertEqual(c["project"], os.path.join(self.tmp, "myproj"))
+        self.assertEqual(c["edit"]["settings"], self.proj)   # 토글도 그 파일로 간다
+
+    def test_implicit_enable_is_not_tagged_project(self):
+        # enabled_from 이 None 이면(설정에 키가 아예 없음) 전역으로 둔다.
+        self.enabled({})
+        c = self.cards([self.settings])["p"]
+        self.assertIsNone(c.get("scope"))
+
+
 class ToggleOp(unittest.TestCase):
     """enabledPlugins 만 건드리고, id 를 정규화하지 않으며, 대상 파일을 넘나들지 않는다."""
 
