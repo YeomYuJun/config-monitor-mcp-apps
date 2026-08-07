@@ -107,7 +107,7 @@ const I18N: Record<string, Record<string, string>> = {
     plgToggleTip: "settings.json 의 enabledPlugins 만 바꿉니다 — 플러그인을 지우지 않습니다",
     plgDiscover: "Claude Code 에 등록된 마켓 — 눌러서 URL 채우기",
     plgDiscoverNone: "가져올 새 마켓 없음", plgDiscoverBoth: "양쪽 등록됨",
-    plgUpdate: "갱신", plgUninstall: "✕ 제거",
+    plgUpdate: "갱신", plgUninstall: "제거",
     plgUpdateTip: "claude plugin update — 최신 버전으로. 다음 세션부터 적용",
     plgUninstallTip: "claude plugin uninstall — 캐시에서 완전히 지웁니다. 끄기만 하려면 위 토글을 쓰세요",
     catDetailsTip: "무엇이 설치되는지 보기",
@@ -129,6 +129,7 @@ const I18N: Record<string, Record<string, string>> = {
     mkExport: "CC 에 등록", mkExportTip: "이 마켓을 Claude Code 에도 등록합니다(claude plugin marketplace add). 캐시는 서로 별개로 유지됩니다",
     mkCcUpdate: "CC 갱신", mkCcUpdateTip: "Claude Code 쪽 마켓 매니페스트를 갱신합니다 — 설치된 플러그인 버전은 그대로입니다",
     mkCcRemove: "CC 해제", mkCcRemoveTip: "Claude Code 에서 이 마켓 등록을 해제합니다(모든 스코프). config-monitor 스토어는 그대로입니다",
+    mkRemove: "제거", mkRemoveTip: "이 대시보드의 마켓 등록을 해제하고 캐시를 지웁니다. 설치된 항목이 이 캐시를 참조 중이면 거부하고 무엇이 붙들고 있는지 알려줍니다. Claude Code 쪽 등록은 그대로입니다",
     plgStaleTip: "enabledPlugins 에만 남은 키입니다 — 설치 기록이 없습니다",
     plgMissingTip: "설치 경로가 없습니다 — 캐시가 지워졌거나 수동 삭제되었습니다",
   },
@@ -210,7 +211,7 @@ const I18N: Record<string, Record<string, string>> = {
     plgToggleTip: "Only flips enabledPlugins in settings.json — does not uninstall the plugin",
     plgDiscover: "Marketplaces registered in Claude Code — click to fill the URL",
     plgDiscoverNone: "No new marketplace to import", plgDiscoverBoth: "registered in both",
-    plgUpdate: "Update", plgUninstall: "✕ Uninstall",
+    plgUpdate: "Update", plgUninstall: "Uninstall",
     plgUpdateTip: "claude plugin update — pulls the latest version. Applies from the next session",
     plgUninstallTip: "claude plugin uninstall — removes it from the cache entirely. To just switch it off, use the toggle",
     catDetailsTip: "See what gets installed",
@@ -232,6 +233,7 @@ const I18N: Record<string, Record<string, string>> = {
     mkExport: "Add to CC", mkExportTip: "Also register this marketplace in Claude Code (claude plugin marketplace add). The two caches stay separate",
     mkCcUpdate: "Update in CC", mkCcUpdateTip: "Refreshes the marketplace manifest on the Claude Code side — installed plugin versions are untouched",
     mkCcRemove: "Remove from CC", mkCcRemoveTip: "Removes this marketplace registration from Claude Code (all scopes). The config-monitor store is untouched",
+    mkRemove: "Remove", mkRemoveTip: "Unregisters the marketplace from this dashboard and deletes its cache. Refused, with what is holding it, if installed items still reference that cache. The Claude Code registration is untouched",
     plgStaleTip: "Key left over in enabledPlugins — no install record",
     plgMissingTip: "Install path is gone — cache was pruned or deleted manually",
   },
@@ -909,7 +911,7 @@ function buildEditUI(edit: any): HTMLElement {
 // 플러그인을 전역 파일에서 끄면 안 먹으므로 카드가 들고 온 경로를 그대로 넘긴다.
 function buildPluginToggleUI(edit: any): HTMLElement {
   const wrap = document.createElement("div");
-  wrap.className = "edit";
+  wrap.className = "edit plgrow";
   const on = !!edit.on;
   const btn = document.createElement("button");
   btn.className = on ? "cx" : "ok";
@@ -1009,7 +1011,9 @@ function buildRemoveUI(edit: any): HTMLElement {
   wrap.className = "edit";
   const btn = document.createElement("button");
   btn.className = "cx";
-  btn.textContent = "✕ " + t("remove");
+  // 라벨에 ✕ 를 붙이지 않는다 - 붉은 hover 가 파괴적 동작을 이미 말하고, 글리프까지 얹으면
+  // 평상시에도 시선을 끈다. 추적 파일의 프로젝트 해제만 아이콘 전용이라 ✕ 를 유지한다.
+  btn.textContent = t("remove");
   // 로컬 항목은 어느 프로젝트에서 지워지는지가 중요하므로 스코프+대상 디렉토리를 title 에 노출.
   // ('전역에 가려짐' 배지가 붙은 카드는 카드 title 이 그 설명이라 버튼 쪽에서 스코프를 다시 못박는다.)
   btn.title = edit.kind === "mcp" ? `mcpServers.${edit.name} ${t("remove")} (${edit.scope})`
@@ -1824,17 +1828,8 @@ function mkMarketCcActions(m: any): HTMLElement {
     wrap.appendChild(b);
     return b;
   };
-  if (!ccMarkets.has(name)) {
-    if (m.url) {
-      mk(t("mkExport"), t("mkExportTip"), "addbtn",
-        (b) => call(b, "claude_marketplace_add", { source: m.url, scope: "user" }));
-    }
-    return wrap;
-  }
-  mk(t("mkCcUpdate"), t("mkCcUpdateTip"), "addbtn",
-    (b) => call(b, "claude_marketplace_update", { name }));
-  // 해제는 되돌리려면 다시 fetch 해야 하므로 확인을 한 번 받는다.
-  mk(t("mkCcRemove"), t("mkCcRemoveTip"), "cx", () => {
+  // 확인을 한 번 받고 실행하는 파괴적 액션. 되돌리려면 다시 등록+fetch 해야 한다.
+  const confirmThen = (run: (b: HTMLButtonElement) => void) => () => {
     const restore = [...wrap.children];      // 확인 UI 로 갈아끼우기 전의 버튼들
     const ok = document.createElement("button");
     ok.className = "ok";
@@ -1845,8 +1840,40 @@ function mkMarketCcActions(m: any): HTMLElement {
     stop(ok); stop(no);
     wrap.replaceChildren(ok, no);
     no.addEventListener("click", () => wrap.replaceChildren(...restore));
-    ok.addEventListener("click", () => call(ok, "claude_marketplace_remove", { name }));
-  });
+    ok.addEventListener("click", () => run(ok));
+  };
+
+  if (!ccMarkets.has(name)) {
+    if (m.url) {
+      mk(t("mkExport"), t("mkExportTip"), "addbtn",
+        (b) => call(b, "claude_marketplace_add", { source: m.url, scope: "user" }));
+    }
+  } else {
+    mk(t("mkCcUpdate"), t("mkCcUpdateTip"), "addbtn",
+      (b) => call(b, "claude_marketplace_update", { name }));
+    mk(t("mkCcRemove"), t("mkCcRemoveTip"), "cx",
+       confirmThen((b) => call(b, "claude_marketplace_remove", { name })));
+  }
+
+  // config-monitor 자기 스토어에서의 해제. 위 CC 액션과 **다른 등록**을 지운다 - 둘은
+  // 캐시를 각자 유지하므로 한쪽을 지워도 다른 쪽은 남는다. 라벨이 그 차이를 말한다.
+  // library_unregister 는 원장이 그 캐시를 참조 중이면 거부하고 무엇이 붙들고 있는지
+  // 알려준다(held_by) - 강제 옵션은 두지 않는다.
+  mk(t("mkRemove"), t("mkRemoveTip"), "cx", confirmThen(async (b) => {
+    setPending(b);
+    try {
+      const r = jparse(await callTool("library_unregister", { origin: `market:${m.id}` }));
+      if (r && r.ok === false) {
+        const msg = r.held_by && r.held_by.length
+          ? `${r.message || t("failed")} (${r.held_by.join(", ")})` : (r.message || t("failed"));
+        clearPending(b, t("failed"));
+        flashToast(msg);
+        return;
+      }
+      flashToast(r?.message || t("done"));
+      await refresh();                        // Library 패널도 같이 바뀐다
+    } catch (e) { clearPending(b, t("failed")); console.error("[config-monitor] market unregister", e); }
+  }));
   return wrap;
 }
 
