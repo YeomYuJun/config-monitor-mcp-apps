@@ -111,7 +111,7 @@ def _short(v, n=160):
 DESC_KEYS = {"desc", "description", "설명", "summary"}
 
 def card(name, kv, badge=None, ok=False, edit=None, scope=None, project=None, source=None,
-         plugin=None):
+         plugin=None, builtin=False):
     # 서술형 값은 넉넉히 담고(줄 수 표시는 UI 의 -webkit-line-clamp 가 담당),
     # 코드형/경로 값만 160자 선절단 — 슬라이더(2~10줄) 전 구간이 실제 텍스트로 채워지게.
     c = {"name": name, "badge": badge, "ok": ok,
@@ -131,6 +131,11 @@ def card(name, kv, badge=None, ok=False, edit=None, scope=None, project=None, so
     # scope/source 와 직교한다 - 플러그인 항목은 파일이 아니라 플러그인 캐시에서 오기 때문.
     if plugin:
         c["plugin"] = plugin
+    # builtin = 내가 만든 게 아니라 기본 제공된 항목(Desktop Skills 의 creatorType=anthropic).
+    # plugin 과 다른 축이다: 플러그인은 내가 설치한 것이고 이쪽은 처음부터 있던 것이라,
+    # 목록을 줄일 때 각각 따로 끄고 싶어진다.
+    if builtin:
+        c["builtin"] = True
     return c
 
 def _dir_settings(d):
@@ -632,7 +637,8 @@ def parse(found, project_dirs=None):
             ("creator", ct),
             ("enabled", s.get("enabled", "-")),
             ("updated", s.get("updatedAt") or "-"),
-        ], badge=("user" if ct == "user" else "anthropic"), ok=(ct == "user")))
+        ], badge=("user" if ct == "user" else "anthropic"), ok=(ct == "user"),
+           builtin=(ct != "user")))
     src = (f"{mans[0]}  (+{len(mans)-1} more)" if mans and len(mans) > 1 else (mans[0] if mans else None))
     add({"title": f"Desktop Skills · user {n_user} / anthropic {len(items)-n_user}", "source": src, "cards": cards})
 

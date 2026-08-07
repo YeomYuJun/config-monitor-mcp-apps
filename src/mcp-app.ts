@@ -125,6 +125,9 @@ const I18N: Record<string, Record<string, string>> = {
     catScopeLocalTip: "local 스코프 — 그 저장소에서 나에게만",
     catScopeNoProject: "추적 중인 프로젝트가 없습니다 — 먼저 프로젝트를 추적에 추가하세요",
     catScopeTarget: "설치 대상 프로젝트:",
+    orgPlugin: "플러그인", orgBuiltin: "기본 제공",
+    orgPluginTip: "플러그인이 넣은 스킬·에이전트·커맨드·hooks·MCP 를 목록에서 보이거나 숨깁니다. Plugins 섹션 자체는 항상 남습니다",
+    orgBuiltinTip: "기본 제공 항목(Desktop Skills 의 anthropic 배지)을 보이거나 숨깁니다",
     mkOfficialPreset: "＋ 공식 마켓플레이스 (anthropics/claude-plugins-official)",
     mkExport: "CC 에 등록", mkExportTip: "이 마켓을 Claude Code 에도 등록합니다(claude plugin marketplace add). 캐시는 서로 별개로 유지됩니다",
     mkCcUpdate: "CC 갱신", mkCcUpdateTip: "Claude Code 쪽 마켓 매니페스트를 갱신합니다 — 설치된 플러그인 버전은 그대로입니다",
@@ -229,6 +232,9 @@ const I18N: Record<string, Record<string, string>> = {
     catScopeLocalTip: "local scope — that repo, for you only",
     catScopeNoProject: "No tracked project — add one to tracking first",
     catScopeTarget: "Install into project:",
+    orgPlugin: "Plugins", orgBuiltin: "Built-in",
+    orgPluginTip: "Shows or hides the skills, agents, commands, hooks and MCP servers plugins contribute. The Plugins section itself always stays",
+    orgBuiltinTip: "Shows or hides built-in items (the anthropic badge in Desktop Skills)",
     mkOfficialPreset: "＋ Official marketplace (anthropics/claude-plugins-official)",
     mkExport: "Add to CC", mkExportTip: "Also register this marketplace in Claude Code (claude plugin marketplace add). The two caches stay separate",
     mkCcUpdate: "Update in CC", mkCcUpdateTip: "Refreshes the marketplace manifest on the Claude Code side — installed plugin versions are untouched",
@@ -423,6 +429,9 @@ const normUrl = (u: string): string => {
 };
 const secTitles = new Set<string>();         // 접기 가능한 섹션 title (전부 접기 대상)
 let collapsedInit = false;                    // 기본 접힘 1회만 적용
+// 출처 표시 토글(스코프 필터와 독립). 기본은 둘 다 표시 - buildOriginToggles 주석 참고.
+let showPlugin = true;                        // 플러그인이 넣은 항목
+let showBuiltin = true;                       // 기본 제공(Desktop Skills creatorType=anthropic)
 const libGroupOpen = new Set<string>();      // 펼친 라이브러리 스킬 그룹 경로(기본 접힘)
 const libChecked = new Set<string>();        // 선택 설치용 체크된 항목 key(카테고리 무관)
 const libOpen = new Set<string>(["skills"]); // 펼친 카테고리(기본값: Skills 만)
@@ -633,6 +642,7 @@ function renderConfig(sections: any[]): void {
   knownProjects = projects;
   if (scopeFilter !== "all" && scopeFilter !== "global" && !projSeen.has(scopeFilter)) scopeFilter = "all";
   if (projects.length) w.appendChild(buildScopeChips(projects));
+  w.appendChild(buildOriginToggles());   // 스코프 칩과 달리 프로젝트가 없어도 항상 의미가 있다
   // 표시 순서만 이름 A-Z(원본 배열은 그대로 - lastConfigSections 캐시를 건드리지 않는다).
   const ordered = [...sections].sort((a, b) => secName(a.title).localeCompare(secName(b.title)));
   for (const sec of ordered) renderConfigSection(w, sec);
@@ -654,6 +664,34 @@ function buildScopeChips(projects: string[]): HTMLElement {
   row.appendChild(mk("all", t("scopeAll")));
   row.appendChild(mk("global", t("kindGlobal")));
   for (const p of projects) row.appendChild(mk(p, basename(p), p));
+  return row;
+}
+
+// 출처 토글. 스코프 칩과 **다른 축**이다: 스코프는 "어느 디렉토리의 설정인가"이고
+// 이쪽은 "누가 넣은 항목인가"라서, 라디오로 묶지 않고 독립 스위치 두 개로 둔다.
+// 기본은 둘 다 켬(표시). 기본으로 숨기면 "지금 실제로 적용된 게 뭔가"라는 이 대시보드의
+// 존재 이유가 사라진다 - 줄이는 건 사용자가 고르는 것이지 기본값이 아니다.
+function buildOriginToggles(): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "orgtgls";
+  const mk = (on: boolean, label: string, tip: string, set: (v: boolean) => void) => {
+    const lb = document.createElement("label");
+    lb.className = "tgl" + (on ? " on" : "");
+    lb.title = tip;
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = on;
+    const ui = document.createElement("span");
+    ui.className = "tglui";
+    const tx = document.createElement("span");
+    tx.className = "tgllbl";
+    tx.textContent = label;
+    cb.addEventListener("change", () => { set(cb.checked); renderConfig(lastConfigSections); });
+    lb.append(cb, ui, tx);
+    row.appendChild(lb);
+  };
+  mk(showPlugin, t("orgPlugin"), t("orgPluginTip"), (v) => { showPlugin = v; });
+  mk(showBuiltin, t("orgBuiltin"), t("orgBuiltinTip"), (v) => { showBuiltin = v; });
   return row;
 }
 
@@ -712,12 +750,18 @@ function buildSrcGroupHeader(key: string, isGlobal: boolean, pathTxt: string, co
 function renderConfigSection(host: HTMLElement, sec: any): void {
   const cards = sec.cards || [];
   const hasProject = cards.some((c: any) => c.scope === "project");
-  const visible = cards.filter((c: any) =>
+  // Plugins 섹션은 플러그인 **관리** 화면이라 출처 토글의 대상이 아니다. 여기까지 숨기면
+  // 다시 켤 자리가 사라지고, 무엇을 껐는지도 확인할 수 없게 된다.
+  const isPluginSec = String(sec.title || "").startsWith("Plugins");
+  const inScope = (c: any) =>
     scopeFilter === "all" ? true
       : scopeFilter === "global" ? c.scope !== "project"
-        : (c.scope === "project" && c.project === scopeFilter));
-  // 필터 모드에서 결과 0개 섹션은 통째로 스킵. 전체 모드는 항상 렌더.
-  if (scopeFilter !== "all" && !visible.length) return;
+        : (c.scope === "project" && c.project === scopeFilter);
+  const visible = cards.filter((c: any) =>
+    (showPlugin || !c.plugin || isPluginSec) && (showBuiltin || !c.builtin) && inScope(c));
+  // 필터 모드에서 결과 0개 섹션은 통째로 스킵. 아무 필터도 안 걸렸으면 항상 렌더.
+  const filtering = scopeFilter !== "all" || !showPlugin || !showBuiltin;
+  if (filtering && !visible.length) return;
 
   secTitles.add(sec.title);
   const secEl = document.createElement("div");

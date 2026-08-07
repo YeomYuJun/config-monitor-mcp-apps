@@ -122,6 +122,8 @@ Cards for each category — MCP Servers, Claude Code (`.claude.json`), Permissio
 
 **Override badges** mark items that share a name but are *not* actually applied, with a dashed border and an amber tag. Precedence runs opposite ways: for **Agents** the project wins, so the **global** card is badged; for **Skills** the global (personal) config wins, so the **project** card is badged.
 
+Two switches sit beside the scope chips and cut across a different axis — not *where* a setting lives but *who put it there*: **Plugins** hides everything plugins contribute, **Built-in** hides the items that shipped with Claude (the `anthropic` badge in Desktop Skills). Both start on, because hiding by default would undo the point of showing what is applied. The Plugins section itself is never hidden, so there is always somewhere to switch them back.
+
 You can filter instantly with the scope chips, then **edit in place** — the same actions on global and project cards alike: add/remove permission rules and hooks, add/remove MCP servers, and scaffold or remove skills and agents.
 
 A project card carries its own target path, so removing a project skill or agent moves it to that project's own `.claude/skills/.trash` or `.claude/agents/.trash` — the global copy of the same name is untouched. Hover **✕ Remove** to see the exact target directory before confirming; this matters most on a card badged *shadowed by personal*, where a global item of the same name is the one actually in use. Adding a new skill or agent to a project is done from the [Library](#library) panel; a few card types stay read-only (see [Known limits](#what-it-reads)).

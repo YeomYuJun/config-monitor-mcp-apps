@@ -150,6 +150,22 @@
   .scopechip{border:1px solid #D1D6DE;background:#FFF;color:#5A6069;border-radius:999px;padding:4px 12px;
     font-family:var(--mono);font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap}
   .scopechip:hover{border-color:#B9C0CA}
+  /* 출처 토글: 스코프 칩과 다른 축이라 칩이 아닌 스위치로 그린다(형태가 축을 구분한다).
+     칩은 배타 선택, 스위치는 각각 독립 on/off. */
+  .orgtgls{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin:-4px 0 13px}
+  .tgl{display:inline-flex;align-items:center;gap:7px;cursor:pointer;user-select:none}
+  .tgl input{position:absolute;opacity:0;width:0;height:0}
+  .tgl .tglui{width:30px;height:17px;border-radius:999px;background:#C9CFD8;position:relative;
+    flex:0 0 auto;transition:background .13s}
+  .tgl .tglui::after{content:"";position:absolute;top:2.5px;left:2.5px;width:12px;height:12px;
+    border-radius:50%;background:#fff;transition:transform .13s}
+  /* :checked 로 그린다 - 클래스에 의존하면 재렌더 전까지 스위치가 안 움직여 눌린 게 아닌
+     것처럼 보인다. .on 은 초기 상태 표시용으로만 남긴다. */
+  .tgl input:checked+.tglui{background:var(--accent)}
+  .tgl input:checked+.tglui::after{transform:translateX(13px)}
+  .tgl .tgllbl{font-family:var(--mono);font-size:11px;font-weight:600;color:#8A9099}
+  .tgl input:checked~.tgllbl{color:#5A6069}
+  .tgl input:focus-visible+.tglui{outline:2px solid var(--accent);outline-offset:2px}
   .scopechip.on{border-color:var(--accent);background:var(--accent);color:#FFF}
   .secsum{font-family:var(--mono);font-size:11px;color:#6B7077;margin-left:8px}
   .srcgrp{grid-column:1/-1;display:flex;align-items:center;gap:8px;padding:5px 4px;border-radius:5px;
