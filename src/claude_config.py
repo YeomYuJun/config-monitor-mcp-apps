@@ -388,13 +388,21 @@ def _plugin_section_cards(plugins, settings_fallback, global_settings=()):
             kv.append(("note", f'설치 경로가 없습니다: {r["root"] or "-"}'))
         else:
             kv.append(("path", r["root"]))
+        # 설치 스코프는 토글 스코프와 다른 축이다(토글은 enabledPlugins 를 정한 파일,
+        # 이쪽은 원장이 기록한 설치 위치). 제거/갱신이 향할 곳이라 카드에 보이게 둔다.
+        if r["scope"] and r["scope"] != "user":
+            kv.append(("installed", f'{r["scope"]}  {r["project_path"] or "-"}'))
         kv.append(("source", r["enabled_from"] or (settings_fallback or "-")))
         # 토글 대상은 **그 값을 정한 파일**이다. 프로젝트에서 켠 것을 전역 파일에서 끄면
         # 안 먹으므로 카드가 자기 대상 경로를 들고 간다(_perm_cards 와 같은 규율).
         edit = None
         if r["state"] in ("ok", "disabled"):
+            # scope/cwd 는 claude 위임(제거·갱신)이 쓴다. 안 넘기면 CLI 기본값 user 로 흘러가
+            # project 스코프 설치를 영영 못 지운다 - claude 가 "project 스코프에 있다"며
+            # 거절하고, 사용자는 대시보드에서 빠져나갈 길이 없다(실측 재현).
             edit = {"kind": "plugin", "id": r["id"], "on": r["enabled"],
-                    "settings": r["enabled_from"] or settings_fallback}
+                    "settings": r["enabled_from"] or settings_fallback,
+                    "scope": r["scope"] or "user", "cwd": r["project_path"] or ""}
         # <root>/.claude/settings.json -> <root> (_append_project_cards 와 같은 라벨 기준)
         src = r["enabled_from"]
         scope = proj = None

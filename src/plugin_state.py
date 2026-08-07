@@ -63,6 +63,11 @@ def read_installed(pdir: str) -> dict:
         e = entries[0] if isinstance(entries[0], dict) else {}
         out[pid] = {
             "scope": e.get("scope") or "user",
+            # project/local 스코프 설치는 **cwd 로** 프로젝트를 정한다(claude 에 경로 인자가
+            # 없다). 원장이 그 경로를 projectPath 로 들고 있으므로 그대로 꺼내 둔다 - 이게
+            # 없으면 제거/갱신이 어느 프로젝트를 향해야 하는지 알 수 없어 user 로 흘러가고,
+            # claude 는 "project 스코프에 있다"며 정확히 거절한다(실측).
+            "project_path": e.get("projectPath") or "",
             "root": e.get("installPath") or "",
             "version": e.get("version") or "",
             "installed_at": e.get("installedAt") or "",
@@ -246,6 +251,7 @@ def read_plugins(pdir=None, settings_files=None) -> list:
             "desc": meta.get("description") or "",
             "homepage": meta.get("homepage") or "",
             "scope": inst["scope"],
+            "project_path": inst["project_path"],
             "root": root,
             "enabled": on,
             "enabled_explicit": bool(e),
@@ -262,7 +268,7 @@ def read_plugins(pdir=None, settings_files=None) -> list:
         recs.append({
             "id": pid, "name": name, "ns": name, "market": market,
             "market_src": markets.get(market, {}), "version": "", "desc": "", "homepage": "",
-            "scope": "", "root": "", "enabled": e["on"], "enabled_explicit": True,
+            "scope": "", "project_path": "", "root": "", "enabled": e["on"], "enabled_explicit": True,
             "enabled_from": e["from"], "state": "stale",
             "items": {"skills": [], "agents": [], "commands": [], "hooks": [], "mcp": []},
         })

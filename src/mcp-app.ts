@@ -124,6 +124,7 @@ const I18N: Record<string, Record<string, string>> = {
     catScopeProjectTip: "project 스코프 — 선택한 프로젝트의 .claude/settings.json (커밋되어 팀에 공유됨)",
     catScopeLocalTip: "local 스코프 — 그 저장소에서 나에게만",
     catScopeNoProject: "추적 중인 프로젝트가 없습니다 — 먼저 프로젝트를 추적에 추가하세요",
+    catScopeTarget: "설치 대상 프로젝트:",
     mkOfficialPreset: "＋ 공식 마켓플레이스 (anthropics/claude-plugins-official)",
     mkExport: "CC 에 등록", mkExportTip: "이 마켓을 Claude Code 에도 등록합니다(claude plugin marketplace add). 캐시는 서로 별개로 유지됩니다",
     mkCcUpdate: "CC 갱신", mkCcUpdateTip: "Claude Code 쪽 마켓 매니페스트를 갱신합니다 — 설치된 플러그인 버전은 그대로입니다",
@@ -226,6 +227,7 @@ const I18N: Record<string, Record<string, string>> = {
     catScopeProjectTip: "project scope — the selected project's .claude/settings.json (committed, shared with the team)",
     catScopeLocalTip: "local scope — that repo, for you only",
     catScopeNoProject: "No tracked project — add one to tracking first",
+    catScopeTarget: "Install into project:",
     mkOfficialPreset: "＋ Official marketplace (anthropics/claude-plugins-official)",
     mkExport: "Add to CC", mkExportTip: "Also register this marketplace in Claude Code (claude plugin marketplace add). The two caches stay separate",
     mkCcUpdate: "Update in CC", mkCcUpdateTip: "Refreshes the marketplace manifest on the Claude Code side — installed plugin versions are untouched",
@@ -930,10 +932,17 @@ function buildPluginToggleUI(edit: any): HTMLElement {
   // 키)/missing(캐시가 사라짐)에는 edit 자체가 없으므로 여기 도달하지 않는다.
   const [plugin, market] = splitPluginId(edit.id);
   if (market) {
-    wrap.appendChild(mkPluginCliBtn(t("plgUpdate"), t("plgUpdateTip"), "claude_plugin_update",
-      { marketplace: market, plugin }, false));
-    wrap.appendChild(mkPluginCliBtn(t("plgUninstall"), t("plgUninstallTip"), "claude_plugin_uninstall",
-      { marketplace: market, plugin }, true));
+    // **설치 스코프를 그대로 되돌려준다.** claude 는 scope=project/local 을 cwd 로 정하므로
+    // 원장의 projectPath 도 같이 넘긴다. 기본값 user 로 흘리면 project 스코프로 설치된
+    // 플러그인이 대시보드에서 제거 불가가 된다(실측: "is enabled at project scope" 거절).
+    const scoped = { marketplace: market, plugin, scope: edit.scope || "user",
+                     ...(edit.cwd ? { cwd: edit.cwd } : {}) };
+    const where = edit.scope && edit.scope !== "user"
+      ? ` (${edit.scope}${edit.cwd ? ` · ${edit.cwd}` : ""})` : "";
+    wrap.appendChild(mkPluginCliBtn(t("plgUpdate"), t("plgUpdateTip") + where,
+      "claude_plugin_update", scoped, false));
+    wrap.appendChild(mkPluginCliBtn(t("plgUninstall"), t("plgUninstallTip") + where,
+      "claude_plugin_uninstall", scoped, true));
   }
   const note = document.createElement("span");
   note.className = "plgnote";
@@ -2255,6 +2264,18 @@ function mkInstallScopes(row: any, market: string, close: () => void): HTMLEleme
     o.textContent = p;
     sel.appendChild(o);
   }
+  // 대상 프로젝트를 **버튼보다 먼저** 보여준다. 뒤에 두면 어디에 설치되는지 모른 채
+  // "이 저장소 전체에"를 누르게 되고, 실제로 그렇게 엉뚱한 경로(드라이브 루트)에 project
+  // 스코프로 설치되는 일이 일어났다. 라벨과 현재 선택을 함께 적는다.
+  if (knownProjects.length) {
+    const row = document.createElement("div");
+    row.className = "modalscoperow";
+    const lb = document.createElement("span");
+    lb.className = "modalnote";
+    lb.textContent = t("catScopeTarget");
+    row.append(lb, sel);
+    wrap.appendChild(row);
+  }
   const run = async (btn: HTMLButtonElement, scope: string) => {
     setPending(btn);
     try {
@@ -2282,11 +2303,15 @@ function mkInstallScopes(row: any, market: string, close: () => void): HTMLEleme
       b.disabled = true;
       b.title = t("catScopeNoProject");
     } else {
+      // 대상 경로를 tooltip 에도 적는다 - 위 select 를 못 본 채 눌러도 어디로 가는지 보인다.
+      if (scope !== "user") b.title = `${tip}\n${t("catScopeTarget")} ${sel.value}`;
       b.addEventListener("click", () => run(b, scope));
+      if (scope !== "user") sel.addEventListener("change", () => {
+        b.title = `${tip}\n${t("catScopeTarget")} ${sel.value}`;
+      });
     }
     wrap.appendChild(b);
   }
-  if (knownProjects.length) wrap.appendChild(sel);
   return wrap;
 }
 

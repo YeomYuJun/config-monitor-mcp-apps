@@ -57,12 +57,14 @@ class Fixture(unittest.TestCase):
             write(os.path.join(root, rel.replace("/", os.sep)), body)
         return root
 
-    def installed(self, mapping):
+    def installed(self, mapping, scope="user", project_path=None):
         """mapping: {id: root}. installed_plugins.json(version 2) 로 기록."""
+        entry = {"scope": scope, "version": "1.0.0"}
+        if project_path:
+            entry["projectPath"] = project_path
         wjson(os.path.join(self.pdir, "installed_plugins.json"), {
             "version": 2,
-            "plugins": {pid: [{"scope": "user", "installPath": root, "version": "1.0.0"}]
-                        for pid, root in mapping.items()},
+            "plugins": {pid: [{**entry, "installPath": root}] for pid, root in mapping.items()},
         })
 
     def enabled(self, mapping, path=None):
@@ -261,6 +263,48 @@ class CardScopeTagging(Fixture):
         self.enabled({})
         c = self.cards([self.settings])["p"]
         self.assertIsNone(c.get("scope"))
+
+
+class InstallScopeRoundTrip(Fixture):
+    """설치 스코프가 카드까지 살아 돌아와야 제거/갱신이 같은 자리를 향한다.
+
+    회귀 가드: 이게 빠져 있어서 project 스코프로 설치한 플러그인을 대시보드에서 지울 수
+    없었다. UI 가 CLI 기본값 user 로 보내고, claude 는 "is enabled at project scope" 로
+    정확히 거절했다(실측). 대시보드에서 빠져나갈 길이 없는 상태였다."""
+
+    def setUp(self):
+        super().setUp()
+        import claude_config
+        self.cc = claude_config
+        self.root = self.plugin("official", "code-review")
+
+    def card(self):
+        recs = plugin_state.read_plugins(self.pdir, [self.settings])
+        return self.cc._plugin_section_cards(recs, self.settings, [self.settings])[0]
+
+    def test_project_scope_and_path_reach_the_card(self):
+        self.installed({"code-review@official": self.root},
+                       scope="project", project_path="D:\\")
+        self.enabled({"code-review@official": True})
+        c = self.card()
+        self.assertEqual(c["edit"]["scope"], "project")
+        self.assertEqual(c["edit"]["cwd"], "D:\\")          # claude 는 cwd 로 프로젝트를 정한다
+        # 어디에 설치됐는지가 카드에 보여야 한다 - 안 보이면 왜 못 지우는지 알 수 없다.
+        self.assertIn("project", dict(c["kv"]).get("installed", ""))
+
+    def test_user_scope_needs_no_cwd(self):
+        self.installed({"code-review@official": self.root})
+        self.enabled({"code-review@official": True})
+        c = self.card()
+        self.assertEqual(c["edit"]["scope"], "user")
+        self.assertEqual(c["edit"]["cwd"], "")
+        self.assertNotIn("installed", dict(c["kv"]))        # user 는 기본이라 줄을 늘리지 않는다
+
+    def test_stale_record_has_no_scope_fields_but_does_not_crash(self):
+        self.installed({})
+        self.enabled({"ghost@inline": True})
+        recs = {r["id"]: r for r in plugin_state.read_plugins(self.pdir, [self.settings])}
+        self.assertEqual(recs["ghost@inline"]["project_path"], "")
 
 
 class ToggleOp(unittest.TestCase):
