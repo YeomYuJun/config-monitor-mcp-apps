@@ -555,6 +555,43 @@ export function buildTools(scriptDir: string): ToolDef[] {
       },
     },
     {
+      name: "claude_plugin_install",
+      meta: {
+        title: "Install Plugin into Claude Code",
+        description: "플러그인을 **통째로** Claude Code 에 설치한다 — `claude plugin install <plugin>@<market> --scope` 위임. library_plugin_fetch(항목 단위로 골라 ~/.claude 에 복사, 설치 전 diff·롤백 O, Desktop 가능)와는 **다른 설치 모델**이다: 이쪽은 플러그인 캐시에 통째로 두고 <ns>:<item> 네임스페이스로 주입되며 config_plugin_toggle 로 껐다 켠다. **네트워크를 탄다.** 적용은 다음 세션부터. scope=project/local 은 cwd 로 프로젝트를 정하므로 cwd 를 넘길 것. dryRun 으로 실행될 명령을 먼저 확인할 수 있다",
+        inputSchema: z.object({
+          marketplace: z.string(), plugin: z.string(),
+          scope: z.enum(["user", "project", "local"]).optional(),
+          cwd: z.string().optional().describe("scope=project/local 기준 디렉토리"),
+          dryRun: z.boolean().optional(),
+        }), annotations: EDIT,
+      },
+      run: async (a: { marketplace: string; plugin: string; scope?: string; cwd?: string; dryRun?: boolean }) => {
+        const args = ["install", "--marketplace", a.marketplace, "--plugin", a.plugin,
+          "--scope", a.scope || "user"];
+        if (a.cwd) args.push("--cwd", a.cwd);
+        if (a.dryRun) args.push("--dry-run");
+        return jsonResult(await runPy("plugin_cli.py", args));
+      },
+    },
+    {
+      name: "claude_plugin_uninstall",
+      meta: {
+        title: "Uninstall Plugin from Claude Code",
+        description: "`claude plugin uninstall <plugin>@<market>` 위임. Library 로 설치한 **항목**은 건드리지 않는다(모델이 다르다 — 그쪽은 library_uninstall). 끄기만 하려면 지우지 말고 config_plugin_toggle 을 쓸 것",
+        inputSchema: z.object({
+          marketplace: z.string(), plugin: z.string(),
+          cwd: z.string().optional(), dryRun: z.boolean().optional(),
+        }), annotations: EDIT,
+      },
+      run: async (a: { marketplace: string; plugin: string; cwd?: string; dryRun?: boolean }) => {
+        const args = ["uninstall", "--marketplace", a.marketplace, "--plugin", a.plugin];
+        if (a.cwd) args.push("--cwd", a.cwd);
+        if (a.dryRun) args.push("--dry-run");
+        return jsonResult(await runPy("plugin_cli.py", args));
+      },
+    },
+    {
       name: "library_market_discover",
       meta: {
         title: "Discover Marketplaces from Claude Code",

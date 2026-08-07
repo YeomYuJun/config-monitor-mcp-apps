@@ -146,6 +146,22 @@ A repo containing `.claude-plugin/marketplace.json` registers as a catalog inste
 
 Fetching is per-plugin and explicit. Only fetched plugins join the Library panel; the rest stay in the catalog. There is deliberately no "installable items" count in the catalog — barely any manifest entries declare their components, so the number simply isn't knowable before fetching, and showing a guess would be worse than showing nothing.
 
+A marketplace is an *index*, not a store: of the official marketplace's 278 entries only 53 actually live in that repo, and the rest point at other repositories. "Official" describes where a plugin is listed, not who wrote it — 38 of the 280 entries are authored by Anthropic, the rest by Google, SAP, AWS, and individual developers.
+
+**Two install models share that one source.** Each catalog row therefore offers two actions, and they are not variants of each other:
+
+| | **Install items** (this dashboard) | **Install plugin** (Claude Code) |
+|---|---|---|
+| Unit | one item at a time | the whole plugin |
+| Lands in | copied into `~/.claude/skills/…` | left in the plugin cache and referenced |
+| Named | flat — `brainstorming` | namespaced — `superpowers:brainstorming` |
+| Turning it off | remove the item (to `.trash`) | one toggle |
+| Updating | explicit fetch, with a pre-install diff | `claude plugin update` |
+| Rollback | snapshot / diff / restore | none |
+| Claude Desktop | **works** | not possible — Desktop has no plugin system |
+
+"Install plugin" delegates to `claude plugin install`, so the result is a real Claude Code plugin and shows up in the Plugins section. It is disabled when the marketplace is not registered in Claude Code, since the install would not resolve. Note that the reverse never happens: picking 3 items out of a 12-item plugin cannot be recorded in Claude Code's registry, so item-level installs stay this dashboard's own.
+
 #### Hooks and MCP servers
 
 Plugins can also carry hooks and MCP servers. These aren't copied into `~/.claude` like skills are: some plugins reference files that sit *beside* their `hooks/` folder, so the whole plugin root stays in the cache and the config points at it. That makes the cache load-bearing, which is why unregistering a source is refused while installed hooks still reference it — the dashboard tells you what's holding it rather than breaking your config.

@@ -83,7 +83,12 @@ const I18N: Record<string, Record<string, string>> = {
     installTarget: "설치 대상", targetGlobal: "전역 (~/.claude)", rootItems: "루트 항목 · 폴더 없음",
     toastGroup: "그룹 설치 완료", toastSel: "선택 설치 완료", cntUnit: "개",
     // 섹션 타이틀은 번역하지 않는다 - Library 와 나란히 놓이는 고유 영역명이다.
-    catTitle: "Marketplace", catSearch: "검색…", catAll: "전체", catFetch: "설치하기",
+    catFetchTip: "Library 로 가져옵니다 — 원하는 항목만 골라 설치, 설치 전 diff·롤백, Claude Desktop 가능",
+    catActivate: "플러그인 설치", catActivated: "플러그인",
+    catActivateTip: "Claude Code 에 플러그인 통째로 설치합니다 — <플러그인>:<항목> 으로 주입되고 토글로 끕니다. 다음 세션부터 적용",
+    catActivatedTip: "이미 Claude Code 플러그인으로 설치되어 있습니다 — Plugins 섹션에서 켜고 끕니다",
+    catActivateNoMarket: "이 마켓이 Claude Code 에 등록되어 있지 않습니다 — 먼저 저쪽에 마켓을 등록해야 합니다",
+    catTitle: "Marketplace", catSearch: "검색…", catAll: "전체", catFetch: "항목 설치",
     catFetched: "설치됨", catEmpty: "등록된 마켓플레이스 없음", catNoPlugins: "조건에 맞는 플러그인 없음",
     catPrev: "‹ 이전", catNext: "다음 ›", catPageOf: "페이지", catNoUrl: "(URL 미기록)",
     catMarketAdd: "마켓 등록", catMarketUrlPlaceholder: "마켓 레포 URL (marketplace.json 보유)",
@@ -159,7 +164,12 @@ const I18N: Record<string, Record<string, string>> = {
     libInstallGroupHint: "Install all not-installed skills in this group", libAllInstalled: "All already installed",
     installTarget: "Install to", targetGlobal: "Global (~/.claude)", rootItems: "root items · no folder",
     toastGroup: "Group install done", toastSel: "Selected install done", cntUnit: "",
-    catTitle: "Marketplace", catSearch: "Search…", catAll: "All", catFetch: "Install",
+    catFetchTip: "Pulls into the Library — install only the items you want, with pre-install diff, rollback, and Claude Desktop as a target",
+    catActivate: "Install plugin", catActivated: "plugin",
+    catActivateTip: "Installs the whole plugin into Claude Code — injected as <plugin>:<item> and switched off with a toggle. Applies from the next session",
+    catActivatedTip: "Already installed as a Claude Code plugin — toggle it in the Plugins section",
+    catActivateNoMarket: "This marketplace is not registered in Claude Code — register it there first",
+    catTitle: "Marketplace", catSearch: "Search…", catAll: "All", catFetch: "Install items",
     catFetched: "Installed", catEmpty: "No marketplace registered", catNoPlugins: "No plugin matches",
     catPrev: "‹ Prev", catNext: "Next ›", catPageOf: "page", catNoUrl: "(no URL recorded)",
     catMarketAdd: "Add marketplace", catMarketUrlPlaceholder: "Marketplace repo URL (has marketplace.json)",
@@ -340,6 +350,13 @@ let detailOpen = true;
 // 기동 시 전 섹션 접힘. Library/Marketplace 는 renderConfig 이후에 그려져 아래 collapsedInit
 // 루프가 못 잡으므로 여기서 미리 넣어 둔다(사용자가 펼치면 그 상태가 세션 내내 유지된다).
 const collapsed = new Set<string>(["Library", "Marketplace"]);   // 접힌 섹션 title
+// Claude Code 쪽 상태 캐시. 카탈로그 행이 "이 플러그인을 통째로 설치할 수 있는가"를 판정한다.
+//   ccPlugins  이미 Claude Code 에 설치된 플러그인 id (renderConfig 이 Plugins 카드에서 채움)
+//   ccMarkets  Claude Code 가 아는 마켓 이름 (buildCatalog 이 market-discover 로 채움).
+//              여기 없는 마켓의 플러그인은 `claude plugin install` 이 찾지 못한다 - 먼저
+//              저쪽에 마켓을 등록해야 하므로 버튼을 비활성화하고 이유를 표시한다.
+const ccPlugins = new Set<string>();
+const ccMarkets = new Set<string>();
 const secTitles = new Set<string>();         // 접기 가능한 섹션 title (전부 접기 대상)
 let collapsedInit = false;                    // 기본 접힘 1회만 적용
 const libGroupOpen = new Set<string>();      // 펼친 라이브러리 스킬 그룹 경로(기본 접힘)
@@ -540,8 +557,13 @@ function renderConfig(sections: any[]): void {
   // 스캔 결과의 distinct 프로젝트 경로(등장 순), 칩/필터의 유일 원천(카드 project 값과 동일 소스).
   const projects: string[] = [];
   const projSeen = new Set<string>();
+  ccPlugins.clear();
   for (const sec of sections) for (const c of sec.cards || []) {
     if (c.scope === "project" && c.project && !projSeen.has(c.project)) { projSeen.add(c.project); projects.push(c.project); }
+    // Plugins 섹션 카드만 플러그인 **자신**이다(합류 항목은 부모 플러그인의 id 를 달고 있어
+    // 같은 id 가 여러 번 나온다). Set 이라 중복은 무해하고, 카탈로그가 "이미 설치됨"을
+    // 판정하는 데 쓴다.
+    if (c.plugin) ccPlugins.add(c.plugin);
   }
   if (scopeFilter !== "all" && scopeFilter !== "global" && !projSeen.has(scopeFilter)) scopeFilter = "all";
   if (projects.length) w.appendChild(buildScopeChips(projects));
@@ -1511,6 +1533,15 @@ async function buildCatalog(): Promise<HTMLElement> {
     }));
     if (parsed && parsed.ok !== false) res = parsed;
   } catch (e) { console.error("[config-monitor] catalog", e); }
+  // Claude Code 가 아는 마켓 이름을 채운다. 파일 하나 읽는 조회라 네트워크를 타지 않는다.
+  // 실패해도 카탈로그는 그대로 뜬다 - 그 경우 '플러그인 설치' 버튼만 비활성으로 남는다.
+  try {
+    const d = jparse(await callTool("library_market_discover", {}));
+    if (d && d.ok !== false) {
+      ccMarkets.clear();
+      for (const m of [...(d.both || []), ...(d.new || [])]) if (m.name) ccMarkets.add(m.name);
+    }
+  } catch (e) { console.error("[config-monitor] market discover", e); }
   // 등록된 마켓이 없으면 접힌 채로 두지 않는다: "마켓 등록"은 이 섹션 본문 안에만 있어서,
   // 기본 접힘(기동 시 전 섹션 접힘)과 겹치면 처음 쓰는 사람에게 진입점이 아예 안 보인다.
   if (!(res.marketplaces || []).length) collapsed.delete(CAT_SEC);
@@ -1846,10 +1877,52 @@ function mkCatalogRow(row: any): HTMLElement {
         await refresh();
       } catch (e) { flashToast(t("failed")); clearPending(b, t("failed")); console.error("[config-monitor] plugin fetch", e); }
     });
+    b.title = t("catFetchTip");
     act.appendChild(b);
   }
+  act.appendChild(mkActivateBtn(row));
   r.appendChild(act);
   return r;
+}
+
+// 두 번째 액션: 플러그인을 **통째로** Claude Code 에 설치(claude plugin install 위임).
+// 왼쪽 버튼(항목 설치)과 나란히 두는 이유 - 마켓플레이스는 두 설치 모델의 공통 출처일 뿐이고,
+// 어느 쪽으로 넣을지는 사용자가 고르는 것이기 때문이다. 라벨과 tooltip 이 그 차이를 말한다.
+//   항목 설치   ~/.claude 로 복사. 원하는 것만. 설치 전 diff·롤백 O. Desktop 가능
+//   플러그인    캐시에 통째. <ns>:<item> 네임스페이스. 토글로 on/off. Code 전용
+// 마켓 이름은 config-monitor 의 store id 가 아니라 매니페스트 name(row.market_name)을 쓴다 -
+// Claude Code 의 마켓 키가 그것이다.
+function mkActivateBtn(row: any): HTMLElement {
+  const market = row.market_name || row.marketplace;
+  const pid = `${row.name}@${market}`;
+  if (ccPlugins.has(pid)) {
+    const done = document.createElement("span");
+    done.className = "badge plg";
+    done.textContent = t("catActivated");
+    done.title = t("catActivatedTip");
+    return done;
+  }
+  const b = document.createElement("button");
+  b.className = "addbtn";
+  b.textContent = t("catActivate");
+  // 저쪽에 마켓이 없으면 install 이 못 찾는다. 눌러서 실패하게 두지 않고 이유를 먼저 말한다.
+  if (!ccMarkets.has(market)) {
+    b.disabled = true;
+    b.title = t("catActivateNoMarket");
+    return b;
+  }
+  b.title = t("catActivateTip");
+  b.addEventListener("click", async () => {
+    setPending(b);
+    try {
+      const rr = jparse(await callTool("claude_plugin_install",
+        { marketplace: market, plugin: row.name, scope: "user" }));
+      if (rr && rr.ok === false) { flashToast(rr.message || t("failed")); clearPending(b, t("catActivate")); return; }
+      flashToast(`${rr?.message || t("done")} · ${pid}`);
+      await refresh();
+    } catch (e) { flashToast(t("failed")); clearPending(b, t("failed")); console.error("[config-monitor] plugin install", e); }
+  });
+  return b;
 }
 
 // ----- detail panel: history + diff -----

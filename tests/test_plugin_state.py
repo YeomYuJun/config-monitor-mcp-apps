@@ -309,5 +309,60 @@ class ToggleOp(unittest.TestCase):
         self.assertTrue([f for f in os.listdir(self.tmp) if f.endswith(".bak")])
 
 
+class ClaudeCliDelegation(unittest.TestCase):
+    """plugin_cli.py: `claude plugin install/uninstall` 위임.
+
+    실제로 설치하지는 않는다 - dry-run 으로 조립된 argv 와 거부 경로만 본다.
+    이름은 매니페스트에서 오는 신뢰할 수 없는 입력이라 가드가 핵심이다."""
+
+    CLI = os.path.join(SRC, "plugin_cli.py")
+
+    def call(self, *args, env=None):
+        rc, so, se = run(self.CLI, *args, env=env)
+        self.assertTrue(so.strip(), f"stdout 없음 (rc={rc}): {se}")
+        return rc, json.loads(so)
+
+    def test_install_dry_run_builds_id_and_scope(self):
+        _, r = self.call("install", "--marketplace", "official", "--plugin", "notion",
+                         "--scope", "project", "--dry-run")
+        self.assertTrue(r["ok"])
+        self.assertEqual(r["id"], "notion@official")
+        self.assertEqual(r["command"][1:], ["plugin", "install", "notion@official", "--scope", "project"])
+
+    def test_uninstall_takes_no_scope(self):
+        _, r = self.call("uninstall", "--marketplace", "m", "--plugin", "p", "--dry-run")
+        self.assertEqual(r["command"][1:], ["plugin", "uninstall", "p@m"])
+
+    def test_option_like_name_is_refused(self):
+        # 리스트 인자라 셸 주입은 없지만, claude CLI 자신이 옵션으로 오인한다.
+        rc, r = self.call("install", "--marketplace", "m", "--plugin=-upload-pack", "--dry-run")
+        self.assertFalse(r["ok"])
+        self.assertEqual(rc, 1)
+
+    def test_path_escape_and_colon_are_refused(self):
+        for bad in ("../../etc", "a/b", "a:b", ".."):
+            _, r = self.call("install", "--marketplace", "m", "--plugin", bad, "--dry-run")
+            self.assertFalse(r["ok"], bad)
+
+    def test_missing_cwd_is_refused(self):
+        _, r = self.call("install", "--marketplace", "m", "--plugin", "p",
+                         "--cwd", os.path.join(SRC, "no-such-dir"), "--dry-run")
+        self.assertFalse(r["ok"])
+
+    def test_reports_clearly_when_claude_is_not_on_path(self):
+        # dry-run 이 아닌 실행 경로에서만 막는다(dry-run 은 명령을 보여주는 게 목적이라 통과).
+        rc, r = self.call("install", "--marketplace", "m", "--plugin", "p",
+                          env={"PATH": os.path.join(SRC, "no-such-dir")})
+        self.assertFalse(r["ok"])
+        self.assertIn("claude", r["message"])
+        self.assertEqual(r["id"], "p@m")            # 무엇을 하려 했는지는 그대로 보고한다
+
+    def test_dry_run_works_without_claude_and_says_so(self):
+        _, r = self.call("install", "--marketplace", "m", "--plugin", "p", "--dry-run",
+                         env={"PATH": os.path.join(SRC, "no-such-dir")})
+        self.assertTrue(r["ok"])
+        self.assertFalse(r["available"])
+
+
 if __name__ == "__main__":
     unittest.main()
