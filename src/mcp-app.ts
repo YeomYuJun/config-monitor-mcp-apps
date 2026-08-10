@@ -88,11 +88,12 @@ const I18N: Record<string, Record<string, string>> = {
     catActivateTip: "Claude Code 에 플러그인 통째로 설치합니다. <플러그인>:<항목> 으로 주입되고 토글로 끕니다. 다음 세션부터 적용",
     catActivatedTip: "이미 Claude Code 플러그인으로 설치되어 있습니다. Plugins 섹션에서 켜고 끕니다",
     catActivateNoMarket: "Claude Code 에 등록되지 않은 마켓입니다. 마켓 헤더의 Claude Code [등록] 을 먼저 누르세요",
+    catActivateNoMarketLocal: "Claude Code 에 등록되지 않은 마켓입니다. URL 기록이 없어 여기서 대신 등록할 수 없습니다. claude plugin marketplace add 로 직접 등록하세요",
     catTitle: "Marketplace", catSearch: "검색…", catAll: "전체", catFetch: "항목 설치",
     catFetched: "설치됨", catEmpty: "등록된 마켓플레이스 없음", catNoPlugins: "조건에 맞는 플러그인 없음",
     catPrev: "‹ 이전", catNext: "다음 ›", catPageOf: "페이지", catNoUrl: "(URL 미기록)",
-    catMarketAdd: "마켓 등록", catMarketUrlPlaceholder: "owner/repo · git URL · marketplace.json URL · 로컬 경로",
-    catMarketUrlHint: "등록할 마켓플레이스 소스를 입력하세요. 아래 입력칸에 적힌 형식 중 하나면 됩니다.",
+    catMarketAdd: "마켓 등록", catMarketUrlPlaceholder: "owner/repo 또는 URL",
+    catMarketUrlHint: "등록할 마켓플레이스 소스를 입력하세요. owner/repo · git URL · marketplace.json URL · 로컬 경로 중 하나면 됩니다.",
     catMarketSubmit: "등록", catWarnTitle: "등록 전 확인",
     catSearchTip: "검색", catCategoryTip: "분류",
     catBadUrl: "인식할 수 없는 소스입니다. 가능한 형식: owner/repo · https:// · ssh:// · git:// · file:// · user@host:path · ./로컬/경로",
@@ -122,7 +123,7 @@ const I18N: Record<string, Record<string, string>> = {
     catScopeUser: "전역 (user)", catScopeProject: "프로젝트 공유 (project)", catScopeLocal: "프로젝트 개인 (local)",
     catScopeUserTip: "~/.claude/settings.json · 이 PC 의 모든 프로젝트에 적용됩니다",
     catScopeProjectTip: "선택한 프로젝트의 .claude/settings.json · 커밋되어 팀에 공유됩니다",
-    catScopeLocalTip: "선택한 프로젝트의 .claude/settings.local.json · 커밋되지 않고 나에게만 적용됩니다",
+    catScopeLocalTip: "선택한 프로젝트에서 나에게만 적용됩니다 · 커밋되지 않습니다",
     catScopeNoProject: "추적 중인 프로젝트가 없습니다. 먼저 프로젝트를 추적에 추가하세요",
     catScopeTarget: "설치 대상 프로젝트:",
     orgPlugin: "플러그인", orgBuiltin: "기본 제공",
@@ -196,11 +197,12 @@ const I18N: Record<string, Record<string, string>> = {
     catActivateTip: "Installs the whole plugin into Claude Code — injected as <plugin>:<item> and switched off with a toggle. Applies from the next session",
     catActivatedTip: "Already installed as a Claude Code plugin — toggle it in the Plugins section",
     catActivateNoMarket: "This marketplace isn't registered in Claude Code. Use Claude Code [Register] in the market header first",
+    catActivateNoMarketLocal: "This marketplace isn't registered in Claude Code. No URL is recorded, so it can't be registered from here — use claude plugin marketplace add directly",
     catTitle: "Marketplace", catSearch: "Search…", catAll: "All", catFetch: "Install items",
     catFetched: "Installed", catEmpty: "No marketplace registered", catNoPlugins: "No plugin matches",
     catPrev: "‹ Prev", catNext: "Next ›", catPageOf: "page", catNoUrl: "(no URL recorded)",
-    catMarketAdd: "Add marketplace", catMarketUrlPlaceholder: "owner/repo · git URL · marketplace.json URL · local path",
-    catMarketUrlHint: "Enter the marketplace source to register. Any of the formats shown in the field below works.",
+    catMarketAdd: "Add marketplace", catMarketUrlPlaceholder: "owner/repo or URL",
+    catMarketUrlHint: "Enter the marketplace source to register: owner/repo, a git URL, a marketplace.json URL, or a local path.",
     catMarketSubmit: "Register", catWarnTitle: "Before you register",
     catSearchTip: "search", catCategoryTip: "category",
     catBadUrl: "Unrecognized source — owner/repo · https:// · ssh:// · git:// · file:// · user@host:path · ./local/path",
@@ -227,10 +229,10 @@ const I18N: Record<string, Record<string, string>> = {
     catTokensTip: "always-on is the context cost carried every session; on-invoke applies only when actually called",
     catTrustWarn: "Make sure you trust this plugin before installing. Neither Anthropic nor config-monitor controls or verifies the MCP servers, files, or code a plugin ships.",
     catHomepage: "Open homepage ↗",
-    catScopeUser: "Global (user)", catScopeProject: "Project, shared (project)", catScopeLocal: "Project, just me (local)",
+    catScopeUser: "Global (user)", catScopeProject: "Shared (project)", catScopeLocal: "Just me (local)",
     catScopeUserTip: "~/.claude/settings.json · applies to every project on this machine",
     catScopeProjectTip: "the selected project's .claude/settings.json · committed, shared with the team",
-    catScopeLocalTip: "the selected project's .claude/settings.local.json · not committed, applies to you only",
+    catScopeLocalTip: "applies to you only, in the selected project · not committed",
     catScopeNoProject: "No tracked project. Add one to tracking first",
     catScopeTarget: "Install into project:",
     orgPlugin: "Plugins", orgBuiltin: "Built-in",
@@ -421,6 +423,11 @@ let knownProjects: string[] = [];
 // config-monitor 스토어에 등록된 마켓 URL(정규화). 공식 마켓 프리셋을 이미 등록된 상태에서
 // 다시 권하지 않기 위해서만 쓴다.
 const cmMarketUrls = new Set<string>();
+// URL 이 없는 스토어 마켓(로컬 경로로 등록된 것 - marketplace.py 의 kind local/str-path 는
+// url:None 이다). 이런 마켓은 헤더에 'Claude Code 등록' 버튼이 아예 안 그려지므로,
+// 카탈로그 행의 비활성 사유가 그 버튼을 가리키면 없는 것을 가리키게 된다.
+// **없는 쪽을 모은다**: 이름을 못 찾으면 기본(버튼을 가리키는) 문구로 떨어져 기존 동작이 된다.
+const cmMarketsNoUrl = new Set<string>();
 // Claude Code 가 기본 내장하는 마켓. 처음 쓰는 사람에게 카탈로그가 텅 빈 채로 보이지 않도록
 // 원클릭 프리셋으로 제공한다. 자동 등록은 하지 않는다 - 등록은 네트워크를 타는 행위이고,
 // "요청하지 않으면 아무것도 받지 않는다"가 이 제품의 계약이다.
@@ -1723,7 +1730,11 @@ async function buildCatalog(): Promise<HTMLElement> {
     if (s && s.ok !== false) ccCatalog = s.entries || {};
   } catch (e) { console.error("[config-monitor] catalog summary", e); }
   cmMarketUrls.clear();
-  for (const m of (res.marketplaces || [])) if (m.url) cmMarketUrls.add(normUrl(m.url));
+  cmMarketsNoUrl.clear();
+  for (const m of (res.marketplaces || [])) {
+    if (m.url) cmMarketUrls.add(normUrl(m.url));
+    else if (m.name || m.id) cmMarketsNoUrl.add(m.name || m.id);
+  }
   // 등록된 마켓이 없으면 접힌 채로 두지 않는다: "마켓 등록"은 이 섹션 본문 안에만 있어서,
   // 기본 접힘(기동 시 전 섹션 접힘)과 겹치면 처음 쓰는 사람에게 진입점이 아예 안 보인다.
   if (!(res.marketplaces || []).length) collapsed.delete(CAT_SEC);
@@ -1899,6 +1910,7 @@ function mkMarketCcActions(m: any): HTMLElement {
     lbl.className = "mklbl";
     lbl.textContent = t("mkCcGroup");
     lbl.title = t("mkCcGroupTip");
+    stop(lbl);              // 툴팁 읽으려 올렸다가 누르면 마켓이 접히는 일이 없게
     wrap.appendChild(lbl);
   }
   if (!ccExists) {
@@ -2225,6 +2237,11 @@ function mkCatalogRow(row: any): HTMLElement {
 //   플러그인    캐시에 통째. <ns>:<item> 네임스페이스. 토글로 on/off. Code 전용
 // 마켓 이름은 config-monitor 의 store id 가 아니라 매니페스트 name(row.market_name)을 쓴다 -
 // Claude Code 의 마켓 키가 그것이다.
+// 비활성 사유는 "무엇을 눌러야 풀리는지"를 말해야 하는데, 그 버튼은 마켓에 URL 이 있을 때만
+// 그려진다. URL 이 없는 마켓에서는 대신 CLI 를 안내한다.
+const noMarketTip = (market: string): string =>
+  cmMarketsNoUrl.has(market) ? t("catActivateNoMarketLocal") : t("catActivateNoMarket");
+
 function mkActivateBtn(row: any): HTMLElement {
   const market = row.market_name || row.marketplace;
   const pid = `${row.name}@${market}`;
@@ -2241,7 +2258,7 @@ function mkActivateBtn(row: any): HTMLElement {
   // 저쪽에 마켓이 없으면 install 이 못 찾는다. 눌러서 실패하게 두지 않고 이유를 먼저 말한다.
   if (!ccMarkets.has(market)) {
     b.disabled = true;
-    b.title = t("catActivateNoMarket");
+    b.title = noMarketTip(market);
     return b;
   }
   b.title = t("catActivateTip");
@@ -2355,7 +2372,7 @@ function mkInstallScopes(row: any, market: string, close: () => void): HTMLEleme
   if (!ccMarkets.has(market)) {
     const n = document.createElement("div");
     n.className = "modalnote";
-    n.textContent = t("catActivateNoMarket");
+    n.textContent = noMarketTip(market);
     wrap.appendChild(n);
     return wrap;
   }
