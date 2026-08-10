@@ -92,7 +92,7 @@ const I18N: Record<string, Record<string, string>> = {
     catFetched: "설치됨", catEmpty: "등록된 마켓플레이스 없음", catNoPlugins: "조건에 맞는 플러그인 없음",
     catPrev: "‹ 이전", catNext: "다음 ›", catPageOf: "페이지", catNoUrl: "(URL 미기록)",
     catMarketAdd: "마켓 등록", catMarketUrlPlaceholder: "owner/repo · git URL · marketplace.json URL · 로컬 경로",
-    catMarketUrlHint: "마켓플레이스 소스를 입력하세요 — owner/repo · git URL · marketplace.json URL · 로컬 경로.",
+    catMarketUrlHint: "등록할 마켓플레이스 소스를 입력하세요. 아래 입력칸에 적힌 형식 중 하나면 됩니다.",
     catMarketSubmit: "등록", catWarnTitle: "등록 전 확인",
     catSearchTip: "검색", catCategoryTip: "분류",
     catBadUrl: "인식할 수 없는 소스입니다. 가능한 형식: owner/repo · https:// · ssh:// · git:// · file:// · user@host:path · ./로컬/경로",
@@ -105,7 +105,7 @@ const I18N: Record<string, Record<string, string>> = {
     plgOn: "켜기", plgOff: "끄기", plgEnabled: "적용 중", plgDisabled: "꺼짐",
     plgRestart: "다음 세션부터 적용",
     plgToggleTip: "settings.json 의 enabledPlugins 만 바꿉니다. 플러그인을 지우지 않습니다",
-    plgDiscover: "Claude Code 에 등록된 마켓 — 눌러서 URL 채우기",
+    plgDiscover: "Claude Code 에 등록된 마켓 (누르면 위 칸에 채워집니다)",
     plgDiscoverNone: "가져올 새 마켓 없음", plgDiscoverBoth: "양쪽 등록됨",
     plgUpdate: "갱신", plgUninstall: "제거",
     plgUpdateTip: "claude plugin update — 최신 버전으로. 다음 세션부터 적용",
@@ -200,7 +200,7 @@ const I18N: Record<string, Record<string, string>> = {
     catFetched: "Installed", catEmpty: "No marketplace registered", catNoPlugins: "No plugin matches",
     catPrev: "‹ Prev", catNext: "Next ›", catPageOf: "page", catNoUrl: "(no URL recorded)",
     catMarketAdd: "Add marketplace", catMarketUrlPlaceholder: "owner/repo · git URL · marketplace.json URL · local path",
-    catMarketUrlHint: "Enter a marketplace source — owner/repo, a git URL, a marketplace.json URL, or a local path.",
+    catMarketUrlHint: "Enter the marketplace source to register. Any of the formats shown in the field below works.",
     catMarketSubmit: "Register", catWarnTitle: "Before you register",
     catSearchTip: "search", catCategoryTip: "category",
     catBadUrl: "Unrecognized source — owner/repo · https:// · ssh:// · git:// · file:// · user@host:path · ./local/path",
@@ -213,7 +213,7 @@ const I18N: Record<string, Record<string, string>> = {
     plgOn: "Enable", plgOff: "Disable", plgEnabled: "active", plgDisabled: "off",
     plgRestart: "applies from the next session",
     plgToggleTip: "Only flips enabledPlugins in settings.json — does not uninstall the plugin",
-    plgDiscover: "Marketplaces registered in Claude Code — click to fill the URL",
+    plgDiscover: "Marketplaces registered in Claude Code (click to fill the field above)",
     plgDiscoverNone: "No new marketplace to import", plgDiscoverBoth: "registered in both",
     plgUpdate: "Update", plgUninstall: "Uninstall",
     plgUpdateTip: "claude plugin update — pulls the latest version. Applies from the next session",
@@ -2075,7 +2075,7 @@ function renderDiscover(host: HTMLElement, r: any, pick: (u: string) => void): v
   const news: any[] = r.new || [], both: any[] = r.both || [];
   if (!news.length && !both.length) return;
   const h = document.createElement("div");
-  h.className = "modaltext";
+  h.className = "disclbl";
   h.textContent = t("plgDiscover");
   host.appendChild(h);
   for (const m of news) {
@@ -2094,9 +2094,21 @@ function renderDiscover(host: HTMLElement, r: any, pick: (u: string) => void): v
   }
   for (const m of both) {
     const n = document.createElement("div");
-    n.className = "modalnote";
-    n.textContent = `${m.name} — ${t("plgDiscoverBoth")} · ` +
-      `${String(m.sha || "").slice(0, 12) || "-"} / Claude Code ${String(m.claude_updated || "").slice(0, 10) || "-"}`;
+    n.className = "discboth";
+    const head = document.createElement("div");
+    head.className = "dbhead";
+    const nm = document.createElement("span");
+    nm.className = "dbname";
+    nm.textContent = m.name || m.repo || m.url || "-";
+    const tag = document.createElement("span");
+    tag.className = "dbtag";
+    tag.textContent = t("plgDiscoverBoth");
+    head.append(nm, tag);
+    const meta = document.createElement("div");
+    meta.className = "dbmeta";
+    meta.textContent = `${String(m.sha || "").slice(0, 12) || "-"} / Claude Code ` +
+      `${String(m.claude_updated || "").slice(0, 10) || "-"}`;
+    n.append(head, meta);
     host.appendChild(n);
   }
 }

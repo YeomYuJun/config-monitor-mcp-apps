@@ -303,10 +303,24 @@
     padding:10px 12px;font-family:var(--mono);font-size:11px;line-height:1.55;color:#A3312A;
     word-break:break-word;max-height:170px;overflow:auto}
   .modalerr[hidden]{display:none}
-  /* Claude Code 에 등록된 마켓 제안. 고른 URL 도 기존 '등록 전 확인' 단계를 그대로 거친다. */
-  .modaldisc{display:flex;flex-direction:column;gap:6px}
+  /* Claude Code 에 등록된 마켓 제안. 고른 URL 도 기존 '등록 전 확인' 단계를 그대로 거친다.
+     입력 폼과 같은 평면에 그냥 얹으면 폼의 일부로 읽히므로 구분선으로 제 영역을 준다.
+     후보가 하나도 없으면 :empty 라 선만 남는 일이 없다(자식은 전부 요소 - 공백 텍스트 노드 없음). */
+  .modaldisc{display:flex;flex-direction:column;gap:7px;
+    border-top:1px solid var(--line2);padding-top:12px;margin-top:2px}
+  .modaldisc:empty{display:none}
+  .modaldisc .disclbl{font-size:10px;letter-spacing:.05em;text-transform:uppercase;
+    color:var(--mut3);font-weight:600}
   .modaldisc .chip.pick{cursor:pointer;align-self:flex-start;max-width:100%}
   .modaldisc .chip.pick:hover{border-color:var(--accent);color:var(--accent)}
+  /* 양쪽 등록된 마켓: 이름/상태와 sha/시각을 한 줄에 이어 붙이면 mono 폭에서 토큰 중간이
+     잘린다. 사람이 읽는 이름은 위, 대조용 식별자는 아래로 내려 줄바꿈 지점을 고정한다. */
+  .modaldisc .discboth{display:flex;flex-direction:column;gap:2px}
+  .modaldisc .dbhead{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .modaldisc .dbname{font-family:var(--mono);font-size:11px;color:var(--fg2);overflow-wrap:anywhere}
+  .modaldisc .dbtag{font-size:9.5px;font-weight:600;padding:1px 6px;border-radius:4px;
+    background:#E6E8EC;color:var(--mut3);white-space:nowrap;flex:0 0 auto}
+  .modaldisc .dbmeta{font-family:var(--mono);font-size:10px;color:var(--mut3);overflow-wrap:anywhere}
   .modalnote{font-size:11px;color:var(--mut);font-family:var(--mono);overflow-wrap:anywhere}
   .modallink{font-size:12px;color:var(--accent);text-decoration:none;align-self:flex-start}
   .modallink:hover{text-decoration:underline}
