@@ -1502,11 +1502,15 @@ function mkUnitRow(l: any, kind: "hooks" | "mcp"): HTMLElement {
 }
 
 function renderLibrary(host: HTMLElement, res: any): void {
+  const libs = (res && res.libraries) || [];
+  // 등록된 라이브러리가 없으면 접힌 채로 두지 않는다: "라이브러리 등록"은 이 섹션 본문
+  // 안에만 있어서, 기본 접힘(기동 시 전 섹션 접힘)과 겹치면 처음 쓰는 사람에게 진입점이
+  // 아예 안 보인다. Marketplace 가 같은 이유로 같은 처리를 한다.
+  if (!libs.length) collapsed.delete("Library");
   const secEl = document.createElement("div");
   secEl.className = "sec" + (collapsed.has("Library") ? " collapsed" : "");
   secEl.dataset.col = "1";
   secTitles.add("Library");
-  const libs = (res && res.libraries) || [];
   // 카테고리별 수집(agents/commands/skills). allItems 는 상단 "선택 설치" 카운트/설치 대상용.
   const byCat: Record<string, any[]> = { agents: [], commands: [], skills: [] };
   for (const l of libs) {
@@ -2209,7 +2213,12 @@ function openLibAdd(prefill: string): void {
     };
     input.addEventListener("input", sync);
     input.addEventListener("keydown", (e) => {
-      if ((e as KeyboardEvent).key === "Enter") void submit(okBtn);
+      if ((e as KeyboardEvent).key !== "Enter") return;
+      // 로컬 경로는 Enter 로 끝낸다. git 은 막는다 - 붙여넣고 바로 Enter 를 치면 심사하지
+      // 않은 URL 을 clone 하면서 경고를 한 번도 읽지 않는다. 그 경로만 버튼 클릭을 요구해
+      // 라벨(=경고 확인 문구)을 반드시 지나가게 한다.
+      if (classifyLibSource(input.value).kind === "git") { okBtn.focus(); return; }
+      void submit(okBtn);
     });
     body.append(hint, note, input, kindLine, warn, err, actions);
     sync();
