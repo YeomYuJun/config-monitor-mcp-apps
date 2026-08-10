@@ -293,6 +293,7 @@ def cmd_scan(a):
         h_own = hrec.get("origin") == origin
         m_own = mrec.get("origin") == origin
         row = {"lib": lib, "source": src, "origin": origin, "has_hooks": has_hooks, "has_mcp": has_mcp,
+               "marketplace": _is_marketplace(lib),
                "hooks_installed": h_own, "mcp_installed": m_own,
                "hooks_events": hrec.get("events", []) if h_own else [],
                "mcp_servers": mrec.get("servers", []) if m_own else [],
@@ -647,8 +648,12 @@ def cmd_remote_add(a):
         lib_store.save_cfg(a.store, cfg)
     except lib_store.StoreNotInitialized as e:
         print(json.dumps({"ok": False, "message": str(e), "cache": cache}, ensure_ascii=False)); return
+    # clone 이 끝난 뒤에야 매니페스트 유무를 알 수 있다(사전 판별하려면 받아보는 수밖에 없다).
+    # 그래서 거절이 아니라 사후 통지다 - .claude 레이아웃이 있으면 원격 등록 자체는 유효하고,
+    # 마켓플레이스이기도 하다는 사실만 UI 가 이어서 안내한다.
     print(json.dumps({"ok": True, "id": rid, "origin": f"remote:{rid}", "cache": cache,
                       "sha": sha, "layout": layout, "already": bool(prev),
+                      "marketplace": _is_marketplace(cache),
                       "message": (f"이미 등록된 원격입니다 - 갱신했습니다: {rid}" if prev
                                   else f"원격 라이브러리 등록됨: {rid}")}, ensure_ascii=False))
 
@@ -656,6 +661,18 @@ def cmd_remote_add(a):
 def _market_paths(store, mid):
     base = _lib_cache(store, "markets", mid)
     return base, os.path.join(base, "repo"), os.path.join(base, "plugins")
+
+
+def _is_marketplace(root):
+    """root 가 마켓플레이스 매니페스트를 품고 있는가. 파일 존재 확인 한 번이고 네트워크를
+    타지 않는다 - 이미 디스크에 있는 것(로컬 경로 / clone 끝난 캐시)에만 묻는다.
+
+    Library 와 Marketplace 를 가르는 실제 축은 전송 방식(로컬/원격)이 아니라 이 매니페스트의
+    유무다. UI 가 잘못 넣은 소스를 반대편으로 안내하려면 그 사실을 응답에 실어야 한다."""
+    try:
+        return os.path.isfile(os.path.join(root or "", marketplace.MANIFEST_REL))
+    except (OSError, ValueError):
+        return False
 
 
 def _local_manifest_sha(path):
@@ -718,7 +735,10 @@ def cmd_market_add(a):
     except marketplace.ManifestError as e:
         hint = ("마켓플레이스가 아닙니다(.claude-plugin/marketplace.json 이 없습니다)" if kind == "local"
                 else "마켓플레이스가 아닌 것 같습니다(remote-add 를 쓰세요)")
-        print(json.dumps({"ok": False, "message": f"{e} - {hint}"}, ensure_ascii=False)); return
+        # code 를 함께 준다: message 는 한국어 문장이라 UI 가 문자열 매칭으로 분기할 수 없다
+        # (영어 UI 에서 깨지고, 문구를 고치는 순간 조용히 죽는다). 분기는 code 로만 한다.
+        print(json.dumps({"ok": False, "code": "not_a_marketplace",
+                          "message": f"{e} - {hint}"}, ensure_ascii=False)); return
     if kind == "local":
         sha = _local_manifest_sha(manifest_path)
     try:

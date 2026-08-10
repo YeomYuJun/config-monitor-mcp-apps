@@ -172,6 +172,12 @@ def _git(cwd, *args):
                    capture_output=True, text=True)
 
 
+def _norm_path(p):
+    """행 매칭용 경로 정규화. 등록은 realpath 로 저장하는데 테스트가 넘긴 문자열은 그대로라
+    (심볼릭 링크된 임시 디렉토리에서) 문자열 비교가 어긋난다."""
+    return os.path.normcase(os.path.realpath(p))
+
+
 @unittest.skipIf(shutil.which("git") is None, "git 없음")
 class Materialize(unittest.TestCase):
     """fetch 는 네트워크 대신 로컬 git 픽스처 레포로 검증한다."""
@@ -2494,6 +2500,27 @@ class MarketSourceForms(unittest.TestCase):
         res = json.loads(out)
         self.assertFalse(res["ok"])
         self.assertIn("마켓플레이스가 아닙니다", res["message"])
+        # UI 는 이 거절에서 Library 등록으로 건너뛸 길을 제시한다. message 는 한국어 문장이라
+        # 매칭할 수 없으므로 그 분기는 code 로만 한다 - 없으면 유도가 조용히 죽는다.
+        self.assertEqual(res.get("code"), "not_a_marketplace")
+
+    def test_scan_flags_a_library_that_is_also_a_marketplace(self):
+        # 매니페스트를 품은 디렉토리를 라이브러리로 등록하면, 등록은 되고 그 사실만 알린다.
+        # (거절하면 skills 를 함께 가진 레포가 Library 로 들어올 길이 사라진다.)
+        rc, out, err = self.libcmd("scan", "--lib", self.local)
+        self.assertEqual(rc, 0, err)
+        res = json.loads(out)
+        row = next(r for r in res["libraries"] if _norm_path(r["lib"]) == _norm_path(self.local))
+        self.assertTrue(row["marketplace"], row)
+
+    def test_scan_does_not_flag_a_plain_library(self):
+        plain = os.path.join(self.tmp, "plainlib")
+        os.makedirs(os.path.join(plain, "skills"))
+        rc, out, err = self.libcmd("scan", "--lib", plain)
+        self.assertEqual(rc, 0, err)
+        res = json.loads(out)
+        row = next(r for r in res["libraries"] if _norm_path(r["lib"]) == _norm_path(plain))
+        self.assertFalse(row["marketplace"], row)
 
     def test_local_notations_of_the_same_dir_are_one_registration(self):
         self.libcmd("market-add", "--url", self.local)

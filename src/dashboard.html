@@ -242,7 +242,10 @@
   button.pending:hover{background:none;border:none}
   /* 라이브러리 경로 등록행 묶음: 사이의 경고 박스가 접혀 있어도(display:none -> flex 항목에서 제외)
      로컬 경로 입력행과 git URL 입력행 사이 간격이 유지된다. */
-  .libadders{display:flex;flex-direction:column;gap:10px}
+  /* 라이브러리 등록 모달의 판별 결과 줄. 입력 바로 아래에 붙어 "이렇게 해석했다"를 말한다.
+     입력이 비었을 때는 문자열이 비어 자리도 차지하지 않는다(빈 줄로 폼이 벌어지지 않게). */
+  .libkind{font-family:var(--mono);font-size:10.5px;color:var(--mut2);overflow-wrap:anywhere}
+  .libkind:empty{display:none}
   /* 항목/유닛 행의 출처 태그: 같은 이름이 여러 라이브러리에서 올 때 행을 구분하는 유일한 단서. */
   /* 출처는 행의 첫 칸이다("어디의 무엇인지"). 행의 다른 칸은 전부 고정폭이고 이름칸은 basis 0 이라
      줄어들 여지가 없으므로, 이 칸이 안 줄어들면(0 0 auto) 좁은 창에서 행이 가로로 삐져나온다.

@@ -63,7 +63,7 @@ const I18N: Record<string, Record<string, string>> = {
     libSectionTitle: "Library", libNotInstalled: "미설치", libInstalled: "설치됨", libModified: "변경됨",
     libEmpty: "라이브러리 항목 없음", kitRef: "kit참조", done: "완료",
     libInstall: "설치", libSync: "동기화", libSyncConfirm: "덮어쓰기 확정(백업됨)", libUninstallConfirm: "제거 확정(.trash)",
-    libUnregistered: "미등록", libPathPlaceholder: "라이브러리 경로 (.claude 구조 디렉토리)", libRegister: "등록", libRegistered: "라이브러리 등록됨",
+    libUnregistered: "미등록", libRegistered: "라이브러리 등록됨",
     curFileTitle: "현재 파일 내용", readOnly: "읽기 전용", emptyFile: "(빈 파일)", diffFetchFail: "diff 조회 실패",
     restoring: "복원 중…", watcherErr: "watcher 상태 오류", stopped: "정지됨", ago: "전",
     displayModeFail: "디스플레이 모드 변경 불가(호스트 미지원)",
@@ -75,9 +75,19 @@ const I18N: Record<string, Record<string, string>> = {
     libConflict: "충돌", libConflictOverwrite: "충돌: 덮어쓰기", libConflictConfirm: "덮어쓰기 확정",
     libOwnedBy: "현재 소유자", libRemoteTag: "remote", libMarketTag: "market",
     libRefetch: "새로고침", libStale: "일 전 갱신", libNeverFetched: "미갱신",
-    libRemoteAdd: "원격 등록", libRemoteUrlPlaceholder: "git 레포 URL (https://…/repo.git)",
     libRemoteWarn: "config-monitor 는 이 URL 을 심사하지 않습니다. 등록·설치의 책임은 사용자에게 있습니다.",
-    libRemoteWarnOk: "이해했습니다, 계속",
+    libRemoteWarnOk: "이해했습니다, 등록",
+    libAdd: "라이브러리 등록", libAddSubmit: "등록",
+    libAddHint: "skills · agents · commands 를 담은 폴더나 git 레포를 등록합니다. 등록하면 그 안의 항목을 골라 설치할 수 있습니다.",
+    libAddMarketNote: "마켓플레이스(.claude-plugin/marketplace.json)라면 Marketplace 섹션에서 등록하세요.",
+    libAddPlaceholder: "로컬 폴더 경로 또는 git 레포 URL",
+    libKindLocal: "로컬 폴더로 등록합니다 · 네트워크를 타지 않습니다",
+    libKindGit: "git 레포로 등록합니다 · clone 합니다",
+    libBadSource: "인식할 수 없는 소스입니다. 로컬 경로(C:\\… · ./… · ~/…) · git URL(https:// · ssh:// · git:// · file://) · owner/repo",
+    libIsMarket: "라이브러리로 등록했습니다. 이 소스는 마켓플레이스이기도 합니다(.claude-plugin/marketplace.json) — Marketplace 에 등록하면 플러그인 카탈로그로도 쓸 수 있습니다.",
+    libGoMarket: "Marketplace 에도 등록",
+    libNotMarket: "이 소스에는 마켓플레이스 매니페스트가 없습니다. skills·agents·commands 폴더를 가진 레포라면 Library 로 등록할 수 있습니다.",
+    libGoLibrary: "Library 로 등록", close: "닫기",
     libInstallSelected: "선택 설치", libInstallGroup: "그룹 설치", libInstallGroupConfirm: "그룹 설치 확정",
     libInstallGroupHint: "이 그룹의 미설치 스킬 전체 설치", libAllInstalled: "이미 전부 설치됨",
     installTarget: "설치 대상", targetGlobal: "전역 (~/.claude)", rootItems: "루트 항목 · 폴더 없음",
@@ -173,7 +183,7 @@ const I18N: Record<string, Record<string, string>> = {
     libSectionTitle: "Library", libNotInstalled: "Not installed", libInstalled: "Installed", libModified: "Modified",
     libEmpty: "No library items", kitRef: "kit ref", done: "done",
     libInstall: "Install", libSync: "Sync", libSyncConfirm: "Confirm overwrite (backed up)", libUninstallConfirm: "Confirm remove (.trash)",
-    libUnregistered: "Unregistered", libPathPlaceholder: "Library path (.claude-structured directory)", libRegister: "Register", libRegistered: "Library registered",
+    libUnregistered: "Unregistered", libRegistered: "Library registered",
     curFileTitle: "Current file content", readOnly: "Read-only", emptyFile: "(empty file)", diffFetchFail: "diff fetch failed",
     restoring: "Restoring…", watcherErr: "watcher status error", stopped: "stopped", ago: "ago",
     displayModeFail: "Cannot change display mode (host unsupported)",
@@ -185,9 +195,19 @@ const I18N: Record<string, Record<string, string>> = {
     libConflict: "Conflict", libConflictOverwrite: "Conflict: overwrite", libConflictConfirm: "Confirm overwrite",
     libOwnedBy: "Owned by", libRemoteTag: "remote", libMarketTag: "market",
     libRefetch: "Refresh", libStale: "d ago", libNeverFetched: "never fetched",
-    libRemoteAdd: "Add remote", libRemoteUrlPlaceholder: "git repo URL (https://…/repo.git)",
     libRemoteWarn: "config-monitor does not vet this URL. Registering and installing is your responsibility.",
-    libRemoteWarnOk: "Understood, continue",
+    libRemoteWarnOk: "Understood, register",
+    libAdd: "Add library", libAddSubmit: "Register",
+    libAddHint: "Registers a folder or git repo holding skills, agents or commands. Once registered you can install individual items from it.",
+    libAddMarketNote: "If it is a marketplace (.claude-plugin/marketplace.json), register it in the Marketplace section instead.",
+    libAddPlaceholder: "Local folder path or git repo URL",
+    libKindLocal: "registers as a local folder · no network",
+    libKindGit: "registers as a git repo · will be cloned",
+    libBadSource: "Unrecognized source. Local path (C:\\… · ./… · ~/…) · git URL (https:// · ssh:// · git:// · file://) · owner/repo",
+    libIsMarket: "Registered as a library. This source is also a marketplace (.claude-plugin/marketplace.json) — registering it in Marketplace gives you its plugin catalog too.",
+    libGoMarket: "Also add to Marketplace",
+    libNotMarket: "This source has no marketplace manifest. If the repo has skills/agents/commands folders, it can be registered as a Library instead.",
+    libGoLibrary: "Register as Library", close: "Close",
     libInstallSelected: "Install selected", libInstallGroup: "Install group", libInstallGroupConfirm: "Confirm install",
     libInstallGroupHint: "Install all not-installed skills in this group", libAllInstalled: "All already installed",
     installTarget: "Install to", targetGlobal: "Global (~/.claude)", rootItems: "root items · no folder",
@@ -1141,67 +1161,15 @@ const libStatus = (s: string): [string, string] =>
   (({ not_installed: [t("libNotInstalled"), ""], installed: [t("libInstalled"), "ok"],
       modified: [t("libModified"), "warn"], conflict: [t("libConflict"), "err"] } as Record<string, [string, string]>)[s] || [s, ""]);
 
-// 라이브러리 경로 등록 입력행. 여러 경로 등록 가능(백엔드가 config.json libraries 배열에 멱등 append).
-// 빈 상태 등록 UI 와 채워진 목록의 "경로 추가" 양쪽에서 재사용.
+// 라이브러리 등록 진입점. 입력칸을 섹션 본문에 상주시키지 않고 Marketplace 와 같은
+// 버튼 -> 모달 흐름으로 맞춘다(openMarketAdd 참고). 전송 방식(로컬/원격)은 사용자가 고르는
+// 것이 아니라 입력에서 판별하므로 칸도 하나다.
 function buildLibAdder(): HTMLElement {
-  const wrap = document.createElement("div");
-  // 로컬 경로 입력행과 git URL 입력행은 서로 다른 등록이라 붙여 두면 한 폼처럼 읽힌다.
-  // 사이의 경고 박스는 접혀 있을 때 display:none 이라 간격을 만들지 못하므로 컨테이너가 gap 을 준다.
-  wrap.className = "libadders";
-  const adder = document.createElement("div");
-  adder.className = "adder";
-  const input = document.createElement("input");
-  input.placeholder = t("libPathPlaceholder");
-  const btn = document.createElement("button");
-  btn.className = "addbtn";
-  btn.textContent = t("libRegister");
-  const submit = async () => {
-    const v = input.value.trim();
-    if (!v) return;
-    setPending(btn);
-    try {
-      const r = jparse(await callTool("library_scan", { lib: v }));
-      if (r && r.ok === false) { flashToast(r.message || t("failed")); clearPending(btn, t("libRegister")); return; }
-      flashToast(t("libRegistered"));
-      await refresh();
-    } catch (e) { clearPending(btn, t("failed")); console.error("[config-monitor] lib register", e); }
-  };
-  btn.addEventListener("click", submit);
-  input.addEventListener("keydown", (e) => { if ((e as KeyboardEvent).key === "Enter") submit(); });
-  adder.append(input, btn);
-
-  // 원격 등록: URL 입력 -> 경고 확인 -> 그 다음에야 네트워크를 탄다.
-  const rAdder = document.createElement("div");
-  rAdder.className = "adder";
-  const rInput = document.createElement("input");
-  rInput.placeholder = t("libRemoteUrlPlaceholder");
-  const rBtn = document.createElement("button");
-  rBtn.className = "addbtn";
-  rBtn.textContent = t("libRemoteAdd");
-  const warnBox = document.createElement("div");
-  warnBox.className = "dlabel";
-  warnBox.style.display = "none";
-  warnBox.style.margin = "4px 0";
-  rBtn.addEventListener("click", async () => {
-    const url = rInput.value.trim();
-    if (!url) return;
-    if (warnBox.style.display === "none") {
-      warnBox.textContent = t("libRemoteWarn");
-      warnBox.style.display = "";
-      rBtn.textContent = t("libRemoteWarnOk");
-      return;
-    }
-    setPending(rBtn);
-    try {
-      const r = jparse(await callTool("library_remote_add", { url }));
-      if (r && r.ok === false) { flashToast(r.message || t("failed")); clearPending(rBtn, t("libRemoteAdd")); return; }
-      flashToast(r?.message || t("libRegistered"));
-      await refresh();
-    } catch (e) { clearPending(rBtn, t("failed")); console.error("[config-monitor] remote add", e); }
-  });
-  rAdder.append(rInput, rBtn);
-  wrap.append(adder, warnBox, rAdder);
-  return wrap;
+  const b = document.createElement("button");
+  b.className = "addbtn";
+  b.textContent = "＋ " + t("libAdd");
+  b.addEventListener("click", () => openLibAdd(""));
+  return b;
 }
 
 // 항목(스킬/에이전트/커맨드) 액션 버튼: 상태별 설치/동기화/제거. 설치는 relpath(가변 깊이) + lib 로 지정.
@@ -2125,6 +2093,130 @@ function renderDiscover(host: HTMLElement, r: any, pick: (u: string) => void): v
   }
 }
 
+// ----- Library 등록 (Marketplace 와 같은 버튼 -> 모달 흐름) -----
+// Library 와 Marketplace 를 가르는 축은 전송 방식이 아니라 `.claude-plugin/marketplace.json`
+// 유무다. 그래서 입력칸을 로컬/원격으로 쪼개지 않고 하나만 두고, 전송 방식은 판별한다.
+// owner/repo 축약은 remote_fetch._validate_url 이 스킴 없는 문자열을 거부하므로 여기서
+// GitHub URL 로 편다(marketplace.py 의 축약 처리와 같은 규칙). 편 결과는 화면에 적어
+// 무엇을 clone 하는지 누르기 전에 보이게 한다.
+type LibSource = { kind: "local" | "git" | ""; url: string; expanded: boolean };
+function classifyLibSource(raw: string): LibSource {
+  const u = (raw || "").trim();
+  if (!u) return { kind: "", url: "", expanded: false };
+  if (LOCAL_PATH_RE.test(u)) return { kind: "local", url: u, expanded: false };
+  if (GIT_URL_RE.test(u) || SCP_URL_RE.test(u)) return { kind: "git", url: u, expanded: false };
+  if (SHORTHAND_RE.test(u) && !u.includes("..")) {
+    return { kind: "git", url: `https://github.com/${u}.git`, expanded: true };
+  }
+  return { kind: "", url: u, expanded: false };
+}
+
+const normLibPath = (p: string) =>
+  String(p || "").replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+
+// library_scan 은 등록만 하는 도구가 아니라 **전체 목록**을 돌려준다. 입력한 경로에
+// 해당하는 행만 찾아 그 행의 marketplace 플래그를 읽는다(다른 라이브러리의 플래그를 보면 안 된다).
+function scannedRowIsMarket(r: any, p: string): boolean {
+  const rows: any[] = (r && Array.isArray(r.libraries)) ? r.libraries : [];
+  const hit = rows.find((x) => normLibPath(x.lib) === normLibPath(p));
+  return !!(hit && hit.marketplace);
+}
+
+// 등록이 끝난 뒤의 안내. 되돌리는 화면이 아니라 다음 걸음을 권하는 화면이므로
+// 취소 자리는 '닫기'다 - '취소'로 두면 끝난 등록이 되돌려지는 것으로 읽힌다.
+function showCrossOffer(body: HTMLElement, close: () => void,
+                        msgKey: string, okKey: string, go: () => void): void {
+  const msg = document.createElement("div");
+  msg.className = "modaltext";
+  msg.textContent = t(msgKey);
+  const row = modalActions(t(okKey), () => { close(); go(); }, close);
+  const btns = row.querySelectorAll("button");
+  if (btns[1]) btns[1].textContent = t("close");
+  body.replaceChildren(msg, row);
+}
+
+function openLibAdd(prefill: string): void {
+  openModal(t("libAdd"), (body, close) => {
+    const hint = document.createElement("div");
+    hint.className = "modaltext";
+    hint.textContent = t("libAddHint");
+    const note = document.createElement("div");
+    note.className = "modalnote";
+    note.textContent = t("libAddMarketNote");
+    const input = document.createElement("input");
+    input.className = "modalinput";
+    input.placeholder = t("libAddPlaceholder");
+    input.value = prefill;
+    // 판별 결과를 누르기 전에 보여준다: 어느 칸에 넣느냐가 곧 결정이던 구조를 없앴으므로
+    // 무엇으로 해석됐는지는 화면이 말해야 한다.
+    const kindLine = document.createElement("div");
+    kindLine.className = "libkind";
+    const warn = document.createElement("div");
+    warn.className = "modalwarn";
+    warn.hidden = true;
+    warn.innerHTML = `<span class="ico">⚠</span><span>${esc(t("libRemoteWarn"))}</span>`;
+    const err = document.createElement("div");
+    err.className = "modalerr";
+    err.hidden = true;
+
+    const submit = async (ok: HTMLButtonElement) => {
+      const s = classifyLibSource(input.value);
+      if (!s.kind) {
+        err.textContent = t("libBadSource");
+        err.hidden = false;
+        input.focus();
+        return;
+      }
+      err.hidden = true;
+      setPending(ok);
+      try {
+        const r = s.kind === "local"
+          ? jparse(await callTool("library_scan", { lib: s.url }))
+          : jparse(await callTool("library_remote_add", { url: s.url }));
+        if (r && r.ok === false) {
+          err.textContent = r.message || t("failed");
+          err.hidden = false;
+          clearPending(ok);
+          return;
+        }
+        const isMarket = s.kind === "local" ? scannedRowIsMarket(r, s.url) : !!(r && r.marketplace);
+        flashToast((r && r.message) || t("libRegistered"));
+        await refresh();
+        // 원격은 clone 이 끝나야 매니페스트 유무를 알 수 있어 사전 분기가 불가능하다.
+        // 로컬도 같은 화면으로 맞춘다 - 등록은 유효하고, 반대편 등록만 이어서 권한다.
+        if (isMarket) showCrossOffer(body, close, "libIsMarket", "libGoMarket",
+                                     () => openMarketAdd(s.expanded ? s.url : input.value.trim()));
+        else close();
+      } catch (e) {
+        clearPending(ok, t("failed"));
+        console.error("[config-monitor] library add", e);
+      }
+    };
+
+    const actions = modalActions(t("libAddSubmit"), (ok) => void submit(ok), close);
+    const okBtn = actions.querySelector("button") as HTMLButtonElement;
+    const sync = () => {
+      const s = classifyLibSource(input.value);
+      err.hidden = true;
+      warn.hidden = s.kind !== "git";
+      // git 이면 주 버튼 라벨 자체가 경고 확인이 된다. 경고가 화면에 떠 있는 채로만
+      // 누를 수 있으므로 별도 확인 단계를 한 번 더 두지 않는다.
+      okBtn.textContent = s.kind === "git" ? t("libRemoteWarnOk") : t("libAddSubmit");
+      kindLine.textContent = !s.kind ? ""
+        : s.kind === "local" ? t("libKindLocal")
+        : s.expanded ? `${s.url} · ${t("libKindGit")}`
+        : t("libKindGit");
+    };
+    input.addEventListener("input", sync);
+    input.addEventListener("keydown", (e) => {
+      if ((e as KeyboardEvent).key === "Enter") void submit(okBtn);
+    });
+    body.append(hint, note, input, kindLine, warn, err, actions);
+    sync();
+    setTimeout(() => input.focus(), 0);
+  });
+}
+
 function openMarketWarn(url: string): void {
   openModal(t("catWarnTitle"), (body, close) => {
     const warn = document.createElement("div");
@@ -2142,6 +2234,13 @@ function openMarketWarn(url: string): void {
       try {
         const rr = jparse(await callTool("library_marketplace_add", { url }));
         if (rr && rr.ok === false) {
+          // 매니페스트가 없어서 거절된 것뿐이면 막다른 길이 아니다 - Library 쪽이 받는
+          // 모양일 수 있으므로 그리로 건너갈 길을 준다. 분기는 code 로만 한다
+          // (message 는 백엔드가 한국어로 만든 문장이라 매칭하면 영어 UI 에서 깨진다).
+          if (rr.code === "not_a_marketplace") {
+            showCrossOffer(body, close, "libNotMarket", "libGoLibrary", () => openLibAdd(url));
+            return;
+          }
           err.textContent = rr.message || t("failed");
           err.hidden = false;
           clearPending(ok, t("libRemoteWarnOk"));
