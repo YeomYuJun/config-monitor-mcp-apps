@@ -72,22 +72,22 @@ const I18N: Record<string, Record<string, string>> = {
     selectFilePrompt: "파일 선택", selectFileHint: "왼쪽에서 추적 파일을 클릭하세요",
     libPaths: "라이브러리 경로", libPathRemoved: "경로 제거됨", libEnvTag: "env",
     libEnvHint: "환경변수(CLAUDE_CONFIG_LIBRARIES)로 지정되어 대시보드에서 제거 불가",
-    libConflict: "충돌", libConflictOverwrite: "충돌 — 덮어쓰기", libConflictConfirm: "덮어쓰기 확정",
+    libConflict: "충돌", libConflictOverwrite: "충돌: 덮어쓰기", libConflictConfirm: "덮어쓰기 확정",
     libOwnedBy: "현재 소유자", libRemoteTag: "remote", libMarketTag: "market",
     libRefetch: "새로고침", libStale: "일 전 갱신", libNeverFetched: "미갱신",
     libRemoteAdd: "원격 등록", libRemoteUrlPlaceholder: "git 레포 URL (https://…/repo.git)",
     libRemoteWarn: "config-monitor 는 이 URL 을 심사하지 않습니다. 등록·설치의 책임은 사용자에게 있습니다.",
-    libRemoteWarnOk: "이해했습니다 — 계속",
+    libRemoteWarnOk: "이해했습니다, 계속",
     libInstallSelected: "선택 설치", libInstallGroup: "그룹 설치", libInstallGroupConfirm: "그룹 설치 확정",
     libInstallGroupHint: "이 그룹의 미설치 스킬 전체 설치", libAllInstalled: "이미 전부 설치됨",
     installTarget: "설치 대상", targetGlobal: "전역 (~/.claude)", rootItems: "루트 항목 · 폴더 없음",
     toastGroup: "그룹 설치 완료", toastSel: "선택 설치 완료", cntUnit: "개",
     // 섹션 타이틀은 번역하지 않는다 - Library 와 나란히 놓이는 고유 영역명이다.
-    catFetchTip: "Library 로 가져옵니다 — 원하는 항목만 골라 설치, 설치 전 diff·롤백, Claude Desktop 가능",
+    catFetchTip: "Library 로 가져옵니다. 원하는 항목만 골라 설치, 설치 전 diff·롤백, Claude Desktop 가능",
     catActivate: "플러그인 설치", catActivated: "플러그인",
-    catActivateTip: "Claude Code 에 플러그인 통째로 설치합니다 — <플러그인>:<항목> 으로 주입되고 토글로 끕니다. 다음 세션부터 적용",
-    catActivatedTip: "이미 Claude Code 플러그인으로 설치되어 있습니다 — Plugins 섹션에서 켜고 끕니다",
-    catActivateNoMarket: "이 마켓이 Claude Code 에 등록되어 있지 않습니다 — 먼저 저쪽에 마켓을 등록해야 합니다",
+    catActivateTip: "Claude Code 에 플러그인 통째로 설치합니다. <플러그인>:<항목> 으로 주입되고 토글로 끕니다. 다음 세션부터 적용",
+    catActivatedTip: "이미 Claude Code 플러그인으로 설치되어 있습니다. Plugins 섹션에서 켜고 끕니다",
+    catActivateNoMarket: "Claude Code 에 등록되지 않은 마켓입니다. 마켓 헤더의 Claude Code [등록] 을 먼저 누르세요",
     catTitle: "Marketplace", catSearch: "검색…", catAll: "전체", catFetch: "항목 설치",
     catFetched: "설치됨", catEmpty: "등록된 마켓플레이스 없음", catNoPlugins: "조건에 맞는 플러그인 없음",
     catPrev: "‹ 이전", catNext: "다음 ›", catPageOf: "페이지", catNoUrl: "(URL 미기록)",
@@ -95,16 +95,16 @@ const I18N: Record<string, Record<string, string>> = {
     catMarketUrlHint: "마켓플레이스 소스를 입력하세요 — owner/repo · git URL · marketplace.json URL · 로컬 경로.",
     catMarketSubmit: "등록", catWarnTitle: "등록 전 확인",
     catSearchTip: "검색", catCategoryTip: "분류",
-    catBadUrl: "인식할 수 없는 소스입니다 — owner/repo · https:// · ssh:// · git:// · file:// · user@host:path · ./로컬/경로",
+    catBadUrl: "인식할 수 없는 소스입니다. 가능한 형식: owner/repo · https:// · ssh:// · git:// · file:// · user@host:path · ./로컬/경로",
     unitHooks: "hooks", unitMcp: "MCP", unitInstall: "설치", unitRemove: "제거",
     unitHooksHint: "hooks/hooks.json → settings.json", unitMcpHint: ".mcp.json → ~/.claude.json",
     unitRemoveConfirm: "제거 확정", unitEmpty: "hooks/MCP 를 가진 라이브러리 없음",
-    unitConfirm: "설치 확정 — 매 세션 실행됨", unitFetchFirst: "가져오기 먼저",
+    unitConfirm: "설치 확정 (매 세션 실행됨)", unitFetchFirst: "가져오기 먼저",
     unitInterpWarn: "없음", unitInterpStub: "스텁(실행 실패)",
     unitCmdTitle: "설치될 명령(치환 완료)", unitScopeUser: "user", unitScopeDesktop: "desktop",
     plgOn: "켜기", plgOff: "끄기", plgEnabled: "적용 중", plgDisabled: "꺼짐",
     plgRestart: "다음 세션부터 적용",
-    plgToggleTip: "settings.json 의 enabledPlugins 만 바꿉니다 — 플러그인을 지우지 않습니다",
+    plgToggleTip: "settings.json 의 enabledPlugins 만 바꿉니다. 플러그인을 지우지 않습니다",
     plgDiscover: "Claude Code 에 등록된 마켓 — 눌러서 URL 채우기",
     plgDiscoverNone: "가져올 새 마켓 없음", plgDiscoverBoth: "양쪽 등록됨",
     plgUpdate: "갱신", plgUninstall: "제거",
@@ -115,26 +115,27 @@ const I18N: Record<string, Record<string, string>> = {
     catFrom: "출처", catAuthor: "제작자", catUpdated: "최종 갱신",
     catWillInstall: "설치될 항목",
     catInstallsNothing: "선언된 컴포넌트 없음",
-    catNoInventory: "이 마켓은 사전 인벤토리가 없습니다 — 무엇이 들어오는지는 가져온 뒤에 알 수 있습니다",
+    catNoInventory: "이 마켓은 사전 인벤토리가 없습니다. 무엇이 들어오는지는 가져온 뒤에 알 수 있습니다",
     catTokensTip: "always-on 은 매 세션 상시로 드는 컨텍스트 비용, on-invoke 는 실제로 불렸을 때만",
     catTrustWarn: "설치 전에 이 플러그인을 신뢰할 수 있는지 확인하세요. Anthropic 도 config-monitor 도 플러그인에 담긴 MCP 서버·파일·코드를 통제하거나 검증하지 않습니다.",
     catHomepage: "홈페이지 열기 ↗",
-    catScopeUser: "나에게 설치", catScopeProject: "이 저장소 전체에", catScopeLocal: "이 저장소에서 나만",
-    catScopeUserTip: "user 스코프 — ~/.claude/settings.json",
-    catScopeProjectTip: "project 스코프 — 선택한 프로젝트의 .claude/settings.json (커밋되어 팀에 공유됨)",
-    catScopeLocalTip: "local 스코프 — 그 저장소에서 나에게만",
-    catScopeNoProject: "추적 중인 프로젝트가 없습니다 — 먼저 프로젝트를 추적에 추가하세요",
+    catScopeUser: "전역 (user)", catScopeProject: "프로젝트 공유 (project)", catScopeLocal: "프로젝트 개인 (local)",
+    catScopeUserTip: "~/.claude/settings.json · 이 PC 의 모든 프로젝트에 적용됩니다",
+    catScopeProjectTip: "선택한 프로젝트의 .claude/settings.json · 커밋되어 팀에 공유됩니다",
+    catScopeLocalTip: "선택한 프로젝트의 .claude/settings.local.json · 커밋되지 않고 나에게만 적용됩니다",
+    catScopeNoProject: "추적 중인 프로젝트가 없습니다. 먼저 프로젝트를 추적에 추가하세요",
     catScopeTarget: "설치 대상 프로젝트:",
     orgPlugin: "플러그인", orgBuiltin: "기본 제공",
     orgPluginTip: "플러그인이 넣은 스킬·에이전트·커맨드·hooks·MCP 를 목록에서 보이거나 숨깁니다. Plugins 섹션 자체는 항상 남습니다",
     orgBuiltinTip: "기본 제공 항목(Desktop Skills 의 anthropic 배지)을 보이거나 숨깁니다",
     mkOfficialPreset: "＋ 공식 마켓플레이스 (anthropics/claude-plugins-official)",
-    mkExport: "CC 에 등록", mkExportTip: "이 마켓을 Claude Code 에도 등록합니다(claude plugin marketplace add). 캐시는 서로 별개로 유지됩니다",
-    mkCcUpdate: "CC 갱신", mkCcUpdateTip: "Claude Code 쪽 마켓 매니페스트를 갱신합니다 — 설치된 플러그인 버전은 그대로입니다",
-    mkCcRemove: "CC 해제", mkCcRemoveTip: "Claude Code 에서 이 마켓 등록을 해제합니다(모든 스코프). config-monitor 스토어는 그대로입니다",
+    mkCcGroup: "Claude Code", mkCcGroupTip: "오른쪽 버튼들은 Claude Code 쪽 마켓 등록을 다룹니다. config-monitor 스토어와는 별개입니다",
+    mkExport: "등록", mkExportTip: "이 마켓을 Claude Code 에도 등록합니다(claude plugin marketplace add). 캐시는 서로 별개로 유지됩니다",
+    mkCcUpdate: "갱신", mkCcUpdateTip: "Claude Code 쪽 마켓 매니페스트를 갱신합니다. 설치된 플러그인 버전은 그대로입니다",
+    mkCcRemove: "해제", mkCcRemoveTip: "Claude Code 에서 이 마켓 등록을 해제합니다(모든 스코프). config-monitor 스토어는 그대로입니다",
     mkRemove: "제거", mkRemoveTip: "이 대시보드의 마켓 등록을 해제하고 캐시를 지웁니다. 설치된 항목이 이 캐시를 참조 중이면 거부하고 무엇이 붙들고 있는지 알려줍니다. Claude Code 쪽 등록은 그대로입니다",
-    plgStaleTip: "enabledPlugins 에만 남은 키입니다 — 설치 기록이 없습니다",
-    plgMissingTip: "설치 경로가 없습니다 — 캐시가 지워졌거나 수동 삭제되었습니다",
+    plgStaleTip: "enabledPlugins 에만 남은 키입니다. 설치 기록이 없습니다",
+    plgMissingTip: "설치 경로가 없습니다. 캐시가 지워졌거나 수동 삭제되었습니다",
   },
   en: {
     newFile: "New", modified: "Modified", deleted: "Deleted", unchanged: "Same",
@@ -180,12 +181,12 @@ const I18N: Record<string, Record<string, string>> = {
     selectFilePrompt: "Select a file", selectFileHint: "Click a tracked file on the left",
     libPaths: "Library paths", libPathRemoved: "Path removed", libEnvTag: "env",
     libEnvHint: "Set via CLAUDE_CONFIG_LIBRARIES env; can't be removed from the dashboard",
-    libConflict: "Conflict", libConflictOverwrite: "Conflict — overwrite", libConflictConfirm: "Confirm overwrite",
+    libConflict: "Conflict", libConflictOverwrite: "Conflict: overwrite", libConflictConfirm: "Confirm overwrite",
     libOwnedBy: "Owned by", libRemoteTag: "remote", libMarketTag: "market",
     libRefetch: "Refresh", libStale: "d ago", libNeverFetched: "never fetched",
     libRemoteAdd: "Add remote", libRemoteUrlPlaceholder: "git repo URL (https://…/repo.git)",
     libRemoteWarn: "config-monitor does not vet this URL. Registering and installing is your responsibility.",
-    libRemoteWarnOk: "Understood — continue",
+    libRemoteWarnOk: "Understood, continue",
     libInstallSelected: "Install selected", libInstallGroup: "Install group", libInstallGroupConfirm: "Confirm install",
     libInstallGroupHint: "Install all not-installed skills in this group", libAllInstalled: "All already installed",
     installTarget: "Install to", targetGlobal: "Global (~/.claude)", rootItems: "root items · no folder",
@@ -194,7 +195,7 @@ const I18N: Record<string, Record<string, string>> = {
     catActivate: "Install plugin", catActivated: "plugin",
     catActivateTip: "Installs the whole plugin into Claude Code — injected as <plugin>:<item> and switched off with a toggle. Applies from the next session",
     catActivatedTip: "Already installed as a Claude Code plugin — toggle it in the Plugins section",
-    catActivateNoMarket: "This marketplace is not registered in Claude Code — register it there first",
+    catActivateNoMarket: "This marketplace isn't registered in Claude Code. Use Claude Code [Register] in the market header first",
     catTitle: "Marketplace", catSearch: "Search…", catAll: "All", catFetch: "Install items",
     catFetched: "Installed", catEmpty: "No marketplace registered", catNoPlugins: "No plugin matches",
     catPrev: "‹ Prev", catNext: "Next ›", catPageOf: "page", catNoUrl: "(no URL recorded)",
@@ -206,7 +207,7 @@ const I18N: Record<string, Record<string, string>> = {
     unitHooks: "hooks", unitMcp: "MCP", unitInstall: "Install", unitRemove: "Remove",
     unitHooksHint: "hooks/hooks.json → settings.json", unitMcpHint: ".mcp.json → ~/.claude.json",
     unitRemoveConfirm: "Confirm remove", unitEmpty: "No library provides hooks/MCP",
-    unitConfirm: "Confirm — runs every session", unitFetchFirst: "Fetch first",
+    unitConfirm: "Confirm (runs every session)", unitFetchFirst: "Fetch first",
     unitInterpWarn: "missing", unitInterpStub: "stub (fails to run)",
     unitCmdTitle: "Commands to install (substituted)", unitScopeUser: "user", unitScopeDesktop: "desktop",
     plgOn: "Enable", plgOff: "Disable", plgEnabled: "active", plgDisabled: "off",
@@ -226,19 +227,20 @@ const I18N: Record<string, Record<string, string>> = {
     catTokensTip: "always-on is the context cost carried every session; on-invoke applies only when actually called",
     catTrustWarn: "Make sure you trust this plugin before installing. Neither Anthropic nor config-monitor controls or verifies the MCP servers, files, or code a plugin ships.",
     catHomepage: "Open homepage ↗",
-    catScopeUser: "Install for you", catScopeProject: "For everyone on this repo", catScopeLocal: "This repo, you only",
-    catScopeUserTip: "user scope — ~/.claude/settings.json",
-    catScopeProjectTip: "project scope — the selected project's .claude/settings.json (committed, shared with the team)",
-    catScopeLocalTip: "local scope — that repo, for you only",
-    catScopeNoProject: "No tracked project — add one to tracking first",
+    catScopeUser: "Global (user)", catScopeProject: "Project, shared (project)", catScopeLocal: "Project, just me (local)",
+    catScopeUserTip: "~/.claude/settings.json · applies to every project on this machine",
+    catScopeProjectTip: "the selected project's .claude/settings.json · committed, shared with the team",
+    catScopeLocalTip: "the selected project's .claude/settings.local.json · not committed, applies to you only",
+    catScopeNoProject: "No tracked project. Add one to tracking first",
     catScopeTarget: "Install into project:",
     orgPlugin: "Plugins", orgBuiltin: "Built-in",
     orgPluginTip: "Shows or hides the skills, agents, commands, hooks and MCP servers plugins contribute. The Plugins section itself always stays",
     orgBuiltinTip: "Shows or hides built-in items (the anthropic badge in Desktop Skills)",
     mkOfficialPreset: "＋ Official marketplace (anthropics/claude-plugins-official)",
-    mkExport: "Add to CC", mkExportTip: "Also register this marketplace in Claude Code (claude plugin marketplace add). The two caches stay separate",
-    mkCcUpdate: "Update in CC", mkCcUpdateTip: "Refreshes the marketplace manifest on the Claude Code side — installed plugin versions are untouched",
-    mkCcRemove: "Remove from CC", mkCcRemoveTip: "Removes this marketplace registration from Claude Code (all scopes). The config-monitor store is untouched",
+    mkCcGroup: "Claude Code", mkCcGroupTip: "The buttons to the right act on the Claude Code marketplace registration, separate from the config-monitor store",
+    mkExport: "Register", mkExportTip: "Also register this marketplace in Claude Code (claude plugin marketplace add). The two caches stay separate",
+    mkCcUpdate: "Update", mkCcUpdateTip: "Refreshes the marketplace manifest on the Claude Code side — installed plugin versions are untouched",
+    mkCcRemove: "Unregister", mkCcRemoveTip: "Removes this marketplace registration from Claude Code (all scopes). The config-monitor store is untouched",
     mkRemove: "Remove", mkRemoveTip: "Unregisters the marketplace from this dashboard and deletes its cache. Refused, with what is holding it, if installed items still reference that cache. The Claude Code registration is untouched",
     plgStaleTip: "Key left over in enabledPlugins — no install record",
     plgMissingTip: "Install path is gone — cache was pruned or deleted manually",
@@ -969,7 +971,7 @@ function buildPluginToggleUI(edit: any): HTMLElement {
       }));
       if (res && res.ok === false) { clearPending(btn, t("failed")); flashToast(res.message || t("failed")); return; }
       // 재시작 전까지는 세션에 반영되지 않는다 - 토글이 고장난 것처럼 보이지 않게 명시한다.
-      flashToast(`${edit.id} · ${!on ? t("plgEnabled") : t("plgDisabled")} — ${t("plgRestart")}`);
+      flashToast(`${edit.id} · ${!on ? t("plgEnabled") : t("plgDisabled")} · ${t("plgRestart")}`);
       await refresh();
     } catch (e) { clearPending(btn, t("failed")); console.error("[config-monitor] plugin toggle", e); }
   });
@@ -1843,9 +1845,10 @@ function mkMarketGroup(m: any): HTMLElement {
 
 // 마켓 헤더의 Claude Code 쪽 액션. 이 섹션이 나열하는 건 **config-monitor 스토어**의 마켓이고,
 // 같은 레포가 Claude Code 에도 등록돼 있을 수 있다(ccMarkets). 두 등록은 캐시를 각자 유지하는
-// 별개의 것이라 합치지 않고, 어느 쪽 조작인지 라벨로 못 박은 뒤 나란히 둔다.
-//   저쪽에 없으면  -> 등록(export)
-//   저쪽에 있으면  -> 갱신 / 해제
+// 별개의 것이라 합치지 않고, 어느 쪽 조작인지 그룹 라벨로 못 박은 뒤 나란히 둔다.
+//   Claude Code 에 없으면  -> 등록(export)
+//   Claude Code 에 있으면  -> 갱신 / 해제
+// 그 뒤 구분선 하나를 두고 config-monitor 스토어의 제거가 온다.
 // auto-update 는 없다: TUI 에만 있고 CLI 서브커맨드도 저장 흔적도 없어 키를 추측해야 한다.
 function mkMarketCcActions(m: any): HTMLElement {
   const wrap = document.createElement("span");
@@ -1887,7 +1890,18 @@ function mkMarketCcActions(m: any): HTMLElement {
     ok.addEventListener("click", () => run(ok));
   };
 
-  if (!ccMarkets.has(name)) {
+  // 어느 쪽 등록을 다루는 버튼인지는 라벨 하나로 한 번만 말한다. 버튼마다 "Claude Code" 를
+  // 반복하면 헤더 폭을 잡아먹는다 - 이 행은 인라인(위젯) 폭에서도 URL 과 자리를 나눠 쓴다.
+  const ccExists = ccMarkets.has(name);
+  const hasCcAction = ccExists || !!m.url;
+  if (hasCcAction) {
+    const lbl = document.createElement("span");
+    lbl.className = "mklbl";
+    lbl.textContent = t("mkCcGroup");
+    lbl.title = t("mkCcGroupTip");
+    wrap.appendChild(lbl);
+  }
+  if (!ccExists) {
     if (m.url) {
       mk(t("mkExport"), t("mkExportTip"), "addbtn",
         (b) => call(b, "claude_marketplace_add", { source: m.url, scope: "user" }));
@@ -1899,8 +1913,14 @@ function mkMarketCcActions(m: any): HTMLElement {
        confirmThen((b) => call(b, "claude_marketplace_remove", { name })));
   }
 
-  // config-monitor 자기 스토어에서의 해제. 위 CC 액션과 **다른 등록**을 지운다 - 둘은
-  // 캐시를 각자 유지하므로 한쪽을 지워도 다른 쪽은 남는다. 라벨이 그 차이를 말한다.
+  // config-monitor 자기 스토어에서의 해제. 위 Claude Code 액션과 **다른 등록**을 지운다 - 둘은
+  // 캐시를 각자 유지하므로 한쪽을 지워도 다른 쪽은 남는다. 라벨만으로는 두 축이 한 묶음처럼
+  // 읽히므로 구분선을 넣어 갈라 둔다.
+  if (hasCcAction) {
+    const sep = document.createElement("span");
+    sep.className = "mksep";
+    wrap.appendChild(sep);
+  }
   // library_unregister 는 원장이 그 캐시를 참조 중이면 거부하고 무엇이 붙들고 있는지
   // 알려준다(held_by) - 강제 옵션은 두지 않는다.
   mk(t("mkRemove"), t("mkRemoveTip"), "cx", confirmThen(async (b) => {
