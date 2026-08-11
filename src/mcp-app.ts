@@ -39,13 +39,13 @@ function originLabel(origin: string): string {
 // 풀려 사용자가 예측할 수 없다. ~ 는 홈이라 예측 가능하므로 허용한다.
 const ABS_PATH_RE = /^([A-Za-z]:[\\/]|[\\/]|~[\\/])/;
 
-// 권한 규칙의 **형태**만 본다: `Tool` 또는 `Tool(...)`. 규칙의 의미까지 검증하지 않는다 -
-// 문법의 주인은 Claude Code 이고 우리가 흉내 내면 멀쩡한 규칙을 막게 된다.
-// 여기서 걸러내는 건 괄호가 안 닫혔거나 도구명이 비어 오타가 확실한 것들뿐이다.
 // config_edit._safe_name 과 같은 규칙: 경로 구분자도 상대참조도 없는 단일 세그먼트.
 const safeSegment = (n: string): boolean =>
   !!n && n !== "." && n !== ".." && !/[\\/]/.test(n);
 
+// 권한 규칙의 **형태**만 본다: `Tool` 또는 `Tool(...)`. 규칙의 의미까지 검증하지 않는다 -
+// 문법의 주인은 Claude Code 이고 우리가 흉내 내면 멀쩡한 규칙을 막게 된다.
+// 여기서 걸러내는 건 괄호가 안 닫혔거나 도구명이 비어 오타가 확실한 것들뿐이다.
 const PERM_RULE_RE = /^[A-Za-z][A-Za-z0-9_-]*(\(.*\))?$/;
 const looksLikePermRule = (v: string): boolean => {
   if (!PERM_RULE_RE.test(v)) return false;
