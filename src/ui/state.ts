@@ -62,6 +62,7 @@ export let refreshApp: (() => Promise<void>) | null = null;
 export let scopeFilter = "all";                      // 설정 스코프 필터: 'all' | 'global' | <projectPath>
 export const srcOpen: Record<string, boolean> = {};  // 출처 그룹 접힘 상태(키: `${secTitle}::g` | `${secTitle}::${project}`)
 export const catOpen = new Set<string>();     // 펼친 마켓 id(기본 접힘 - 마켓 하나가 278개다)
+export let catSecEl: HTMLElement | null = null; // 제자리 교체용 현재 카탈로그 섹션 노드(refresh 가 무효화한다)
 export let lastConfigSections: any[] = [];           // 스코프 칩/그룹 즉시 재렌더용 최신 섹션 캐시
 
 export const setSelectedPath       = (v: string): void => { selectedPath = v; };
@@ -78,5 +79,6 @@ export const setLibProjectTargets  = (v: string[]): void => { libProjectTargets 
 export const setLibTarget          = (v: string): void => { libTarget = v; };
 export const setLibSelBarUpdate    = (v: (() => void) | null): void => { libSelBarUpdate = v; };
 export const setRefreshApp         = (v: (() => Promise<void>) | null): void => { refreshApp = v; };
+export const setCatSecEl           = (v: HTMLElement | null): void => { catSecEl = v; };
 export const setScopeFilter        = (v: string): void => { scopeFilter = v; };
 export const setLastConfigSections = (v: any[]): void => { lastConfigSections = v; };
