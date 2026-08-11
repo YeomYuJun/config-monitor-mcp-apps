@@ -660,6 +660,23 @@ class TrackProjectPreset(unittest.TestCase):
         rc, out, err = self.cas("track", "--json", empty)
         self.assertEqual(rc, 0, err)
         self.assertEqual(json.loads(out)["added"], [])
+        self.assertEqual(json.loads(out)["not_found"], [])
+
+    def test_track_reports_paths_that_do_not_exist(self):
+        # 오타 경로도 추적은 된다(나중에 생길 파일을 미리 거는 건 의도된 기능). 다만 어느 것이
+        # 아직 없는지 알려야 화면이 그걸 말할 수 있다 - 조용히 넣으면 유령 행으로 남는다.
+        ghost = os.path.join(self.tmp, "nope", "settings.json")
+        rc, out, err = self.cas("track", "--json", ghost)
+        self.assertEqual(rc, 0, err)
+        res = json.loads(out)
+        self.assertEqual({self._nc(x) for x in res["added"]}, {self._nc(ghost)})
+        self.assertEqual({self._nc(x) for x in res["not_found"]}, {self._nc(ghost)})
+
+    def test_track_does_not_flag_existing_file_as_missing(self):
+        f = self._make(os.path.join(self.tmp, "repoE", ".claude", "settings.json"))
+        rc, out, err = self.cas("track", "--json", f)
+        self.assertEqual(rc, 0, err)
+        self.assertEqual(json.loads(out)["not_found"], [])
 
     def test_untrack_removes_project_file(self):
         f = self._make(os.path.join(self.tmp, "repoE", ".claude", "settings.json"))

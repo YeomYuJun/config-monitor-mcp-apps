@@ -221,9 +221,15 @@ def _norm_targets(paths_):
 def cmd_track(args):
     p = store_paths(args.store)
     config = load_json(p["config"], {"version": 1, "tracked": []})
-    added, already = [], []
+    added, already, not_found = [], [], []
     for path in args.paths:
         for ap in _expand_track_path(path):
+            # 아직 없는 경로도 추적을 **허용**한다(_expand_track_path 주석 참고: 나중에 생길
+            # 파일을 미리 걸어 두는 건 의도된 기능이다). 다만 오타도 같은 모양이라 조용히
+            # 넣으면 유령 행으로 남는다 - 어느 것이 아직 없는지 호출부에 알려 화면이 말하게 한다.
+            # 글롭은 지금 매칭이 0건이어도 정상이므로 이 판정에서 제외한다.
+            if not any(c in ap for c in "*?[]") and not os.path.exists(ap):
+                not_found.append(ap)
             if ap in config["tracked"]:
                 already.append(ap)
             else:
@@ -231,7 +237,8 @@ def cmd_track(args):
                 added.append(ap)
     save_json(p["config"], config)
     if getattr(args, "json", False):
-        print(json.dumps({"ok": True, "added": added, "already": already}, ensure_ascii=False))
+        print(json.dumps({"ok": True, "added": added, "already": already,
+                          "not_found": not_found}, ensure_ascii=False))
     else:
         print("추가됨:\n  " + "\n  ".join(added) if added else "추가할 파일 없음 / 이미 추적 중")
 

@@ -40,6 +40,16 @@ const I18N: Record<string, Record<string, string>> = {
     shadowedByGlobal: "전역에 가려짐", shadowedByGlobalTip: "동일 이름의 전역 스킬이 우선 적용되어 이 항목은 사용되지 않음",
     trackPathPlaceholder: "프로젝트 폴더 / .claude / 설정 파일 경로",
     trackAdd: "추적 추가", trackNone: "추적할 설정 파일을 찾지 못함", trackAlready: "이미 추적 중",
+    trackNoPreset: "이 폴더에서 추적할 설정 파일을 찾지 못했습니다. settings.json · settings.local.json · CLAUDE.md · CLAUDE.local.md 중 하나가 있어야 합니다.",
+    trackAddedN: "추적에 추가됨", trackAlreadyN: "이미 추적 중",
+    trackNotFoundN: "아직 없는 경로", trackNotFoundHint: "파일이 생기면 그때부터 추적됩니다. 오타라면 행의 × 로 지우세요.",
+    trackRelPath: "절대경로로 입력하세요. 상대경로는 config-monitor 서버가 실행된 위치를 기준으로 풀려 의도한 폴더가 아닐 수 있습니다.",
+    permBad: "권한 규칙 형식이 아닙니다. 예: Bash(npm run*) · Read · WebFetch(domain:example.com)",
+    hookNoVerify: "config-monitor 는 이 명령을 실행해 보지 않습니다. 오타가 있어도 등록되고 매 세션 조용히 실패합니다.",
+    mcpBadJson: "서버 JSON 을 읽을 수 없습니다",
+    nameBad: "이름은 경로 구분자(/ \\)나 '..' 없이 한 조각이어야 합니다.",
+    heldTitle: "제거할 수 없습니다", installFailTitle: "설치하지 못한 항목",
+    unchangedTitle: "바뀐 것이 없습니다",
     projPickOpen: "＋ 프로젝트에서 추가", projPickEmpty: ".claude 있는 프로젝트 없음", projPickTracked: "추적 중",
     untrack: "추적 해제", untracked: "추적 해제됨", untrackConfirm: "해제확정",
     settings: "설정", settingsHint: "8 카테고리 · 출처 경로 포함",
@@ -160,6 +170,16 @@ const I18N: Record<string, Record<string, string>> = {
     shadowedByGlobal: "shadowed by personal", shadowedByGlobalTip: "A same-named personal skill takes precedence; this item is not used",
     trackPathPlaceholder: "Project folder / .claude / config file path",
     trackAdd: "Track", trackNone: "No config files found to track", trackAlready: "Already tracked",
+    trackNoPreset: "No trackable config file in this folder. It needs one of settings.json, settings.local.json, CLAUDE.md or CLAUDE.local.md.",
+    trackAddedN: "added to tracking", trackAlreadyN: "already tracked",
+    trackNotFoundN: "path does not exist yet", trackNotFoundHint: "It will be tracked once the file appears. If it was a typo, remove the row with ×.",
+    trackRelPath: "Enter an absolute path. A relative path resolves against wherever the config-monitor server was started, which may not be the folder you meant.",
+    permBad: "Not a permission rule. e.g. Bash(npm run*) · Read · WebFetch(domain:example.com)",
+    hookNoVerify: "config-monitor does not try running this command. A typo still registers and then fails silently every session.",
+    mcpBadJson: "Could not read the server JSON",
+    nameBad: "The name must be a single segment - no path separators (/ \\) and no '..'.",
+    heldTitle: "Cannot remove", installFailTitle: "Not installed",
+    unchangedTitle: "Nothing changed",
     projPickOpen: "＋ Add from projects", projPickEmpty: "No projects with .claude", projPickTracked: "tracked",
     untrack: "Untrack", untracked: "Untracked", untrackConfirm: "Confirm",
     settings: "Settings", settingsHint: "8 categories · with source paths",
@@ -380,6 +400,80 @@ function openModal(title: string, fill: (body: HTMLElement, close: () => void) =
   fill(body, close);
 }
 
+// 입력행 아래에 붙는 지속 안내 슬롯. 모달의 .modalerr 와 같은 규율을 인라인에도 준다:
+// **실패 사유를 토스트로만 흘리지 않는다.** 토스트는 몇 초 만에 사라지는데 입력칸은 그대로
+// 남아, 사용자는 무엇이 잘못됐는지 모른 채 같은 값을 다시 넣는다.
+// 입력이 바뀌면 스스로 지워진다 - 고친 값 옆에 옛 오류가 남아 있으면 그게 또 거짓말이 된다.
+// 절대경로만 허용하는 자리(추적 추가)의 판정. ./ ../ 는 일부러 뺀다 - 서버 cwd 기준으로
+// 풀려 사용자가 예측할 수 없다. ~ 는 홈이라 예측 가능하므로 허용한다.
+const ABS_PATH_RE = /^([A-Za-z]:[\\/]|[\\/]|~[\\/])/;
+
+// 권한 규칙의 **형태**만 본다: `Tool` 또는 `Tool(...)`. 규칙의 의미까지 검증하지 않는다 -
+// 문법의 주인은 Claude Code 이고 우리가 흉내 내면 멀쩡한 규칙을 막게 된다.
+// 여기서 걸러내는 건 괄호가 안 닫혔거나 도구명이 비어 오타가 확실한 것들뿐이다.
+// config_edit._safe_name 과 같은 규칙: 경로 구분자도 상대참조도 없는 단일 세그먼트.
+const safeSegment = (n: string): boolean =>
+  !!n && n !== "." && n !== ".." && !/[\\/]/.test(n);
+
+const PERM_RULE_RE = /^[A-Za-z][A-Za-z0-9_-]*(\(.*\))?$/;
+const looksLikePermRule = (v: string): boolean => {
+  if (!PERM_RULE_RE.test(v)) return false;
+  const open = (v.match(/\(/g) || []).length, close = (v.match(/\)/g) || []).length;
+  return open === close;
+};
+
+type Notice = {
+  el: HTMLElement;
+  show(msg: string, kind?: "err" | "warn" | "ok"): void;
+  clear(): void;
+};
+function mkNotice(input?: HTMLInputElement): Notice {
+  const el = document.createElement("div");
+  el.className = "anotice";
+  el.hidden = true;
+  const clear = () => { el.hidden = true; el.textContent = ""; };
+  if (input) input.addEventListener("input", clear);
+  return {
+    el,
+    show(msg: string, kind: "err" | "warn" | "ok" = "err") {
+      el.textContent = msg;
+      el.className = "anotice " + kind;
+      el.hidden = false;
+    },
+    clear,
+  };
+}
+
+// 거부 사유가 **목록**일 때(무엇이 붙들고 있는지 등)는 토스트에 이어붙이지 않는다 - 길어서
+// 잘리고, 정작 그 목록이 사용자가 다음에 할 일을 정한다. 읽고 닫는 모달로 남긴다.
+function openReasonModal(title: string, msg: string, items?: string[]): void {
+  openModal(title, (body, close) => {
+    const m = document.createElement("div");
+    m.className = "modaltext";
+    m.textContent = msg;
+    body.appendChild(m);
+    if (items && items.length) {
+      const ul = document.createElement("div");
+      ul.className = "reasonlist";
+      for (const it of items) {
+        const li = document.createElement("div");
+        li.className = "reasonitem";
+        li.textContent = it;
+        ul.appendChild(li);
+      }
+      body.appendChild(ul);
+    }
+    const row = document.createElement("div");
+    row.className = "modalrow";
+    const ok = document.createElement("button");
+    ok.className = "addbtn primary";
+    ok.textContent = t("close");
+    ok.addEventListener("click", close);
+    row.appendChild(ok);
+    body.appendChild(row);
+  });
+}
+
 // 모달 하단 버튼 행. 주 동작이 왼쪽, 취소가 오른쪽(대시보드의 인라인 확인과 같은 배치).
 function modalActions(okLabel: string, onOk: (btn: HTMLButtonElement) => void,
                       onCancel: () => void): HTMLElement {
@@ -490,6 +584,7 @@ const statusLabel = (st: string): string =>
 // 경로 추가 입력행: 프로젝트 폴더/.claude/파일 경로 -> config_track(프리셋 자동 감지).
 // extra = 입력/추가 버튼과 같은 행에 놓을 부가 버튼(프로젝트에서 추가 토글).
 function buildTrackAdder(extra?: HTMLElement): HTMLElement {
+  const wrap = document.createElement("div");
   const adder = document.createElement("div");
   adder.className = "adder";
   const input = document.createElement("input");
@@ -497,24 +592,58 @@ function buildTrackAdder(extra?: HTMLElement): HTMLElement {
   const btn = document.createElement("button");
   btn.className = "addbtn";
   btn.textContent = t("trackAdd");
+  const notice = mkNotice(input);
   const submit = async () => {
     const v = input.value.trim();
     if (!v) return;
+    // 상대경로는 서버 프로세스의 cwd 기준으로 풀린다 - 사용자가 예측할 수 없는 폴더에 걸리고,
+    // 그래도 track 은 성공으로 끝나므로 조용한 오작동이 된다. 여기서 먼저 막는다.
+    if (!ABS_PATH_RE.test(v) && !/[*?[\]]/.test(v)) {
+      notice.show(t("trackRelPath"));
+      input.focus();
+      return;
+    }
+    notice.clear();
     setPending(btn);
     try {
       const r = jparse(await callTool("config_track", { path: v }));
-      const added = r && Array.isArray(r.added) ? r.added.length : 0;
-      const already = r && Array.isArray(r.already) ? r.already.length : 0;
-      flashToast(added ? `${t("trackAdd")} ${added} · ${t("done")}` : already ? t("trackAlready") : t("trackNone"));
+      if (r && r.ok === false) {
+        notice.show(r.message || t("failed"));
+        clearPending(btn, t("trackAdd"));
+        return;
+      }
+      const added: string[] = (r && r.added) || [];
+      const already: string[] = (r && r.already) || [];
+      const missing: string[] = (r && r.not_found) || [];
+      clearPending(btn, t("trackAdd"));
+      if (!added.length && !already.length) {
+        // 폴더는 맞는데 프리셋이 하나도 없는 경우다. 무엇을 찾았는지 적어 준다.
+        notice.show(t("trackNoPreset"));
+        return;
+      }
+      const parts: string[] = [];
+      if (added.length) parts.push(`${t("trackAddedN")} ${added.length}`);
+      if (already.length) parts.push(`${t("trackAlreadyN")} ${already.length}`);
+      if (missing.length) {
+        parts.push(`${t("trackNotFoundN")} ${missing.length}`);
+        notice.show(`${parts.join(" · ")}\n${missing.join("\n")}\n${t("trackNotFoundHint")}`, "warn");
+      } else {
+        notice.show(`${parts.join(" · ")}\n${(added.length ? added : already).join("\n")}`, "ok");
+      }
       input.value = "";
       await refresh();
-    } catch (e) { clearPending(btn, t("failed")); console.error("[config-monitor] track add", e); }
+    } catch (e) {
+      notice.show(String(e));
+      clearPending(btn, t("failed"));
+      console.error("[config-monitor] track add", e);
+    }
   };
   btn.addEventListener("click", submit);
   input.addEventListener("keydown", (e) => { if ((e as KeyboardEvent).key === "Enter") submit(); });
   adder.append(input, btn);
   if (extra) adder.appendChild(extra);
-  return adder;
+  wrap.append(adder, notice.el);
+  return wrap;
 }
 
 // 프로젝트(전역 아님) 행에만 붙는 추적 해제(×) 버튼. 2-click 확인. 파일 자체는 안 지움.
@@ -529,10 +658,19 @@ function buildUntrackBtn(p: string): HTMLElement {
     setPending(b);
     try {
       const r = jparse(await callTool("config_untrack", { path: p }));
-      if (r && r.ok === false) { flashToast(r.message || t("failed")); clearPending(b, "×"); return; }
+      if (r && r.ok === false) {
+        // 아이콘 버튼 하나뿐인 자리라 인라인 슬롯을 둘 수 없다. 사유는 모달에 남긴다.
+        clearPending(b, "×");
+        openReasonModal(t("failed"), r.message || t("failed"));
+        return;
+      }
       flashToast(t("untracked"));
       await refresh();
-    } catch (err) { clearPending(b, t("failed")); console.error("[config-monitor] untrack", err); }
+    } catch (err) {
+      clearPending(b, t("failed"));
+      openReasonModal(t("failed"), String(err));
+      console.error("[config-monitor] untrack", err);
+    }
   });
   return b;
 }
@@ -908,6 +1046,8 @@ function buildEditUI(edit: any): HTMLElement {
 
   const wrap = document.createElement("div");
   wrap.className = "edit";
+  // 칩 제거와 추가가 같은 슬롯을 쓴다 - 카드 하나에 안내가 둘이면 어느 쪽 결과인지 흐려진다.
+  const notice = mkNotice();
 
   const chips = document.createElement("div");
   chips.className = "chips";
@@ -938,13 +1078,13 @@ function buildEditUI(edit: any): HTMLElement {
         try {
           const res = jparse(await doRemove(it));
           if (res && (res.ok === false || res.changed === false)) {
-            flashToast(res.message || t("failed"));
+            notice.show(res.message || t("failed"), res.ok === false ? "err" : "warn");
             clearPending(ok, t("failed"));
             return;
           }
           flashToast(t("toastRemoved") + " · " + it);
           await refresh();
-        } catch (e) { clearPending(ok, t("failed")); console.error("[config-monitor] remove", e); }
+        } catch (e) { notice.show(String(e)); clearPending(ok, t("failed")); console.error("[config-monitor] remove", e); }
       });
     });
     chip.append(txt, x);
@@ -959,25 +1099,40 @@ function buildEditUI(edit: any): HTMLElement {
   const add = document.createElement("button");
   add.className = "addbtn";
   add.textContent = t("add");
+  input.addEventListener("input", notice.clear);
+  // hook 은 형식을 검증할 방법이 없다(임의 셸 명령이다). 검증하는 척하는 대신 무엇을 안 하는지
+  // 상시로 적어 둔다 - 오타 하나가 매 세션 조용히 실패하는 hook 이 되는 게 이 자리의 위험이다.
+  // notice 슬롯이 아니라 별도 줄이다: 입력하면 지워지는 자리에 두면 상시 경고가 못 된다.
+  const hint = document.createElement("div");
+  hint.className = "ahint";
+  hint.textContent = t("hookNoVerify");
+  hint.hidden = isPerm;
   const submit = async () => {
     const v = input.value.trim();
     if (!v) return;
+    if (isPerm && !looksLikePermRule(v)) {
+      notice.show(t("permBad"));
+      input.focus();
+      return;
+    }
+    notice.clear();
     setPending(add);
     try {
       const res = jparse(await doAdd(v));
       if (res && (res.ok === false || res.changed === false)) {
-        flashToast(res.message || t("failed"));
+        // changed:false 는 오류가 아니라 "이미 있음" 같은 무변화다. 둘 다 조용히 넘기지 않는다.
+        notice.show(res.message || t("failed"), res.ok === false ? "err" : "warn");
         clearPending(add, t("add"));
         return;
       }
       flashToast(t("toastAdded") + " · " + v);
       await refresh();
-    } catch (e) { clearPending(add, t("failed")); console.error("[config-monitor] add", e); }
+    } catch (e) { notice.show(String(e)); clearPending(add, t("failed")); console.error("[config-monitor] add", e); }
   };
   add.addEventListener("click", submit);
   input.addEventListener("keydown", (e) => { if ((e as KeyboardEvent).key === "Enter") submit(); });
   adder.append(input, add);
-  wrap.appendChild(adder);
+  wrap.append(adder, hint, notice.el);
   return wrap;
 }
 
@@ -999,7 +1154,12 @@ function buildPluginToggleUI(edit: any): HTMLElement {
       const res = jparse(await callTool("config_plugin_toggle", {
         id: edit.id, on: !on, ...(edit.settings ? { settings: edit.settings } : {}),
       }));
-      if (res && res.ok === false) { clearPending(btn, t("failed")); flashToast(res.message || t("failed")); return; }
+      if (res && (res.ok === false || res.changed === false)) {
+        // changed:false 는 "이미 그 상태"다. 조용히 넘기면 토글이 먹은 것처럼 보인다.
+        clearPending(btn, on ? t("plgOff") : t("plgOn"));
+        openReasonModal(res.ok === false ? t("failed") : t("unchangedTitle"), res.message || t("failed"));
+        return;
+      }
       // 재시작 전까지는 세션에 반영되지 않는다 - 토글이 고장난 것처럼 보이지 않게 명시한다.
       flashToast(`${edit.id} · ${!on ? t("plgEnabled") : t("plgDisabled")} · ${t("plgRestart")}`);
       await refresh();
@@ -1048,10 +1208,20 @@ function mkPluginCliBtn(label: string, tip: string, tool: string, args: any,
     setPending(target);
     try {
       const rr = jparse(await callTool(tool, args));
-      if (rr && rr.ok === false) { clearPending(target, t("failed")); flashToast(rr.message || t("failed")); return; }
+      if (rr && rr.ok === false) {
+        // CLI 위임 실패는 원인이 길다(claude 미설치·마켓 미등록·권한 등). 토스트로 알리고
+        // 사유는 모달에 남긴다 - 스쳐 지나가면 무엇을 고쳐야 하는지 알 수 없다.
+        clearPending(target, t("failed"));
+        openReasonModal(t("failed"), rr.message || t("failed"));
+        return;
+      }
       flashToast(rr?.message || t("done"));
       await refresh();
-    } catch (e) { clearPending(target, t("failed")); console.error("[config-monitor] " + tool, e); }
+    } catch (e) {
+      clearPending(target, t("failed"));
+      openReasonModal(t("failed"), String(e));
+      console.error("[config-monitor] " + tool, e);
+    }
   };
   if (!destructive) {
     btn.addEventListener("click", () => go(btn));
@@ -1085,6 +1255,7 @@ function buildRemoveUI(edit: any): HTMLElement {
   };
   const wrap = document.createElement("div");
   wrap.className = "edit";
+  const notice = mkNotice();
   const btn = document.createElement("button");
   btn.className = "cx";
   // 라벨에 ✕ 를 붙이지 않는다 - 붉은 hover 가 파괴적 동작을 이미 말하고, 글리프까지 얹으면
@@ -1107,13 +1278,17 @@ function buildRemoveUI(edit: any): HTMLElement {
       setPending(ok);
       try {
         const res = jparse(await doRemove());
-        if (res && res.ok === false) { clearPending(ok, t("failed")); flashToast(res.message || t("failed")); return; }
+        if (res && (res.ok === false || res.changed === false)) {
+          clearPending(ok, t("failed"));
+          notice.show(res.message || t("failed"), res.ok === false ? "err" : "warn");
+          return;
+        }
         flashToast(t("toastRemoved") + " · " + edit.name);
         await refresh();
-      } catch (e) { clearPending(ok, t("failed")); console.error("[config-monitor] remove", e); }
+      } catch (e) { clearPending(ok, t("failed")); notice.show(String(e)); console.error("[config-monitor] remove", e); }
     });
   });
-  wrap.appendChild(btn);
+  wrap.append(btn, notice.el);
   return wrap;
 }
 
@@ -1130,32 +1305,52 @@ function buildAddUI(edit: any): HTMLElement {
   const add = document.createElement("button");
   add.className = "addbtn";
   add.textContent = t("add");
+  const notice = mkNotice(input);
   const submit = async () => {
     const v = input.value.trim();
     if (!v) return;
     const sp = v.indexOf(" ");
     const name = sp < 0 ? v : v.slice(0, sp);
     const rest = sp < 0 ? "" : v.slice(sp + 1).trim();
+    // 서버 _safe_name(config_edit.py)과 **같은 규칙**을 여기서도 본다. 서버가 어차피 막지만
+    // 그 거부는 토스트로만 흘러 사라진다 - 입력칸 옆에 남겨야 무엇이 틀렸는지 알 수 있다.
+    if (!safeSegment(name)) {
+      notice.show(t("nameBad"));
+      input.focus();
+      return;
+    }
+    if (edit.kind === "mcp-add") {
+      if (!rest) { notice.show(t("needServerJson")); input.focus(); return; }
+      // 깨진 JSON 을 서버까지 보내면 파서 오류 원문이 토스트로 스쳐 지나간다. 여기서 읽고
+      // 어디가 잘못됐는지 그대로 보여준다.
+      try { JSON.parse(rest); }
+      catch (err) { notice.show(`${t("mcpBadJson")}: ${String(err)}`); input.focus(); return; }
+    }
+    notice.clear();
     setPending(add);
     try {
       let res: any;
       if (edit.kind === "mcp-add") {
-        if (!rest) { flashToast(t("needServerJson")); clearPending(add, t("add")); return; }
         res = jparse(await callTool("config_mcp_add", { name, serverJson: rest, scope: edit.scope }));
       } else if (edit.kind === "skill-add") {
         res = jparse(await callTool("skill_scaffold", { name, desc: rest || undefined }));
       } else {
         res = jparse(await callTool("config_agent_add", { name, desc: rest || undefined }));
       }
-      if (res && res.ok === false) { clearPending(add, t("failed")); flashToast(res.message || t("failed")); return; }
+      if (res && (res.ok === false || res.changed === false)) {
+        notice.show(res.message || t("failed"), res.ok === false ? "err" : "warn");
+        clearPending(add, t("add"));
+        return;
+      }
       flashToast(t("toastAdded") + " · " + name);
       await refresh();
-    } catch (e) { clearPending(add, t("failed")); console.error("[config-monitor] add", e); }
+    } catch (e) { notice.show(String(e)); clearPending(add, t("failed")); console.error("[config-monitor] add", e); }
   };
   add.addEventListener("click", submit);
   input.addEventListener("keydown", (e) => { if ((e as KeyboardEvent).key === "Enter") submit(); });
   adder.append(input, add);
   wrap.appendChild(adder);
+  wrap.appendChild(notice.el);          // 안내는 입력행 **아래**다 - 위에 두면 폼이 밀린다
   return wrap;
 }
 
@@ -1189,10 +1384,24 @@ function mkItemActions(it: any): HTMLElement {
       setPending(b);
       try {
         const r = jparse(await run());
-        if (r && r.ok === false) { flashToast(r.message || t("failed")); clearPending(b, t("failed")); return; }
+        if (r && r.ok === false) {
+          // 행 하나짜리 동작이라 인라인 슬롯을 둘 자리가 없다. 토스트로 알리되 사유를
+          // 버튼 title 에도 남긴다 - 토스트가 사라진 뒤에도 되짚어 읽을 수 있어야 한다.
+          const msg = r.message || t("failed");
+          flashToast(msg);
+          clearPending(b, t("failed"));
+          b.title = msg;
+          return;
+        }
+        b.title = "";
         flashToast(`${txt} ${t("done")} · ${it.name}`);
         await refresh();
-      } catch (err) { clearPending(b, t("failed")); console.error("[config-monitor] library", err); }
+      } catch (err) {
+        clearPending(b, t("failed"));
+        b.title = String(err);
+        flashToast(String(err));
+        console.error("[config-monitor] library", err);
+      }
     });
     return b;
   };
@@ -1216,19 +1425,25 @@ const libKey = (it: any): string => `${it.lib}|${it.category}|${it.relpath}`;
 // 설치 대상은 공용 상태 libTarget("" 이면 전역 ~/.claude). done: 완료 토스트 빌더(그룹/선택 설치가 서로 다른 문구).
 interface InstallOpts { done?: (ok: number, fail: number) => string; }
 async function installMany(items: any[], opts: InstallOpts = {}): Promise<void> {
-  let ok = 0, fail = 0;
+  let ok = 0;
+  // 실패는 개수만 세지 않는다 - "3 실패"만으로는 무엇을 다시 시도해야 하는지 알 수 없어
+  // 사용자가 100개짜리 목록을 눈으로 훑어야 한다. 어느 항목이 왜 실패했는지 모아 둔다.
+  const failures: string[] = [];
   for (const it of items) {
     const args: Record<string, unknown> = { category: it.category, path: it.relpath, lib: it.lib };
     if (libTarget) args.targetDir = libTarget;
     try {
       const r = jparse(await callTool("library_install", args));
-      if (r && r.ok === false) fail++; else ok++;
-    } catch { fail++; }
+      if (r && r.ok === false) failures.push(`${it.name} — ${r.message || t("failed")}`);
+      else ok++;
+    } catch (e) { failures.push(`${it.name} — ${String(e)}`); }
   }
   libChecked.clear();
+  const fail = failures.length;
   const failSfx = fail ? ` · ${fail} ${t("failed")}` : "";
   flashToast((opts.done ? opts.done(ok, fail) : `${t("libInstall")} ${ok} ${t("done")}`) + failSfx);
   await refresh();
+  if (fail) openReasonModal(t("installFailTitle"), `${fail} / ${items.length}`, failures);
 }
 
 // 콤팩트 항목 행: [체크박스] name [배지] [설치/동기화/제거]. 전 카테고리(agents/commands/skills) 공용.
@@ -1458,7 +1673,11 @@ function mkUnitActions(l: any, kind: "hooks" | "mcp", installed: boolean): HTMLE
       setPending(install);
       try {
         const dry = jparse(await callTool(tool, { origin: l.origin, dryRun: true, ...tgt }));
-        if (dry && dry.ok === false) { flashToast(dry.message || t("failed")); clearPending(install, label); return; }
+        if (dry && dry.ok === false) {
+          clearPending(install, label);
+          openReasonModal(t("failed"), dry.message || t("failed"));
+          return;
+        }
         const cmds: string[] = dry?.commands || (dry?.servers || []);
         const warns: any[] = dry?.warnings || [];
         const warnTxt = warns.map((w) =>
@@ -1473,7 +1692,12 @@ function mkUnitActions(l: any, kind: "hooks" | "mcp", installed: boolean): HTMLE
     setPending(install);
     try {
       const r = jparse(await callTool(tool, { origin: l.origin, ...tgt }));
-      if (r && r.ok === false) { flashToast(r.message || t("failed")); clearPending(install, label); confirmed = false; return; }
+      if (r && r.ok === false) {
+        clearPending(install, label);
+        confirmed = false;
+        openReasonModal(t("failed"), r.message || t("failed"));
+        return;
+      }
       // 백엔드가 warning 을 담아 보내면(예: 스토어 미초기화로 출처를 기록 못함) 성공 메시지에 묻혀
       // 사라지면 안 된다 - "성공했지만 알아둬야 할 것" 을 그대로 보여준다.
       flashToast(r?.warning ? `${r?.message || t("done")} ⚠ ${r.warning}` : (r?.message || t("done")));
@@ -1491,7 +1715,11 @@ function mkUnitActions(l: any, kind: "hooks" | "mcp", installed: boolean): HTMLE
       setPending(rm);
       try {
         const r = jparse(await callTool(unTool, { origin: l.origin, ...tgt }));
-        if (r && r.ok === false) { flashToast(r.message || t("failed")); clearPending(rm, t("unitRemove")); return; }
+        if (r && r.ok === false) {
+          clearPending(rm, t("unitRemove"));
+          openReasonModal(t("failed"), r.message || t("failed"));
+          return;
+        }
         flashToast(r?.warning ? `${r?.message || t("done")} ⚠ ${r.warning}` : (r?.message || t("done")));
         await refresh();
       } catch (e) { clearPending(rm, t("failed")); console.error("[config-monitor] unit uninstall", e); }
@@ -1623,8 +1851,8 @@ function renderLibrary(host: HTMLElement, res: any): void {
           const r = jparse(await callTool("library_unregister", args));
           if (r && r.ok === false) {
             // 원장 가드 거부: 무엇이 캐시를 붙들고 있는지 보여준다(강제 옵션은 두지 않는다).
-            const msg = r.held_by && r.held_by.length ? `${r.message || t("failed")} (${r.held_by.join(", ")})` : (r.message || t("failed"));
-            flashToast(msg);
+            // 목록을 토스트에 이어붙이면 길어서 잘리는데, 정작 그 목록이 다음에 할 일을 정한다.
+            openReasonModal(t("heldTitle"), r.message || t("failed"), r.held_by || []);
             chip.replaceWith(mkPathChip(l));
             return;
           }
@@ -1931,10 +2159,8 @@ function mkMarketCcActions(m: any): HTMLElement {
     try {
       const r = jparse(await callTool("library_unregister", { origin: `market:${m.id}` }));
       if (r && r.ok === false) {
-        const msg = r.held_by && r.held_by.length
-          ? `${r.message || t("failed")} (${r.held_by.join(", ")})` : (r.message || t("failed"));
         clearPending(b, t("failed"));
-        flashToast(msg);
+        openReasonModal(t("heldTitle"), r.message || t("failed"), r.held_by || []);
         return;
       }
       flashToast(r?.message || t("done"));
@@ -2341,7 +2567,12 @@ function mkCatalogRow(row: any): HTMLElement {
       try {
         const rr = jparse(await callTool("library_plugin_fetch",
           { marketplace: row.marketplace, plugin: row.name }));
-        if (rr && rr.ok === false) { flashToast(rr.message || t("failed")); clearPending(b, t("catFetch")); return; }
+        if (rr && rr.ok === false) {
+          // 네트워크·매니페스트 오류라 원문이 길다. 토스트로 스치게 두지 않는다.
+          clearPending(b, t("catFetch"));
+          openReasonModal(t("failed"), rr.message || t("failed"));
+          return;
+        }
         // components_failed 가 있으면 개수는 "모름"이지 "0개"가 아니다 - warning 을 성공 메시지에
         // 묻어 버리면 "가져왔는데 텅 빔" 처럼 보인다(사실은 "가져왔는데 일부를 못 읽음").
         flashToast(rr?.warning ? `${rr?.message || t("done")} · ${row.name} ⚠ ${rr.warning}`

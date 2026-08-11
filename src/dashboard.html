@@ -326,6 +326,21 @@
     background:#E6E8EC;color:var(--mut3);white-space:nowrap;flex:0 0 auto}
   .modaldisc .dbmeta{font-family:var(--mono);font-size:10px;color:var(--mut3);overflow-wrap:anywhere}
   .modalnote{font-size:11px;color:var(--mut);font-family:var(--mono);overflow-wrap:anywhere}
+  /* 입력행 아래 지속 안내(mkNotice). 토스트와 달리 사라지지 않는다 - 입력칸이 남아 있는
+     자리에서는 사유도 함께 남아야 사용자가 고칠 수 있다. err/warn/ok 세 결. */
+  .anotice{font-size:11.5px;line-height:1.55;border-radius:6px;padding:7px 10px;
+    overflow-wrap:anywhere;margin-top:6px;white-space:pre-line;max-height:180px;overflow:auto}
+  .anotice[hidden]{display:none}
+  /* 상시 고지(입력해도 사라지지 않는다). 오류가 아니라 이 기능의 한계를 적는 자리다. */
+  .ahint{font-size:10.5px;line-height:1.5;color:var(--mut2);margin-top:5px;overflow-wrap:anywhere}
+  .ahint[hidden]{display:none}
+  .anotice.err{background:var(--delbg);border:1px solid rgba(192,57,43,.28);color:#A3312A}
+  .anotice.warn{background:var(--warnbg);border:1px solid rgba(180,83,9,.3);color:#7C3D08}
+  .anotice.ok{background:var(--okbg);border:1px solid rgba(31,122,77,.28);color:var(--ok)}
+  /* 거부 사유 목록(무엇이 캐시를 붙들고 있는지 등). 토스트에 이어붙이면 잘린다. */
+  .reasonlist{display:flex;flex-direction:column;gap:4px;max-height:220px;overflow:auto}
+  .reasonitem{font-family:var(--mono);font-size:11px;color:var(--fg2);background:#F3F4F6;
+    border:1px solid var(--line2);border-radius:5px;padding:5px 8px;overflow-wrap:anywhere}
   .modallink{font-size:12px;color:var(--accent);text-decoration:none;align-self:flex-start}
   .modallink:hover{text-decoration:underline}
   /* 설치 스코프 3종 + 프로젝트 선택. CLI 의 Plugin details 하단과 같은 순서로 둔다.
