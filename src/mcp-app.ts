@@ -8,6 +8,15 @@
 import { app, STANDALONE, callTool, pushCtx, jparse, jparseLast } from "./ui/bridge";
 import { t, getLang, setLang } from "./ui/i18n";
 import { $, esc, setPending, clearPending, openModal, mkNotice, openReasonModal, modalActions, flashToast } from "./ui/widgets";
+import {
+  selectedPath, setSelectedPath, currentRevs, setCurrentRevs, fromRev, setFromRev, toRev, setToRev,
+  detailOpen, setDetailOpen, collapsed, ccPlugins, ccMarkets, ccCatalog, setCcCatalog,
+  knownProjects, setKnownProjects, cmMarketUrls, cmMarketsNoUrl, OFFICIAL_MARKET_URL, normUrl,
+  secTitles, collapsedInit, setCollapsedInit, showPlugin, setShowPlugin, showBuiltin, setShowBuiltin,
+  libGroupOpen, ROOT_GROUP_KEY, libChecked, libOpen, libProjectTargets, setLibProjectTargets,
+  libTarget, setLibTarget, libSelBarUpdate, setLibSelBarUpdate, scopeFilter, setScopeFilter,
+  srcOpen, lastConfigSections, setLastConfigSections,
+} from "./ui/state";
 
 // 카드 값 종류 구분: 서술형 key 는 sans+줄클램프, 그 외(command/args/env/path/tools 등)는 mono 코드형.
 const DESC_KEYS = new Set(["desc", "description", "설명", "summary"]);
@@ -64,63 +73,6 @@ function mkSrcTag(origin: string, path?: string): HTMLElement {
   s.title = path ? `${origin}\n${path}` : origin;
   return s;
 }
-
-// ----- state -----
-let selectedPath = "";
-let currentRevs: any[] = [];
-let fromRev = "";
-let toRev = "work";
-// 기동 시 닫힘. 파일을 고르기 전에는 패널에 보여줄 게 없다(selectFile 이 열어 준다).
-let detailOpen = false;
-// 기동 시 전 섹션 접힘. Library/Marketplace 는 renderConfig 이후에 그려져 아래 collapsedInit
-// 루프가 못 잡으므로 여기서 미리 넣어 둔다(사용자가 펼치면 그 상태가 세션 내내 유지된다).
-const collapsed = new Set<string>(["Library", "Marketplace"]);   // 접힌 섹션 title
-// Claude Code 쪽 상태 캐시. 카탈로그 행이 "이 플러그인을 통째로 설치할 수 있는가"를 판정한다.
-//   ccPlugins  이미 Claude Code 에 설치된 플러그인 id (renderConfig 이 Plugins 카드에서 채움)
-//   ccMarkets  Claude Code 가 아는 마켓 이름 (buildCatalog 이 market-discover 로 채움).
-//              여기 없는 마켓의 플러그인은 `claude plugin install` 이 찾지 못한다 - 먼저
-//              저쪽에 마켓을 등록해야 하므로 버튼을 비활성화하고 이유를 표시한다.
-const ccPlugins = new Set<string>();
-const ccMarkets = new Set<string>();
-// Claude Code 가 미리 계산해 캐시해 둔 인벤토리 {id: {installs, components:{kind:n}, total}}.
-// 이게 있으면 **fetch 하기 전에** "무엇이 설치되는지"를 말할 수 있다. 공식 마켓 전용이라
-// 없는 행도 정상이다 - 그 경우 개수를 숨긴다(0 이라고 말하지 않는다. 모르는 것이다).
-let ccCatalog: Record<string, any> = {};
-// 추적 중인 프로젝트 경로. claude 는 scope=project/local 을 **cwd 로** 정하므로 설치 대상을
-// 고르려면 이 목록이 필요하다(스코프 칩과 같은 원천 - renderConfig 이 채운다).
-let knownProjects: string[] = [];
-// config-monitor 스토어에 등록된 마켓 URL(정규화). 공식 마켓 프리셋을 이미 등록된 상태에서
-// 다시 권하지 않기 위해서만 쓴다.
-const cmMarketUrls = new Set<string>();
-// URL 이 없는 스토어 마켓(로컬 경로로 등록된 것 - marketplace.py 의 kind local/str-path 는
-// url:None 이다). 이런 마켓은 헤더에 'Claude Code 등록' 버튼이 아예 안 그려지므로,
-// 카탈로그 행의 비활성 사유가 그 버튼을 가리키면 없는 것을 가리키게 된다.
-// **없는 쪽을 모은다**: 이름을 못 찾으면 기본(버튼을 가리키는) 문구로 떨어져 기존 동작이 된다.
-const cmMarketsNoUrl = new Set<string>();
-// Claude Code 가 기본 내장하는 마켓. 처음 쓰는 사람에게 카탈로그가 텅 빈 채로 보이지 않도록
-// 원클릭 프리셋으로 제공한다. 자동 등록은 하지 않는다 - 등록은 네트워크를 타는 행위이고,
-// "요청하지 않으면 아무것도 받지 않는다"가 이 제품의 계약이다.
-const OFFICIAL_MARKET_URL = "https://github.com/anthropics/claude-plugins-official.git";
-const normUrl = (u: string): string => {
-  const s = String(u || "").trim().replace(/\/+$/, "").toLowerCase();
-  return s.endsWith(".git") ? s.slice(0, -4) : s;
-};
-const secTitles = new Set<string>();         // 접기 가능한 섹션 title (전부 접기 대상)
-let collapsedInit = false;                    // 기본 접힘 1회만 적용
-// 출처 표시 토글(스코프 필터와 독립). 기본은 둘 다 표시 - buildOriginToggles 주석 참고.
-let showPlugin = true;                        // 플러그인이 넣은 항목
-let showBuiltin = true;                       // 기본 제공(Desktop Skills creatorType=anthropic)
-const libGroupOpen = new Set<string>();      // 펼친 라이브러리 스킬 그룹 경로(기본 접힘)
-// 루트(폴더 없는) 항목 묶음의 예약 키. 폴더 경로에는 ':' 가 들어갈 수 없어 실제 경로와 겹치지 않는다.
-const ROOT_GROUP_KEY = "::root";
-const libChecked = new Set<string>();        // 선택 설치용 체크된 항목 key(카테고리 무관)
-const libOpen = new Set<string>(["skills"]); // 펼친 카테고리(기본값: Skills 만)
-let libProjectTargets: string[] = [];        // 설치 대상 후보(추적 중인 프로젝트 .claude 경로들). renderTracked 가 매 새로고침 갱신
-let libTarget = "";                           // 선택된 라이브러리 설치 대상("" = 전역 ~/.claude, 아니면 프로젝트 .claude)
-let libSelBarUpdate: (() => void) | null = null; // 체크박스 -> 상단 "선택 설치 (N)" 카운트 갱신 훅
-let scopeFilter = "all";                      // 설정 스코프 필터: 'all' | 'global' | <projectPath>
-const srcOpen: Record<string, boolean> = {};  // 출처 그룹 접힘 상태(키: `${secTitle}::g` | `${secTitle}::${project}`)
-let lastConfigSections: any[] = [];           // 스코프 칩/그룹 즉시 재렌더용 최신 섹션 캐시
 
 // ----- tracked file rows -----
 // 파일 상태 배지 라벨(현재 lang 반영). 상태값 new/deleted 는 i18n 키 newFile/deleted 에 매핑된다(키 이름이 상태값과 다름).
@@ -280,7 +232,7 @@ function renderTracked(status: any): number {
   }
   // 설치 대상 후보 = 추적 중인 프로젝트(전역 아님, 삭제 아님)의 .claude 폴더. 라이브러리 설치 대상 select 옵션으로 노출.
   const seenT = new Set<string>();
-  libProjectTargets = [];
+  setLibProjectTargets([]);
   for (const [p, st] of rows) {
     if (st === "deleted" || defaults.has(p)) continue;
     const d = dirname(p);
@@ -324,7 +276,7 @@ const secName = (title: string) => String(title).split(" · ")[0];
 // (Library 가 래퍼 밖이라 아래 이름순 정렬과 무관하게 항상 맨 밑에 남는다.)
 function renderConfig(sections: any[]): void {
   const host = $("config");
-  lastConfigSections = sections;
+  setLastConfigSections(sections);
   let wrap = document.getElementById("cfg-scoped") as HTMLElement | null;
   const freshMount = !wrap;
   if (freshMount) {
@@ -340,7 +292,7 @@ function renderConfig(sections: any[]): void {
   // 첫 렌더는 전부 접은 상태로 연다 - 8개 분류가 한꺼번에 펼쳐지면 훑을 수가 없다.
   if (!collapsedInit) {
     for (const sec of sections) collapsed.add(sec.title);
-    collapsedInit = true;
+    setCollapsedInit(true);
   }
   // 스캔 결과의 distinct 프로젝트 경로(등장 순), 칩/필터의 유일 원천(카드 project 값과 동일 소스).
   const projects: string[] = [];
@@ -354,8 +306,8 @@ function renderConfig(sections: any[]): void {
     if (c.plugin) ccPlugins.add(c.plugin);
   }
   // 플러그인 상세의 project/local 설치가 cwd 로 쓸 후보. 스코프 칩과 같은 원천이다.
-  knownProjects = projects;
-  if (scopeFilter !== "all" && scopeFilter !== "global" && !projSeen.has(scopeFilter)) scopeFilter = "all";
+  setKnownProjects(projects);
+  if (scopeFilter !== "all" && scopeFilter !== "global" && !projSeen.has(scopeFilter)) setScopeFilter("all");
   if (projects.length) w.appendChild(buildScopeChips(projects));
   w.appendChild(buildOriginToggles());   // 스코프 칩과 달리 프로젝트가 없어도 항상 의미가 있다
   // 표시 순서만 이름 A-Z(원본 배열은 그대로 - lastConfigSections 캐시를 건드리지 않는다).
@@ -373,7 +325,7 @@ function buildScopeChips(projects: string[]): HTMLElement {
     chip.className = "scopechip" + (scopeFilter === val ? " on" : "");
     chip.textContent = label;
     if (title) chip.title = title;
-    chip.addEventListener("click", () => { scopeFilter = val; renderConfig(lastConfigSections); });
+    chip.addEventListener("click", () => { setScopeFilter(val); renderConfig(lastConfigSections); });
     return chip;
   };
   row.appendChild(mk("all", t("scopeAll")));
@@ -405,8 +357,8 @@ function buildOriginToggles(): HTMLElement {
     lb.append(cb, ui, tx);
     row.appendChild(lb);
   };
-  mk(showPlugin, t("orgPlugin"), t("orgPluginTip"), (v) => { showPlugin = v; });
-  mk(showBuiltin, t("orgBuiltin"), t("orgBuiltinTip"), (v) => { showBuiltin = v; });
+  mk(showPlugin, t("orgPlugin"), t("orgPluginTip"), (v) => { setShowPlugin(v); });
+  mk(showBuiltin, t("orgBuiltin"), t("orgBuiltinTip"), (v) => { setShowBuiltin(v); });
   return row;
 }
 
@@ -1169,12 +1121,12 @@ function buildTargetBar(allItems: any[]): HTMLElement {
   lbl.textContent = t("installTarget");
   const sel = document.createElement("select");
   // 선택돼 있던 대상이 목록에서 사라졌으면(추적 해제) 전역으로 리셋.
-  if (libTarget && !libProjectTargets.includes(libTarget)) libTarget = "";
+  if (libTarget && !libProjectTargets.includes(libTarget)) setLibTarget("");
   sel.innerHTML =
     `<option value="">${esc(t("targetGlobal"))}</option>` +
     libProjectTargets.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join("");
   sel.value = libTarget;
-  sel.addEventListener("change", async () => { libTarget = sel.value; await refresh(); });
+  sel.addEventListener("change", async () => { setLibTarget(sel.value); await refresh(); });
   const selBtn = document.createElement("button");
   selBtn.className = "addbtn selbtn";
   const update = () => {
@@ -1183,7 +1135,7 @@ function buildTargetBar(allItems: any[]): HTMLElement {
     (selBtn as HTMLButtonElement).disabled = n === 0;
     selBtn.style.opacity = n ? "1" : ".5";
   };
-  libSelBarUpdate = update;
+  setLibSelBarUpdate(update);
   update();
   selBtn.addEventListener("click", async () => {
     const chosen = allItems.filter((it) => libChecked.has(libKey(it)));
@@ -1312,7 +1264,7 @@ function renderLibrary(host: HTMLElement, res: any): void {
     }
   }
   const allItems = [...byCat.agents, ...byCat.commands, ...byCat.skills];
-  libSelBarUpdate = null;  // 이전 렌더의 카운트 훅 무효화(새 설치 대상 바가 다시 설정)
+  setLibSelBarUpdate(null);  // 이전 렌더의 카운트 훅 무효화(새 설치 대상 바가 다시 설정)
   const head = document.createElement("div");
   head.className = "sechead";
   head.innerHTML =
@@ -1491,7 +1443,7 @@ async function buildCatalog(): Promise<HTMLElement> {
   } catch (e) { console.error("[config-monitor] market discover", e); }
   try {
     const s = jparse(await callTool("plugin_catalog_summary", {}));
-    if (s && s.ok !== false) ccCatalog = s.entries || {};
+    if (s && s.ok !== false) setCcCatalog(s.entries || {});
   } catch (e) { console.error("[config-monitor] catalog summary", e); }
   cmMarketUrls.clear();
   cmMarketsNoUrl.clear();
@@ -2353,10 +2305,10 @@ const revLabel = (id: string) => {
 };
 
 async function selectFile(p: string): Promise<void> {
-  selectedPath = p;
-  fromRev = "";
-  toRev = "work";
-  detailOpen = true;
+  setSelectedPath(p);
+  setFromRev("");
+  setToRev("work");
+  setDetailOpen(true);
   applyDetailState();
   $("sel-name").textContent = basename(p);
   $("sel-path").textContent = p;
@@ -2369,7 +2321,7 @@ async function selectFile(p: string): Promise<void> {
   // 응답 도착 전에 사용자가 다른 파일을 골랐으면 이 응답은 버린다. 안 버리면 헤더는 새 파일인데
   // 타임라인은 이전 파일이 되고, 그 상태로 복원하면 엉뚱한 파일이 롤백된다.
   if (selectedPath !== p) return;
-  currentRevs = (h && h.revisions) || [];
+  setCurrentRevs((h && h.revisions) || []);
   // 선택 행 다시 표시(refresh 없이 강조만). full path 로 매칭(같은 basename, 예: 여러 settings.json
   // 파일이 함께 강조되는 버그 방지).
   document.querySelectorAll<HTMLElement>(".file").forEach((el) => {
@@ -2379,7 +2331,7 @@ async function selectFile(p: string): Promise<void> {
     body.innerHTML = `<div class="empty">${esc(t("noHistory"))}</div>`;
     return;
   }
-  if (currentRevs.length) fromRev = currentRevs[currentRevs.length - 1].snapshot;
+  if (currentRevs.length) setFromRev(currentRevs[currentRevs.length - 1].snapshot);
   renderHistory();
   renderDiffFor();
 }
@@ -2400,7 +2352,7 @@ function renderHistory(): void {
   body.appendChild(cmp);
   const sel = cmp.querySelector("#cmp-to") as HTMLSelectElement;
   sel.value = toRev;
-  sel.addEventListener("change", () => { toRev = sel.value; renderDiffFor(); });
+  sel.addEventListener("change", () => { setToRev(sel.value); renderDiffFor(); });
 
   // 타임라인
   const hl = document.createElement("div");
@@ -2426,7 +2378,7 @@ function renderHistory(): void {
       // 선택만 바뀌면 renderHistory() 전체 재렌더(innerHTML 재구성)를 피한다 - 그러면
       // .rev-list 스크롤이 최상단으로 리셋된다. 강조 클래스만 교체 + diff 만 갱신
       // (비교 select 핸들러와 동일 패턴) -> 스크롤/펼침 상태 유지.
-      fromRev = r.snapshot;
+      setFromRev(r.snapshot);
       tl.querySelectorAll(".rev").forEach((el) => el.classList.remove("sel"));
       item.classList.add("sel");
       renderDiffFor();
@@ -2750,8 +2702,8 @@ $("report").addEventListener("click", async () => {
   try { await callTool("open_report"); flashToast(t("toastReportOpened")); }
   catch (e) { flashToast(t("toastReportFail")); console.error("[config-monitor] report", e); }
 });
-$("panel-close").addEventListener("click", () => { detailOpen = false; applyDetailState(); });
-$("panel-reopen").addEventListener("click", () => { detailOpen = true; applyDetailState(); });
+$("panel-close").addEventListener("click", () => { setDetailOpen(false); applyDetailState(); });
+$("panel-reopen").addEventListener("click", () => { setDetailOpen(true); applyDetailState(); });
 // 초기 상태도 마크업이 아니라 detailOpen 에서 온다 - 두 곳에 적으면 한쪽만 고쳐져 어긋난다.
 applyDetailState();
 
