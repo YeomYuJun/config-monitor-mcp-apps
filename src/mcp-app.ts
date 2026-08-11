@@ -15,7 +15,7 @@ import {
   secTitles, collapsedInit, setCollapsedInit, showPlugin, setShowPlugin, showBuiltin, setShowBuiltin,
   libGroupOpen, ROOT_GROUP_KEY, libChecked, libOpen, libProjectTargets, setLibProjectTargets,
   libTarget, setLibTarget, libSelBarUpdate, setLibSelBarUpdate, scopeFilter, setScopeFilter,
-  srcOpen, lastConfigSections, setLastConfigSections,
+  srcOpen, lastConfigSections, setLastConfigSections, refreshApp, setRefreshApp,
 } from "./ui/state";
 import { valClass, basename, dirname, ABS_PATH_RE, safeSegment, looksLikePermRule, originShort, mkSrcTag } from "./ui/helpers";
 
@@ -73,7 +73,7 @@ function buildTrackAdder(extra?: HTMLElement): HTMLElement {
         notice.show(`${parts.join(" · ")}\n${(added.length ? added : already).join("\n")}`, "ok");
       }
       input.value = "";
-      await refresh();
+      await refreshApp?.();
     } catch (e) {
       notice.show(String(e));
       clearPending(btn, t("failed"));
@@ -107,7 +107,7 @@ function buildUntrackBtn(p: string): HTMLElement {
         return;
       }
       flashToast(t("untracked"));
-      await refresh();
+      await refreshApp?.();
     } catch (err) {
       clearPending(b, t("failed"));
       openReasonModal(t("failed"), String(err));
@@ -156,7 +156,7 @@ function buildProjectPicker(): { toggle: HTMLElement; list: HTMLElement } {
             const r = jparse(await callTool("config_track", { path: p.claude_dir }));
             if (r && r.ok === false) { openReasonModal(t("failed"), r.message || t("failed")); return; }
             flashToast(`${t("trackAdd")} · ${p.name}`);
-            await refresh();
+            await refreshApp?.();
           } catch (e) { flashToast(t("failed")); console.error("[config-monitor] project track", e); }
         });
         list.appendChild(row);
@@ -531,7 +531,7 @@ function buildEditUI(edit: any): HTMLElement {
             return;
           }
           flashToast(t("toastRemoved") + " · " + it);
-          await refresh();
+          await refreshApp?.();
         } catch (e) { notice.show(String(e)); clearPending(ok, t("failed")); console.error("[config-monitor] remove", e); }
       });
     });
@@ -574,7 +574,7 @@ function buildEditUI(edit: any): HTMLElement {
         return;
       }
       flashToast(t("toastAdded") + " · " + v);
-      await refresh();
+      await refreshApp?.();
     } catch (e) { notice.show(String(e)); clearPending(add, t("failed")); console.error("[config-monitor] add", e); }
   };
   add.addEventListener("click", submit);
@@ -610,7 +610,7 @@ function buildPluginToggleUI(edit: any): HTMLElement {
       }
       // 재시작 전까지는 세션에 반영되지 않는다 - 토글이 고장난 것처럼 보이지 않게 명시한다.
       flashToast(`${edit.id} · ${!on ? t("plgEnabled") : t("plgDisabled")} · ${t("plgRestart")}`);
-      await refresh();
+      await refreshApp?.();
     } catch (e) { clearPending(btn, t("failed")); console.error("[config-monitor] plugin toggle", e); }
   });
   wrap.appendChild(btn);
@@ -664,7 +664,7 @@ function mkPluginCliBtn(label: string, tip: string, tool: string, args: any,
         return;
       }
       flashToast(rr?.message || t("done"));
-      await refresh();
+      await refreshApp?.();
     } catch (e) {
       clearPending(target, t("failed"));
       openReasonModal(t("failed"), String(e));
@@ -732,7 +732,7 @@ function buildRemoveUI(edit: any): HTMLElement {
           return;
         }
         flashToast(t("toastRemoved") + " · " + edit.name);
-        await refresh();
+        await refreshApp?.();
       } catch (e) { clearPending(ok, t("failed")); notice.show(String(e)); console.error("[config-monitor] remove", e); }
     });
   });
@@ -791,7 +791,7 @@ function buildAddUI(edit: any): HTMLElement {
         return;
       }
       flashToast(t("toastAdded") + " · " + name);
-      await refresh();
+      await refreshApp?.();
     } catch (e) { notice.show(String(e)); clearPending(add, t("failed")); console.error("[config-monitor] add", e); }
   };
   add.addEventListener("click", submit);
@@ -843,7 +843,7 @@ function mkItemActions(it: any): HTMLElement {
         }
         b.title = "";
         flashToast(`${txt} ${t("done")} · ${it.name}`);
-        await refresh();
+        await refreshApp?.();
       } catch (err) {
         clearPending(b, t("failed"));
         b.title = String(err);
@@ -890,7 +890,7 @@ async function installMany(items: any[], opts: InstallOpts = {}): Promise<void> 
   const fail = failures.length;
   const failSfx = fail ? ` · ${fail} ${t("failed")}` : "";
   flashToast((opts.done ? opts.done(ok, fail) : `${t("libInstall")} ${ok} ${t("done")}`) + failSfx);
-  await refresh();
+  await refreshApp?.();
   if (fail) openReasonModal(t("installFailTitle"), `${fail} / ${items.length}`, failures);
 }
 
@@ -1077,7 +1077,7 @@ function buildTargetBar(allItems: any[]): HTMLElement {
     `<option value="">${esc(t("targetGlobal"))}</option>` +
     libProjectTargets.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join("");
   sel.value = libTarget;
-  sel.addEventListener("change", async () => { setLibTarget(sel.value); await refresh(); });
+  sel.addEventListener("change", async () => { setLibTarget(sel.value); await refreshApp?.(); });
   const selBtn = document.createElement("button");
   selBtn.className = "addbtn selbtn";
   const update = () => {
@@ -1149,7 +1149,7 @@ function mkUnitActions(l: any, kind: "hooks" | "mcp", installed: boolean): HTMLE
       // 백엔드가 warning 을 담아 보내면(예: 스토어 미초기화로 출처를 기록 못함) 성공 메시지에 묻혀
       // 사라지면 안 된다 - "성공했지만 알아둬야 할 것" 을 그대로 보여준다.
       flashToast(r?.warning ? `${r?.message || t("done")} ⚠ ${r.warning}` : (r?.message || t("done")));
-      await refresh();
+      await refreshApp?.();
     } catch (e) { clearPending(install, t("failed")); console.error("[config-monitor] unit install", e); }
   });
   act.appendChild(install);
@@ -1169,7 +1169,7 @@ function mkUnitActions(l: any, kind: "hooks" | "mcp", installed: boolean): HTMLE
           return;
         }
         flashToast(r?.warning ? `${r?.message || t("done")} ⚠ ${r.warning}` : (r?.message || t("done")));
-        await refresh();
+        await refreshApp?.();
       } catch (e) { clearPending(rm, t("failed")); console.error("[config-monitor] unit uninstall", e); }
     });
     act.appendChild(rm);
@@ -1305,7 +1305,7 @@ function renderLibrary(host: HTMLElement, res: any): void {
             return;
           }
           flashToast(r?.message || (t("libPathRemoved") + " · " + basename(l.lib)));
-          await refresh();
+          await refreshApp?.();
         } catch (e) { flashToast(t("failed")); console.error("[config-monitor] lib unregister", e); chip.replaceWith(mkPathChip(l)); }
       });
     });
@@ -1612,7 +1612,7 @@ function mkMarketCcActions(m: any): HTMLElement {
         return;
       }
       flashToast(r?.message || t("done"));
-      await refresh();                        // Library 패널도 같이 바뀐다
+      await refreshApp?.();                        // Library 패널도 같이 바뀐다
     } catch (e) { clearPending(b, t("failed")); console.error("[config-monitor] market unregister", e); }
   }));
   return wrap;
@@ -1878,7 +1878,7 @@ function openLibAdd(prefill: string): void {
         }
         const isMarket = s.kind === "local" ? scannedRowIsMarket(r, s.url) : !!(r && r.marketplace);
         flashToast((r && r.message) || t("libRegistered"));
-        await refresh();
+        await refreshApp?.();
         // 원격은 clone 이 끝나야 매니페스트 유무를 알 수 있어 사전 분기가 불가능하다.
         // 로컬도 같은 화면으로 맞춘다 - 등록은 유효하고, 반대편 등록만 이어서 권한다.
         if (isMarket) showCrossOffer(body, close, "libIsMarket", "libGoMarket",
@@ -1951,7 +1951,7 @@ function openMarketWarn(url: string): void {
         if (rr?.id) catOpen.add(rr.id);        // 새로 등록된 마켓은 펼친 채로 보여준다
         flashToast(rr?.message || t("done"));
         close();
-        await refresh();
+        await refreshApp?.();
       } catch (e) {
         err.textContent = String(e);
         err.hidden = false;
@@ -2025,7 +2025,7 @@ function mkCatalogRow(row: any): HTMLElement {
         // 묻어 버리면 "가져왔는데 텅 빔" 처럼 보인다(사실은 "가져왔는데 일부를 못 읽음").
         flashToast(rr?.warning ? `${rr?.message || t("done")} · ${row.name} ⚠ ${rr.warning}`
           : `${rr?.message || t("done")} · ${row.name}`);
-        await refresh();
+        await refreshApp?.();
       } catch (e) { flashToast(t("failed")); clearPending(b, t("failed")); console.error("[config-monitor] plugin fetch", e); }
     });
     b.title = t("catFetchTip");
@@ -2218,7 +2218,7 @@ function mkInstallScopes(row: any, market: string, close: () => void): HTMLEleme
       if (rr && rr.ok === false) { flashToast(rr.message || t("failed")); clearPending(btn, scope); return; }
       close();
       flashToast(`${rr?.message || t("done")} · ${row.name}@${market}`);
-      await refresh();
+      await refreshApp?.();
       await reloadCatalog();
     } catch (e) { clearPending(btn, scope); flashToast(t("failed")); console.error("[config-monitor] install scope", e); }
   };
@@ -2423,7 +2423,7 @@ function inlineRestore(btn: HTMLElement, r: any): void {
     box.innerHTML = `<span class="rmeta">${esc(t("restoring"))}</span>`;
     try {
       const res = jparse(await callTool("config_restore", { path: selectedPath, from: r.snapshot }));
-      if (res && res.ok) { flashToast(t("toastRestored")); await refresh(); await selectFile(selectedPath); }
+      if (res && res.ok) { flashToast(t("toastRestored")); await refreshApp?.(); await selectFile(selectedPath); }
       else box.innerHTML = `<span class="rmeta err">${esc(t("failed"))}: ${esc(res?.message || t("unknown"))}</span>`;
     } catch (err) {
       box.innerHTML = `<span class="rmeta err">${esc(t("failed"))}: ${esc(String(err))}</span>`;
@@ -2476,6 +2476,8 @@ async function refresh(): Promise<void> {
   if (scroller) scroller.scrollTop = scrollTop;
   refreshWatcher();
 }
+// 선언 직후 등록한다 - 모듈 최상위라 어떤 이벤트 핸들러보다 먼저 실행된다.
+setRefreshApp(refresh);
 
 // ----- watcher status badge + toggle -----
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));

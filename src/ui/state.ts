@@ -55,6 +55,10 @@ export const libOpen = new Set<string>(["skills"]); // 펼친 카테고리(기�
 export let libProjectTargets: string[] = [];        // 설치 대상 후보(추적 중인 프로젝트 .claude 경로들). renderTracked 가 매 새로고침 갱신
 export let libTarget = "";                           // 선택된 라이브러리 설치 대상("" = 전역 ~/.claude, 아니면 프로젝트 .claude)
 export let libSelBarUpdate: (() => void) | null = null; // 체크박스 -> 상단 "선택 설치 (N)" 카운트 갱신 훅
+// 전체 재렌더 훅. refresh() 는 tracked/config/library/catalog/watcher 를 차례로 부르는 구성 루트라
+// 섹션 모듈이 직접 import 하면 엔트리와 순환이 된다. 엔트리가 자기 refresh 를 여기 등록하고
+// 섹션은 이것만 부른다(libSelBarUpdate 와 같은 규율).
+export let refreshApp: (() => Promise<void>) | null = null;
 export let scopeFilter = "all";                      // 설정 스코프 필터: 'all' | 'global' | <projectPath>
 export const srcOpen: Record<string, boolean> = {};  // 출처 그룹 접힘 상태(키: `${secTitle}::g` | `${secTitle}::${project}`)
 export let lastConfigSections: any[] = [];           // 스코프 칩/그룹 즉시 재렌더용 최신 섹션 캐시
@@ -72,5 +76,6 @@ export const setShowBuiltin        = (v: boolean): void => { showBuiltin = v; };
 export const setLibProjectTargets  = (v: string[]): void => { libProjectTargets = v; };
 export const setLibTarget          = (v: string): void => { libTarget = v; };
 export const setLibSelBarUpdate    = (v: (() => void) | null): void => { libSelBarUpdate = v; };
+export const setRefreshApp         = (v: (() => Promise<void>) | null): void => { refreshApp = v; };
 export const setScopeFilter        = (v: string): void => { scopeFilter = v; };
 export const setLastConfigSections = (v: any[]): void => { lastConfigSections = v; };
