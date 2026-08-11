@@ -390,6 +390,15 @@ def norm_path(p):
     return os.path.normcase(os.path.normpath(p))
 
 
+def _plugin_scope(r, gset):
+    """플러그인을 켠 파일이 전역 체인 밖이면 프로젝트 스코프다 -> ("project", <root>).
+    <root>/.claude/settings.json -> <root> (_append_project_cards 와 같은 라벨 기준)."""
+    src = r["enabled_from"]
+    if src and norm_path(src) not in gset:
+        return "project", os.path.dirname(os.path.dirname(src))
+    return None, None
+
+
 def _plugin_section_cards(plugins, settings_fallback, global_settings=()):
     """Plugins 섹션 - 플러그인 단위 카드. 토글이 여기 붙는다(토글 단위가 플러그인이므로).
 
@@ -433,10 +442,7 @@ def _plugin_section_cards(plugins, settings_fallback, global_settings=()):
             # 거절하고, 사용자는 대시보드에서 빠져나갈 길이 없다(실측 재현).
             edit = {"kind": "plugin", "id": r["id"], "on": r["enabled"], "settings": src,
                     "scope": r["scope"] or "user", "cwd": r["project_path"] or ""}
-        # <root>/.claude/settings.json -> <root> (_append_project_cards 와 같은 라벨 기준)
-        scope = proj = None
-        if r["enabled_from"] and norm_path(r["enabled_from"]) not in gset:
-            scope, proj = "project", os.path.dirname(os.path.dirname(r["enabled_from"]))
+        scope, proj = _plugin_scope(r, gset)
         cards.append(card(r["name"], kv, badge=_STATE_BADGE.get(r["state"], r["state"]),
                           ok=(r["state"] == "ok"), edit=edit, plugin=r["id"],
                           scope=scope, project=proj, source=src))
@@ -452,16 +458,20 @@ def _plugin_mcp_kv(cfg):
     return [("type", cfg.get("type", "-")), ("url", cfg.get("url", "-"))]
 
 
-def _plugin_item_cards(r):
-    """state == ok 인 플러그인 하나가 기존 섹션에 낼 카드들 -> {섹션 접두사: [card]}."""
+def _plugin_item_cards(r, scope=None, project=None):
+    """state == ok 인 플러그인 하나가 기존 섹션에 낼 카드들 -> {섹션 접두사: [card]}.
+
+    scope/project 는 그 플러그인을 켠 파일에서 온다(_plugin_scope). 안 붙이면 프로젝트에서만
+    켠 플러그인의 스킬 수십 개가 전역 항목으로 잡혀, 그 프로젝트 칩을 눌렀을 때 오히려 사라진다."""
     pid, ns, items = r["id"], r["ns"], r["items"]
     out = {pfx: [] for pfx in PLUGIN_MERGE_SECTIONS}
+    tag = {"plugin": pid, "scope": scope, "project": project}
 
     for it in items["skills"]:
         meta = read_frontmatter(it["path"])
         out["Skills (code)"].append(card(f'{ns}:{it["name"]}', [
             ("desc", meta.get("description", "-")), ("from", pid), ("path", it["path"]),
-        ], badge="plugin", ok=True, plugin=pid))
+        ], badge="plugin", ok=True, **tag))
 
     for it in items["agents"]:
         meta = read_frontmatter(it["path"])
@@ -469,13 +479,13 @@ def _plugin_item_cards(r):
         out["Agents"].append(card(f'{ns}:{meta.get("name") or it["name"]}', [
             ("desc", meta.get("description", "-")), ("tools", meta.get("tools", "-")),
             ("from", pid), ("path", it["path"]),
-        ], badge="plugin", ok=True, plugin=pid))
+        ], badge="plugin", ok=True, **tag))
 
     for it in items["commands"]:
         meta = read_frontmatter(it["path"])
         out["Commands"].append(card(f'{ns}:{it["name"]}', [
             ("desc", meta.get("description", "-")), ("from", pid), ("path", it["path"]),
-        ], badge="plugin", ok=True, plugin=pid))
+        ], badge="plugin", ok=True, **tag))
 
     hooks_src = os.path.join(r["root"], "hooks", "hooks.json")
     for h in items["hooks"]:
@@ -483,22 +493,23 @@ def _plugin_item_cards(r):
             ("matchers", h["matchers"]),
             ("commands", " ; ".join(h["commands"]) or "-"),
             ("from", pid), ("path", hooks_src),
-        ], badge="plugin", plugin=pid))
+        ], badge="plugin", **tag))
 
     # 플러그인 MCP 는 .claude.json 에 기록되지 않고 Claude Code 가 세션에 직접 주입한다.
     # 그래도 "Code 에서 실제로 붙는 MCP 서버"라는 점에서 이 섹션이 가장 가깝다.
     for m in items["mcp"]:
         out["Claude Code (.claude.json)"].append(card(
             f'{ns}:{m["name"]}', _plugin_mcp_kv(m["cfg"]) + [("from", pid)],
-            badge="plugin mcp", ok=True, plugin=pid))
+            badge="plugin mcp", ok=True, **tag))
     return out
 
 
-def _append_plugin_cards(sections, plugins):
+def _append_plugin_cards(sections, plugins, global_settings=()):
     """state == ok 인 플러그인의 항목을 해당 전역 섹션 뒤에 append. title 개수 재계산.
 
     disabled / stale / missing 은 합류시키지 않는다 - 지금 적용되고 있지 않기 때문이다.
     (설치됨 ≠ 적용됨. 실측: chrome-devtools-mcp 는 설치돼 있고 enabled=false 다.)"""
+    gset = {norm_path(p) for p in (global_settings or []) if p}
     by_prefix = {}
     for sec in sections:
         for pfx in PLUGIN_MERGE_SECTIONS:
@@ -508,7 +519,8 @@ def _append_plugin_cards(sections, plugins):
     for r in plugins:
         if r["state"] != "ok":
             continue
-        for pfx, cards in _plugin_item_cards(r).items():
+        scope, proj = _plugin_scope(r, gset)
+        for pfx, cards in _plugin_item_cards(r, scope, proj).items():
             sec = by_prefix.get(pfx)
             if sec is not None and cards:
                 sec["cards"].extend(cards)
@@ -673,7 +685,7 @@ def parse(found, project_dirs=None):
 
     # 플러그인 항목을 먼저 합류시킨 뒤 프로젝트 항목을 얹는다. 양쪽 다 자기 접두사의
     # title 개수를 재계산하므로 순서가 개수를 어긋나게 만들지 않는다.
-    _append_plugin_cards(state["sections"], plugins)
+    _append_plugin_cards(state["sections"], plugins, chain)
     if project_dirs:
         _append_project_cards(state["sections"], project_dirs)
     return state
