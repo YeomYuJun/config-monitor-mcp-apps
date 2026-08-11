@@ -422,7 +422,8 @@ let selectedPath = "";
 let currentRevs: any[] = [];
 let fromRev = "";
 let toRev = "work";
-let detailOpen = true;
+// 기동 시 닫힘. 파일을 고르기 전에는 패널에 보여줄 게 없다(selectFile 이 열어 준다).
+let detailOpen = false;
 // 기동 시 전 섹션 접힘. Library/Marketplace 는 renderConfig 이후에 그려져 아래 collapsedInit
 // 루프가 못 잡으므로 여기서 미리 넣어 둔다(사용자가 펼치면 그 상태가 세션 내내 유지된다).
 const collapsed = new Set<string>(["Library", "Marketplace"]);   // 접힌 섹션 title
@@ -2975,6 +2976,8 @@ $("report").addEventListener("click", async () => {
 });
 $("panel-close").addEventListener("click", () => { detailOpen = false; applyDetailState(); });
 $("panel-reopen").addEventListener("click", () => { detailOpen = true; applyDetailState(); });
+// 초기 상태도 마크업이 아니라 detailOpen 에서 온다 - 두 곳에 적으면 한쪽만 고쳐져 어긋난다.
+applyDetailState();
 
 if (STANDALONE) {
   // 이미 브라우저 안 -> 뷰포트 꽉 채움(고정 660px 대신 100vh). open-browser 는 불필요하므로 숨김.
