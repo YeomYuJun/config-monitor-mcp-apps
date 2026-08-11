@@ -1234,7 +1234,7 @@ async function installMany(items: any[], opts: InstallOpts = {}): Promise<void> 
 function mkLibRow(it: any): HTMLElement {
   const [label, cls] = libStatus(it.status);
   const row = document.createElement("div");
-  row.className = "libskill";
+  row.className = "libskill librow";
   const cb = document.createElement("input");
   cb.type = "checkbox";
   cb.className = "libcb";
@@ -1247,7 +1247,7 @@ function mkLibRow(it: any): HTMLElement {
   nm.className = "sknm";
   nm.textContent = it.name;
   const bd = document.createElement("span");
-  bd.className = "badge" + (cls ? " " + cls : "");
+  bd.className = "badge libstat" + (cls ? " " + cls : "");
   bd.textContent = label + (it.kit_ref ? " · " + t("kitRef") : "");
   if (it.status === "conflict" && it.owner) bd.title = `${t("libOwnedBy")}: ${it.owner}`;
   // 칸 순서는 이름 -> 출처 -> 상태. 찾는 단서는 이름이므로 목록을 훑을 때 먼저 와야 한다.
@@ -1505,13 +1505,13 @@ function mkUnitActions(l: any, kind: "hooks" | "mcp", installed: boolean): HTMLE
 function mkUnitRow(l: any, kind: "hooks" | "mcp"): HTMLElement {
   const installed = kind === "hooks" ? !!l.hooks_installed : !!l.mcp_installed;
   const row = document.createElement("div");
-  row.className = "libskill";
+  row.className = "libskill librow";
   const nm = document.createElement("span");
   nm.className = "sknm";
   nm.textContent = originShort(l.origin);
   nm.title = l.lib;
   const bd = document.createElement("span");
-  bd.className = "badge" + (installed ? " ok" : "");
+  bd.className = "badge libstat" + (installed ? " ok" : "");
   bd.textContent = installed ? t("libInstalled") : t("libNotInstalled");
   const detail = kind === "hooks" ? (l.hooks_events || []) : (l.mcp_servers || []);
   if (installed && detail.length) bd.title = detail.join(", ");
