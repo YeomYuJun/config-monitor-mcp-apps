@@ -61,6 +61,7 @@ export let libSelBarUpdate: (() => void) | null = null; // 체크박스 -> 상�
 export let refreshApp: (() => Promise<void>) | null = null;
 export let scopeFilter = "all";                      // 설정 스코프 필터: 'all' | 'global' | <projectPath>
 export const srcOpen: Record<string, boolean> = {};  // 출처 그룹 접힘 상태(키: `${secTitle}::g` | `${secTitle}::${project}`)
+export const catOpen = new Set<string>();     // 펼친 마켓 id(기본 접힘 - 마켓 하나가 278개다)
 export let lastConfigSections: any[] = [];           // 스코프 칩/그룹 즉시 재렌더용 최신 섹션 캐시
 
 export const setSelectedPath       = (v: string): void => { selectedPath = v; };
