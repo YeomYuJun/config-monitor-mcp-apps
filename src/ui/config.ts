@@ -232,7 +232,9 @@ function renderConfigSection(host: HTMLElement, sec: any): void {
   const srcOf = (c: any) => c.source || (c.scope === "project" ? c.project : (sec.source || ""));
   const groups: { key: string; label: string; isGlobal: boolean; cards: any[] }[] = [];
   const gidx = new Map<string, number>();
-  for (const c of cards) {
+  // 그룹은 visible 로 만든다 - cards 로 만들면 플러그인/기본제공 스위치가 헤더 숫자만 바꾸고
+  // 카드는 그대로 남는다(스위치가 안 먹는 것처럼 보인다). 필터로 비는 그룹은 자연히 사라진다.
+  for (const c of visible) {
     const isGlobal = c.scope !== "project";
     const label = srcOf(c);
     const key = `${sec.title}::${isGlobal ? "g" : "p"}::${label}`;
@@ -246,7 +248,7 @@ function renderConfigSection(host: HTMLElement, sec: any): void {
   }
 
   // 출처가 둘 이상이면(프로젝트 있음 또는 전역 settings 2 파일) 그룹 모드.
-  if (scopeFilter === "all" && (hasProject || groups.length > 1)) {
+  if (scopeFilter === "all" && (groups.length > 1 || groups.some((g) => !g.isGlobal))) {
     // 그룹 모드: 출처별 그룹(등장 순 - 백엔드가 전역 카드를 앞에 둔다). 접힌 그룹은 카드 렌더 스킵(DOM 제외).
     for (const g of groups) {
       body.appendChild(buildSrcGroupHeader(g.key, g.isGlobal, g.label, g.cards.length));

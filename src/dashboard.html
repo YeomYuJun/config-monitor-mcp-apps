@@ -173,6 +173,9 @@
   .tgl input:checked~.tgllbl{color:#5A6069}
   .tgl input:focus-visible+.tglui{outline:2px solid var(--accent);outline-offset:2px}
   .scopechip.on{border-color:var(--accent);background:var(--accent);color:#FFF}
+  /* 선택된 칩은 hover 에도 accent 를 유지한다 - 위 button:hover 가 흰 배경을 덮어쓰면
+     흰 글자만 남아 라벨이 사라진다. */
+  .scopechip.on:hover{border-color:var(--accent);background:var(--accent)}
   .secsum{font-family:var(--mono);font-size:11px;color:#6B7077;margin-left:8px}
   .srcgrp{grid-column:1/-1;display:flex;align-items:center;gap:8px;padding:5px 4px;border-radius:5px;
     cursor:pointer;user-select:none}
