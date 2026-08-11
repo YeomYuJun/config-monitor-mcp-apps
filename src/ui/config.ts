@@ -226,7 +226,7 @@ function renderConfigSection(host: HTMLElement, sec: any): void {
     };
   }
 
-  // 출처 그룹 키: perm/hook 은 카드마다 실제 settings 파일(claude_config 가 source 로 붙임),
+  // 출처 그룹 키: perm/hook/plugin 은 카드마다 실제 settings 파일(claude_config 가 source 로 붙임),
   // 그 외는 전역=섹션 출처 / 프로젝트=프로젝트 경로. 전역이라도 settings.json 과
   // settings.local.json 은 둘 다 적용되므로 같은 이름의 카드(allow 등)가 각각 나온다 -> 별도 그룹.
   const srcOf = (c: any) => c.source || (c.scope === "project" ? c.project : (sec.source || ""));

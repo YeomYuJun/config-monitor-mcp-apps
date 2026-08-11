@@ -138,7 +138,7 @@ def card(name, kv, badge=None, ok=False, edit=None, scope=None, project=None, so
         c["scope"] = scope
     if project:
         c["project"] = project
-    # source 는 한 섹션에 여러 파일이 섞이는 항목(perm/hook)에만 붙는다.
+    # source 는 한 섹션에 여러 파일이 섞이는 항목(perm/hook/plugin)에만 붙는다.
     # 같은 이름의 카드(allow 등)가 파일마다 나오므로 카드 자신이 출처를 들고 있어야 한다.
     if source:
         c["source"] = source
@@ -419,7 +419,11 @@ def _plugin_section_cards(plugins, settings_fallback, global_settings=()):
         # 이쪽은 원장이 기록한 설치 위치). 제거/갱신이 향할 곳이라 카드에 보이게 둔다.
         if r["scope"] and r["scope"] != "user":
             kv.append(("installed", f'{r["scope"]}  {r["project_path"] or "-"}'))
-        kv.append(("source", r["enabled_from"] or (settings_fallback or "-")))
+        # 카드에는 파일명만, 전체 경로는 출처 그룹 헤더가 든다(_perm_cards 와 같은 규율).
+        # 같은 프로젝트의 settings.json 과 settings.local.json 이 갈리는 유일한 자리다 -
+        # 스코프 필은 전역/프로젝트 2치라 project 설치와 local 설치를 구분하지 못한다.
+        src = r["enabled_from"] or settings_fallback
+        kv.append(("source", os.path.basename(src) if src else "-"))
         # 토글 대상은 **그 값을 정한 파일**이다. 프로젝트에서 켠 것을 전역 파일에서 끄면
         # 안 먹으므로 카드가 자기 대상 경로를 들고 간다(_perm_cards 와 같은 규율).
         edit = None
@@ -427,17 +431,15 @@ def _plugin_section_cards(plugins, settings_fallback, global_settings=()):
             # scope/cwd 는 claude 위임(제거·갱신)이 쓴다. 안 넘기면 CLI 기본값 user 로 흘러가
             # project 스코프 설치를 영영 못 지운다 - claude 가 "project 스코프에 있다"며
             # 거절하고, 사용자는 대시보드에서 빠져나갈 길이 없다(실측 재현).
-            edit = {"kind": "plugin", "id": r["id"], "on": r["enabled"],
-                    "settings": r["enabled_from"] or settings_fallback,
+            edit = {"kind": "plugin", "id": r["id"], "on": r["enabled"], "settings": src,
                     "scope": r["scope"] or "user", "cwd": r["project_path"] or ""}
         # <root>/.claude/settings.json -> <root> (_append_project_cards 와 같은 라벨 기준)
-        src = r["enabled_from"]
         scope = proj = None
-        if src and norm_path(src) not in gset:
-            scope, proj = "project", os.path.dirname(os.path.dirname(src))
+        if r["enabled_from"] and norm_path(r["enabled_from"]) not in gset:
+            scope, proj = "project", os.path.dirname(os.path.dirname(r["enabled_from"]))
         cards.append(card(r["name"], kv, badge=_STATE_BADGE.get(r["state"], r["state"]),
                           ok=(r["state"] == "ok"), edit=edit, plugin=r["id"],
-                          scope=scope, project=proj))
+                          scope=scope, project=proj, source=src))
     return cards
 
 
