@@ -205,8 +205,14 @@ function buildProjectPicker(): { toggle: HTMLElement; list: HTMLElement } {
           `<span class="pnm">${esc(p.name)}</span><span class="ppath">${esc(p.claude_dir)}</span>` +
           (already ? `<span class="ptag">${esc(t("projPickTracked"))}</span>` : "");
         if (!already) row.addEventListener("click", async () => {
-          try { await callTool("config_track", { path: p.claude_dir }); flashToast(`${t("trackAdd")} · ${p.name}`); await refresh(); }
-          catch (e) { flashToast(t("failed")); console.error("[config-monitor] project track", e); }
+          // 도구 실패는 예외가 아니라 ok:false 로 온다(callTool 이 두 전송을 그렇게 정규화한다).
+          // catch 만 두면 실패해도 아래 성공 토스트가 뜬다 - 행 하나뿐이라 슬롯이 없어 사유는 모달로.
+          try {
+            const r = jparse(await callTool("config_track", { path: p.claude_dir }));
+            if (r && r.ok === false) { openReasonModal(t("failed"), r.message || t("failed")); return; }
+            flashToast(`${t("trackAdd")} · ${p.name}`);
+            await refresh();
+          } catch (e) { flashToast(t("failed")); console.error("[config-monitor] project track", e); }
         });
         list.appendChild(row);
       }
@@ -2692,15 +2698,19 @@ $("collapse-all").addEventListener("click", () => {
 });
 $("refresh").addEventListener("click", () => { refresh(); flashToast(t("toastRefreshed")); });
 $("snap").addEventListener("click", async () => {
-  await callTool("snapshot_now", { message: t("snapshotMsg") });
+  const r = jparse(await callTool("snapshot_now", { message: t("snapshotMsg") }));
+  if (r && r.ok === false) { openReasonModal(t("failed"), r.message || t("failed")); return; }
   flashToast(t("toastSnapshot"));
   await refresh();
   if (selectedPath) selectFile(selectedPath);
 });
 $("report").addEventListener("click", async () => {
   flashToast(t("toastReport"));
-  try { await callTool("open_report"); flashToast(t("toastReportOpened")); }
-  catch (e) { flashToast(t("toastReportFail")); console.error("[config-monitor] report", e); }
+  try {
+    const r = jparse(await callTool("open_report"));
+    if (r && r.ok === false) { openReasonModal(t("toastReportFail"), r.message || t("failed")); return; }
+    flashToast(t("toastReportOpened"));
+  } catch (e) { flashToast(t("toastReportFail")); console.error("[config-monitor] report", e); }
 });
 $("panel-close").addEventListener("click", () => { setDetailOpen(false); applyDetailState(); });
 $("panel-reopen").addEventListener("click", () => { setDetailOpen(true); applyDetailState(); });
