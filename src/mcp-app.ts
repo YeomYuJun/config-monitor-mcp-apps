@@ -133,8 +133,11 @@ function applyDisplayMode(mode: string): void {
 // 라이브 대시보드를 기본 브라우저에서 연다(서버 필요시 자동 기동). 브라우저에선 네이티브 전체화면 가능.
 async function openInBrowser(): Promise<void> {
   flashToast(t("toastBrowser"));
-  try { await callTool("open_in_browser"); flashToast(t("toastTabOpened")); }
-  catch (e) { flashToast(t("toastOpenFail")); console.error("[config-monitor] open_in_browser", e); }
+  try {
+    const r = jparse(await callTool("open_in_browser"));
+    if (r && r.ok === false) { openReasonModal(t("toastOpenFail"), r.message || t("failed")); return; }
+    flashToast(t("toastTabOpened"));
+  } catch (e) { flashToast(t("toastOpenFail")); console.error("[config-monitor] open_in_browser", e); }
 }
 // 브라우저 전용 전체화면 토글(네이티브 Fullscreen API).
 async function toggleBrowserFullscreen(): Promise<void> {

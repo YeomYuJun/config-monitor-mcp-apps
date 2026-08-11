@@ -861,7 +861,7 @@ export function buildTools(scriptDir: string): ToolDef[] {
         // 서버가 127.0.0.1 에만 바인딩하므로 주소도 맞춘다. 'localhost' 는 Windows 에서 ::1 로
         // 먼저 해석될 수 있어, IPv4 전용 리스너에 프로브/브라우저가 못 붙는 경우가 생긴다.
         const url = `http://127.0.0.1:${port}/`;
-        const up = await fetch(url).then((r) => r.ok).catch(() => false);
+        let up = await fetch(url).then((r) => r.ok).catch(() => false);
         if (!up) {
           // server.ts(HTTP) 를 detached 로 기동. watcher 와 동일한 Start-Process 패턴.
           const srv = path.join(scriptDir, "server.ts").replace(/\\/g, "/");
@@ -878,10 +878,13 @@ export function buildTools(scriptDir: string): ToolDef[] {
           // 기동 대기(최대 ~6s).
           for (let i = 0; i < 12; i++) {
             await new Promise((r) => setTimeout(r, 500));
-            if (await fetch(url).then((r) => r.ok).catch(() => false)) break;
+            if (await fetch(url).then((r) => r.ok).catch(() => false)) { up = true; break; }
           }
         }
+        // 이 도구는 spawn 도 브라우저 실행도 fire-and-forget 이라, 프로브 결과가 실패를 담을 수 있는
+        // 유일한 신호다. 버리면 서버가 안 떠도 ok:true 가 나가 호출부의 어떤 가드로도 잡을 수 없다.
         openInBrowser(url);
+        if (!up) return jsonResult(JSON.stringify({ ok: false, message: `대시보드 서버가 ${port} 에서 응답하지 않습니다`, url }));
         return jsonResult(JSON.stringify({ ok: true, message: "라이브 대시보드 브라우저 열기", url }));
       },
     },
