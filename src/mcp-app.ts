@@ -7,21 +7,12 @@
 //   updateModelContext -> inject what the user is viewing into Claude context
 import { App } from "@modelcontextprotocol/ext-apps";
 import { t, getLang, setLang } from "./ui/i18n";
+import { $, esc, setPending, clearPending, openModal, mkNotice, openReasonModal, modalActions, flashToast } from "./ui/widgets";
 
 const app = new App({ name: "Config Monitor", version: "0.1.0" });
 
 // 브라우저(standalone) 모드: server.ts 가 주입한 플래그. true 면 MCP 브리지 대신 HTTP REST 사용.
 const STANDALONE = !!(window as any).__CONFIG_MONITOR_HTTP__;
-
-const $ = (id: string) => document.getElementById(id)!;
-// 따옴표까지 막는다: esc 의 결과는 태그 사이뿐 아니라 title="..." 같은 **속성값**에도 들어가고,
-// 그 자리에는 검색어·스냅샷 메시지처럼 사용자가 쓴 문자열이 온다. 따옴표를 남겨두면 속성을
-// 빠져나가 마크업이 깨지거나 다른 속성이 끼어든다. 텍스트 자리에서는 브라우저가 엔티티를
-// 원래 문자로 되돌려 그리므로 부작용이 없다(이 함수의 결과는 항상 innerHTML 로만 들어간다).
-const ESC_MAP: Record<string, string> = {
-  "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-};
-const esc = (s: unknown) => String(s).replace(/[&<>"']/g, (c) => ESC_MAP[c]);
 
 // 카드 값 종류 구분: 서술형 key 는 sans+줄클램프, 그 외(command/args/env/path/tools 등)는 mono 코드형.
 const DESC_KEYS = new Set(["desc", "description", "설명", "summary"]);
@@ -76,20 +67,6 @@ function jparseLast(t: string): any {
 const basename = (p: string) => p.split(/[\\/]/).filter(Boolean).pop() || p;
 const dirname = (p: string) => { const a = p.split(/[\\/]/); a.pop(); return a.join("\\"); };
 
-// 진행 중 표시. 버튼 모양을 유지하면 아직 누를 수 있는 것처럼 읽히므로 테두리/배경을 벗겨
-// 단순 텍스트로 만들고 실제로도 못 누르게 막는다(중복 요청 방지).
-function setPending(b: HTMLButtonElement, txt = "…"): void {
-  if (!b.classList.contains("pending")) b.dataset.label = b.textContent || "";
-  b.textContent = txt;
-  b.classList.add("pending");
-  b.disabled = true;
-}
-function clearPending(b: HTMLButtonElement, txt?: string): void {
-  b.classList.remove("pending");
-  b.disabled = false;
-  b.textContent = txt ?? b.dataset.label ?? b.textContent ?? "";
-}
-
 // 출처 origin 을 사람이 읽는 짧은 라벨로. 캐시 경로(.../markets/<id>/plugins/<name>/<sha12>)는
 // 화면에 그대로 쓸 수 없고, 여러 라이브러리가 같은 이름의 항목을 줄 때 행을 구분하는 유일한 단서다.
 function originLabel(origin: string): string {
@@ -100,33 +77,6 @@ function originLabel(origin: string): string {
   return o;
 }
 
-// 화면 중앙 모달. 되돌릴 수 없는 등록/실행 앞에서는 인라인 경고보다 흐름을 끊는 확인이 맞다
-// (인라인 경고는 같은 버튼의 라벨만 바뀌어 읽지 않고 두 번 누르기 쉽다).
-// 배경 클릭과 Esc 로 닫히고, 위젯 iframe 안에서도 fixed 는 iframe 뷰포트 기준이라 중앙에 온다.
-function openModal(title: string, fill: (body: HTMLElement, close: () => void) => void): void {
-  const back = document.createElement("div");
-  back.className = "modalback";
-  const panel = document.createElement("div");
-  panel.className = "modal";
-  const head = document.createElement("div");
-  head.className = "modaltitle";
-  head.textContent = title;
-  const body = document.createElement("div");
-  body.className = "modalbody";
-  const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
-  const close = () => { back.remove(); document.removeEventListener("keydown", onKey); };
-  document.addEventListener("keydown", onKey);
-  back.addEventListener("click", (e) => { if (e.target === back) close(); });
-  panel.append(head, body);
-  back.appendChild(panel);
-  document.body.appendChild(back);
-  fill(body, close);
-}
-
-// 입력행 아래에 붙는 지속 안내 슬롯. 모달의 .modalerr 와 같은 규율을 인라인에도 준다:
-// **실패 사유를 토스트로만 흘리지 않는다.** 토스트는 몇 초 만에 사라지는데 입력칸은 그대로
-// 남아, 사용자는 무엇이 잘못됐는지 모른 채 같은 값을 다시 넣는다.
-// 입력이 바뀌면 스스로 지워진다 - 고친 값 옆에 옛 오류가 남아 있으면 그게 또 거짓말이 된다.
 // 절대경로만 허용하는 자리(추적 추가)의 판정. ./ ../ 는 일부러 뺀다 - 서버 cwd 기준으로
 // 풀려 사용자가 예측할 수 없다. ~ 는 홈이라 예측 가능하므로 허용한다.
 const ABS_PATH_RE = /^([A-Za-z]:[\\/]|[\\/]|~[\\/])/;
@@ -144,74 +94,6 @@ const looksLikePermRule = (v: string): boolean => {
   const open = (v.match(/\(/g) || []).length, close = (v.match(/\)/g) || []).length;
   return open === close;
 };
-
-type Notice = {
-  el: HTMLElement;
-  show(msg: string, kind?: "err" | "warn" | "ok"): void;
-  clear(): void;
-};
-function mkNotice(input?: HTMLInputElement): Notice {
-  const el = document.createElement("div");
-  el.className = "anotice";
-  el.hidden = true;
-  const clear = () => { el.hidden = true; el.textContent = ""; };
-  if (input) input.addEventListener("input", clear);
-  return {
-    el,
-    show(msg: string, kind: "err" | "warn" | "ok" = "err") {
-      el.textContent = msg;
-      el.className = "anotice " + kind;
-      el.hidden = false;
-    },
-    clear,
-  };
-}
-
-// 거부 사유가 **목록**일 때(무엇이 붙들고 있는지 등)는 토스트에 이어붙이지 않는다 - 길어서
-// 잘리고, 정작 그 목록이 사용자가 다음에 할 일을 정한다. 읽고 닫는 모달로 남긴다.
-function openReasonModal(title: string, msg: string, items?: string[]): void {
-  openModal(title, (body, close) => {
-    const m = document.createElement("div");
-    m.className = "modaltext";
-    m.textContent = msg;
-    body.appendChild(m);
-    if (items && items.length) {
-      const ul = document.createElement("div");
-      ul.className = "reasonlist";
-      for (const it of items) {
-        const li = document.createElement("div");
-        li.className = "reasonitem";
-        li.textContent = it;
-        ul.appendChild(li);
-      }
-      body.appendChild(ul);
-    }
-    const row = document.createElement("div");
-    row.className = "modalrow";
-    const ok = document.createElement("button");
-    ok.className = "addbtn primary";
-    ok.textContent = t("close");
-    ok.addEventListener("click", close);
-    row.appendChild(ok);
-    body.appendChild(row);
-  });
-}
-
-// 모달 하단 버튼 행. 주 동작이 왼쪽, 취소가 오른쪽(대시보드의 인라인 확인과 같은 배치).
-function modalActions(okLabel: string, onOk: (btn: HTMLButtonElement) => void,
-                      onCancel: () => void): HTMLElement {
-  const row = document.createElement("div");
-  row.className = "modalrow";
-  const ok = document.createElement("button");
-  ok.className = "addbtn primary";
-  ok.textContent = okLabel;
-  ok.addEventListener("click", () => onOk(ok));
-  const no = document.createElement("button");
-  no.textContent = t("cancel");
-  no.addEventListener("click", onCancel);
-  row.append(ok, no);
-  return row;
-}
 
 // 출처 안에서의 짧은 이름(마켓이면 플러그인 세그먼트, 원격이면 id, 로컬이면 디렉토리명).
 // originLabel 이 "어디"라면 이쪽은 "무엇"이다 - 유닛 행은 둘을 각각 다른 칸에 쓴다.
@@ -290,15 +172,6 @@ let libSelBarUpdate: (() => void) | null = null; // 체크박스 -> 상단 "선�
 let scopeFilter = "all";                      // 설정 스코프 필터: 'all' | 'global' | <projectPath>
 const srcOpen: Record<string, boolean> = {};  // 출처 그룹 접힘 상태(키: `${secTitle}::g` | `${secTitle}::${project}`)
 let lastConfigSections: any[] = [];           // 스코프 칩/그룹 즉시 재렌더용 최신 섹션 캐시
-
-let toastT: number | undefined;
-function flashToast(msg: string): void {
-  const el = $("toast");
-  el.textContent = msg;
-  el.style.display = "block";
-  if (toastT) clearTimeout(toastT);
-  toastT = window.setTimeout(() => { el.style.display = "none"; }, 2900);
-}
 
 // ----- tracked file rows -----
 // 파일 상태 배지 라벨(현재 lang 반영). 상태값 new/deleted 는 i18n 키 newFile/deleted 에 매핑된다(키 이름이 상태값과 다름).
