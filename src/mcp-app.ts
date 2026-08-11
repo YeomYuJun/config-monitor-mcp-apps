@@ -462,6 +462,8 @@ let collapsedInit = false;                    // 기본 접힘 1회만 적용
 let showPlugin = true;                        // 플러그인이 넣은 항목
 let showBuiltin = true;                       // 기본 제공(Desktop Skills creatorType=anthropic)
 const libGroupOpen = new Set<string>();      // 펼친 라이브러리 스킬 그룹 경로(기본 접힘)
+// 루트(폴더 없는) 항목 묶음의 예약 키. 폴더 경로에는 ':' 가 들어갈 수 없어 실제 경로와 겹치지 않는다.
+const ROOT_GROUP_KEY = "::root";
 const libChecked = new Set<string>();        // 선택 설치용 체크된 항목 key(카테고리 무관)
 const libOpen = new Set<string>(["skills"]); // 펼친 카테고리(기본값: Skills 만)
 let libProjectTargets: string[] = [];        // 설치 대상 후보(추적 중인 프로젝트 .claude 경로들). renderTracked 가 매 새로고침 갱신
@@ -1248,10 +1250,12 @@ function mkLibRow(it: any): HTMLElement {
   bd.className = "badge" + (cls ? " " + cls : "");
   bd.textContent = label + (it.kit_ref ? " · " + t("kitRef") : "");
   if (it.status === "conflict" && it.owner) bd.title = `${t("libOwnedBy")}: ${it.owner}`;
-  // 출처를 맨 왼쪽 칸으로 둔다: 로컬 여럿 + 원격 여럿이 한 목록에 섞이면 "어디의 무엇인지"가
-  // 행의 첫 정보여야 한다(스킬 트리는 group 으로 묶어 라이브러리 경계를 지워 버린다).
-  // 꼬리에 달았을 때는 남는 폭이 없어 매번 말줄임으로 잘려 출처 구실을 못 했다.
-  row.append(cb, mkSrcTag(it.origin, it.lib), bd, nm, mkItemActions(it));
+  // 칸 순서는 이름 -> 출처 -> 상태. 찾는 단서는 이름이므로 목록을 훑을 때 먼저 와야 한다.
+  // 예전에는 출처가 첫 칸이었다. 꼬리에 달면 남는 폭이 없어 매번 말줄임으로 잘렸기 때문인데,
+  // 그건 순서 탓이 아니라 flex 탓이었다 - 이름이 basis 0(flex:1)이라 폭이 모자랄 때 basis auto 인
+  // 출처 칸이 먼저 줄어들었다. .libskill .libsrc 를 shrink 0 으로 고정해 이름이 대신 줄바꿈되게
+  // 바꿨으므로(dashboard.html), 이제 뒤에 두어도 출처가 잘리지 않는다.
+  row.append(cb, nm, mkSrcTag(it.origin, it.lib), bd, mkItemActions(it));
   return row;
 }
 
@@ -1321,14 +1325,28 @@ function renderSkillTreeBody(skills: any[]): HTMLElement {
   const frag = document.createElement("div");
   frag.appendChild(renderGroups(root, ""));
   if (root.skills.length) {
+    // 루트 항목도 폴더 그룹처럼 접힌다. 다만 .libgrp 박스로 감싸지 않는다 - 이건 폴더가
+    // 아니라 "폴더에 안 들어간 나머지"라, 박스를 두르면 없는 폴더가 하나 있는 것처럼 읽힌다.
+    // 구분선 자체가 헤더 역할을 하고, 상태는 그룹과 같은 Set 을 쓴다(경로에 ':' 는 못 들어가
+    // 실제 폴더 경로와 키가 겹칠 수 없다).
     const div = document.createElement("div");
-    div.className = "librootdiv";
+    div.className = "librootdiv" + (libGroupOpen.has(ROOT_GROUP_KEY) ? " open" : "");
     div.innerHTML =
       `<span class="rline"></span>` +
+      `<span class="chev4">▸</span>` +
       `<span class="rlbl">${esc(t("rootItems"))} · ${root.skills.length}</span>` +
       `<span class="rline"></span>`;
-    frag.appendChild(div);
-    for (const it of root.skills) frag.appendChild(mkLibRow(it));
+    const rbody = document.createElement("div");
+    rbody.className = "librootbody";
+    for (const it of root.skills) rbody.appendChild(mkLibRow(it));
+    div.addEventListener("click", () => {
+      if (libGroupOpen.has(ROOT_GROUP_KEY)) libGroupOpen.delete(ROOT_GROUP_KEY);
+      else libGroupOpen.add(ROOT_GROUP_KEY);
+      const on = div.classList.toggle("open");
+      rbody.classList.toggle("open", on);
+    });
+    if (libGroupOpen.has(ROOT_GROUP_KEY)) rbody.classList.add("open");
+    frag.append(div, rbody);
   }
   return frag;
 }
@@ -1482,7 +1500,7 @@ function mkUnitActions(l: any, kind: "hooks" | "mcp", installed: boolean): HTMLE
   return act;
 }
 
-// hooks/MCP 유닛 1행: 항목 행과 같은 칸 순서(출처 · 상태 · 이름 · 동작).
+// hooks/MCP 유닛 1행: 항목 행과 같은 칸 순서(이름 · 출처 · 상태 · 동작).
 // 이름 칸에는 짧은 이름만 쓴다 - 출처 칸과 같은 문자열을 두 번 그리면 칸 하나를 낭비한다.
 function mkUnitRow(l: any, kind: "hooks" | "mcp"): HTMLElement {
   const installed = kind === "hooks" ? !!l.hooks_installed : !!l.mcp_installed;
@@ -1497,7 +1515,7 @@ function mkUnitRow(l: any, kind: "hooks" | "mcp"): HTMLElement {
   bd.textContent = installed ? t("libInstalled") : t("libNotInstalled");
   const detail = kind === "hooks" ? (l.hooks_events || []) : (l.mcp_servers || []);
   if (installed && detail.length) bd.title = detail.join(", ");
-  row.append(mkSrcTag(l.origin, l.lib), bd, nm, mkUnitActions(l, kind, installed));
+  row.append(nm, mkSrcTag(l.origin, l.lib), bd, mkUnitActions(l, kind, installed));
   return row;
 }
 
@@ -2492,9 +2510,15 @@ function mkInstallScopes(row: any, market: string, close: () => void): HTMLEleme
     o.textContent = p;
     sel.appendChild(o);
   }
-  // 대상 프로젝트를 **버튼보다 먼저** 보여준다. 뒤에 두면 어디에 설치되는지 모른 채
-  // "이 저장소 전체에"를 누르게 되고, 실제로 그렇게 엉뚱한 경로(드라이브 루트)에 project
-  // 스코프로 설치되는 일이 일어났다. 라벨과 현재 선택을 함께 적는다.
+  // 전역은 이 select 와 무관하다(claude_plugin_install 에 cwd 를 아예 안 보낸다). 그런데
+  // 셋을 한 줄에 늘어놓고 그 위에 대상 프로젝트를 적으면 전역도 그 프로젝트로 가는 것처럼
+  // 읽힌다. 그래서 전역은 위에 따로 두고, select 가 실제로 지배하는 둘만 한 구획에 담는다
+  // - 담김 관계가 곧 적용 범위다.
+  // select 는 그 구획 안에서도 **버튼보다 먼저**다. 뒤에 두면 어디에 설치되는지 모른 채
+  // 누르게 되고, 실제로 그렇게 엉뚱한 경로(드라이브 루트)에 project 스코프로 설치되는 일이
+  // 일어났다.
+  const projBox = document.createElement("div");
+  projBox.className = "scopeproj";
   if (knownProjects.length) {
     const row = document.createElement("div");
     row.className = "modalscoperow";
@@ -2502,7 +2526,7 @@ function mkInstallScopes(row: any, market: string, close: () => void): HTMLEleme
     lb.className = "modalnote";
     lb.textContent = t("catScopeTarget");
     row.append(lb, sel);
-    wrap.appendChild(row);
+    projBox.appendChild(row);
   }
   const run = async (btn: HTMLButtonElement, scope: string) => {
     setPending(btn);
@@ -2538,8 +2562,9 @@ function mkInstallScopes(row: any, market: string, close: () => void): HTMLEleme
         b.title = `${tip}\n${t("catScopeTarget")} ${sel.value}`;
       });
     }
-    wrap.appendChild(b);
+    (scope === "user" ? wrap : projBox).appendChild(b);
   }
+  wrap.appendChild(projBox);
   return wrap;
 }
 

@@ -247,11 +247,12 @@
   .libkind{font-family:var(--mono);font-size:10.5px;color:var(--mut2);overflow-wrap:anywhere}
   .libkind:empty{display:none}
   /* 항목/유닛 행의 출처 태그: 같은 이름이 여러 라이브러리에서 올 때 행을 구분하는 유일한 단서. */
-  /* 출처는 행의 첫 칸이다("어디의 무엇인지"). 행의 다른 칸은 전부 고정폭이고 이름칸은 basis 0 이라
-     줄어들 여지가 없으므로, 이 칸이 안 줄어들면(0 0 auto) 좁은 창에서 행이 가로로 삐져나온다.
-     마지막 수단으로만 말줄임되도록 shrink 를 허용하고 전체 문자열은 title 로 남긴다. */
+  /* 출처 칸은 줄어들지 않는다(0 0 auto). shrink 를 허용하면 이름칸이 basis 0(flex:1)이라
+     폭이 모자랄 때 이 칸부터 깎여 나가 매번 말줄임으로 잘렸다 - 출처 구실을 못 한다.
+     대신 이름칸이 줄바꿈(word-break)으로 흡수하므로 행이 가로로 삐져나오지도 않는다.
+     max-width 로 상한만 두고 전체 문자열은 title 로 남긴다. */
   .libskill .libsrc{font-family:var(--mono);font-size:10px;color:#5A6069;background:#EEF1F6;
-    border:1px solid var(--line2);border-radius:4px;padding:2px 7px;flex:0 1 auto;
+    border:1px solid var(--line2);border-radius:4px;padding:2px 7px;flex:0 0 auto;
     min-width:0;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   /* 카탈로그: 마켓 단위 구획(어느 URL 에서 온 플러그인인지) + 마켓별 페이지 이동 바.
      마켓은 서로 다른 출처지 한 목록의 뒷부분이 아니므로 접기와 페이징을 각자 가진다. */
@@ -332,6 +333,10 @@
      한 줄에 안 들어간다 -> .adder 와 같은 콤팩트 규격으로 낮춰 한 행을 유지한다. */
   .modalscopes{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:4px}
   .modalscopes .addbtn{padding:4px 12px;font-size:11px;font-weight:600}
+  /* 프로젝트 스코프 구획: 대상 select 가 지배하는 범위를 담김 관계로 보인다. 전역 버튼은
+     이 바깥에 있어야 "그 프로젝트에 설치되는 것"으로 읽히지 않는다(전역은 cwd 를 안 쓴다). */
+  .scopeproj{width:100%;display:flex;flex-wrap:wrap;gap:6px;align-items:center;
+    background:#F3F4F6;border:1px solid var(--line2);border-radius:7px;padding:9px 10px}
   /* 대상 프로젝트 줄은 버튼보다 위. 어디로 설치되는지 누르기 전에 보여야 한다. */
   .modalscoperow{display:flex;gap:7px;align-items:center;width:100%;flex-wrap:wrap}
   .modalscoperow .catsel{flex:1;min-width:0}
@@ -383,9 +388,16 @@
   /* .edit 는 기본이 align-items:stretch 라, 버튼과 배지를 나란히 두면 배지 span 이 버튼
      높이까지 늘어나고 글자가 그 위쪽에 그려진다. 행에서는 가운데로 맞춘다. */
   .libskill .edit{flex-direction:row;align-items:center;margin:0;gap:6px;flex:0 0 auto}
-  .librootdiv{display:flex;align-items:center;gap:8px;margin:9px 2px 5px}
+  /* 루트(폴더 없는) 항목 묶음의 헤더. 폴더 그룹과 달리 박스를 두르지 않는다 - 폴더가 아니라
+     "폴더에 안 들어간 나머지"이기 때문이다. 구분선 자체가 토글이라 별도 영역이 필요 없다. */
+  .librootdiv{display:flex;align-items:center;gap:8px;margin:9px 2px 5px;cursor:pointer;user-select:none}
   .librootdiv .rline{flex:1;height:1px;background:var(--line2)}
   .librootdiv .rlbl{font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--mut3);font-weight:600;flex:0 0 auto}
+  .librootdiv .chev4{display:inline-block;transition:transform .15s;font-size:10px;color:var(--mut3);flex:0 0 auto}
+  .librootdiv.open .chev4{transform:rotate(90deg)}
+  .librootdiv:hover .rlbl,.librootdiv:hover .chev4{color:var(--fg2)}
+  .librootbody{display:none}
+  .librootbody.open{display:block}
   .chip .cx{border:none;background:none;color:var(--mut3);cursor:pointer;font-size:12px;padding:0 1px;line-height:1}
   .chip .cx:hover{color:var(--del)}
   .chip .ok{border:none;background:var(--del);color:#fff;border-radius:4px;padding:1px 7px;font-size:10px;cursor:pointer}
