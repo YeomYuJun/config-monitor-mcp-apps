@@ -25,7 +25,7 @@
   ::-webkit-scrollbar-thumb{background:#D2D6DC;border:3px solid var(--bg);border-radius:8px}
   ::-webkit-scrollbar-thumb:hover{background:#BFC4CC}
   @keyframes cmPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.78)}}
-  @keyframes cmFade{from{opacity:0;transform:translate(-50%,8px)}to{opacity:1;transform:translate(-50%,0)}}
+  @keyframes cmFade{from{opacity:0;transform:translate(-50%,-8px)}to{opacity:1;transform:translate(-50%,0)}}
 
   /* inline 위젯은 고정 높이(호스트 auto-resize 가 html max-content 를 측정 -> 이 높이를 iframe 에 적용).
      fullscreen 모드(requestDisplayMode)에서는 호스트가 큰 iframe 을 주므로 100vh 로 채운다. */
@@ -327,8 +327,11 @@
   .modalnote{font-size:11px;color:var(--mut);font-family:var(--mono);overflow-wrap:anywhere}
   .modallink{font-size:12px;color:var(--accent);text-decoration:none;align-self:flex-start}
   .modallink:hover{text-decoration:underline}
-  /* 설치 스코프 3종 + 프로젝트 선택. CLI 의 Plugin details 하단과 같은 순서로 둔다. */
+  /* 설치 스코프 3종 + 프로젝트 선택. CLI 의 Plugin details 하단과 같은 순서로 둔다.
+     라벨이 스코프 키워드를 달고 있어 전역 button 규격(13px)으로는 440px 모달에서 3개가
+     한 줄에 안 들어간다 -> .adder 와 같은 콤팩트 규격으로 낮춰 한 행을 유지한다. */
   .modalscopes{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:4px}
+  .modalscopes .addbtn{padding:4px 12px;font-size:11px;font-weight:600}
   /* 대상 프로젝트 줄은 버튼보다 위. 어디로 설치되는지 누르기 전에 보여야 한다. */
   .modalscoperow{display:flex;gap:7px;align-items:center;width:100%;flex-wrap:wrap}
   .modalscoperow .catsel{flex:1;min-width:0}
@@ -377,7 +380,9 @@
   .libskill .libcb{width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex:0 0 auto;margin:0}
   .libskill .sknm{font-family:var(--mono);font-size:12px;color:var(--fg);flex:1;min-width:0;word-break:break-all}
   .libskill .badge{flex:0 0 auto}
-  .libskill .edit{flex-direction:row;margin:0;gap:6px;flex:0 0 auto}
+  /* .edit 는 기본이 align-items:stretch 라, 버튼과 배지를 나란히 두면 배지 span 이 버튼
+     높이까지 늘어나고 글자가 그 위쪽에 그려진다. 행에서는 가운데로 맞춘다. */
+  .libskill .edit{flex-direction:row;align-items:center;margin:0;gap:6px;flex:0 0 auto}
   .librootdiv{display:flex;align-items:center;gap:8px;margin:9px 2px 5px}
   .librootdiv .rline{flex:1;height:1px;background:var(--line2)}
   .librootdiv .rlbl{font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--mut3);font-weight:600;flex:0 0 auto}
@@ -503,10 +508,12 @@
   #setpop-backdrop{position:fixed;inset:0;z-index:65;background:transparent}
   body.nosrc .secsrc{display:none}
 
-  /* toast */
-  #toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#15171C;color:#fff;
+  /* toast - 상단 중앙. 하단에 두면 호스트(Claude) 프롬프트 입력창이 iframe 아래를 덮어
+     전체화면에서 토스트가 늘 가린다(.app.fullscreen 의 padding-bottom 보정과 같은 이유).
+     위쪽은 어느 모드에서도 덮이지 않아 모드별 분기도 매직넘버도 필요 없다. */
+  #toast{position:fixed;top:16px;left:50%;transform:translateX(-50%);background:#15171C;color:#fff;
     padding:10px 20px;border-radius:7px;font-size:13px;box-shadow:0 10px 30px rgba(0,0,0,.22);
-    animation:cmFade .18s ease;z-index:60;display:none}
+    animation:cmFade .18s ease;z-index:60;display:none;max-width:calc(100% - 32px);text-align:center}
 </style>
 </head>
 <body>

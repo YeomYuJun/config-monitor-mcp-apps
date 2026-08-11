@@ -78,7 +78,7 @@ const I18N: Record<string, Record<string, string>> = {
     libRemoteWarn: "config-monitor 는 이 URL 을 심사하지 않습니다. 등록·설치의 책임은 사용자에게 있습니다.",
     libRemoteWarnOk: "이해했습니다, 등록",
     libAdd: "라이브러리 등록", libAddSubmit: "등록",
-    libAddHint: "skills · agents · commands 를 담은 폴더나 git 레포를 등록합니다. 등록하면 그 안의 항목을 골라 설치할 수 있습니다.",
+    libAddHint: "skills · agents · commands 를 담은 폴더나 git 레포를 등록합니다. 등록 후 항목을 골라 설치할 수 있습니다.",
     libAddMarketNote: "마켓플레이스(.claude-plugin/marketplace.json)라면 Marketplace 섹션에서 등록하세요.",
     libAddPlaceholder: "로컬 폴더 경로 또는 git 레포 URL",
     libKindLocal: "로컬 폴더로 등록합니다 · 네트워크를 타지 않습니다",
@@ -477,7 +477,7 @@ function flashToast(msg: string): void {
   el.textContent = msg;
   el.style.display = "block";
   if (toastT) clearTimeout(toastT);
-  toastT = window.setTimeout(() => { el.style.display = "none"; }, 1900);
+  toastT = window.setTimeout(() => { el.style.display = "none"; }, 2900);
 }
 
 // ----- tracked file rows -----
