@@ -30,6 +30,7 @@ for _s in (sys.stdout, sys.stderr):
 from datetime import datetime
 
 import paths  # Win32/MSIX 겸용 Claude Desktop 디렉토리 해석(read↔write 동일 경로 보장)
+import plugin_state  # 플러그인 레지스트리 조회(읽기 전용). 순수 모듈 - 네트워크/subprocess 없음
 
 HOME = os.path.expanduser("~")
 # Desktop 데이터 디렉토리('...\Claude')는 설치 방식(Win32 vs MSIX/Store)에 따라
@@ -43,6 +44,7 @@ CANDIDATES = {
     "skills_dir":      [os.path.join(HOME, ".claude", "skills")],
     "agents_dir":      [os.path.join(HOME, ".claude", "agents")],
     "commands_dir":    [os.path.join(HOME, ".claude", "commands")],
+    "plugins_dir":     [os.path.join(HOME, ".claude", "plugins")],
     "scheduled_dir":   [os.path.join(HOME, "Claude", "Scheduled")],
     "desktop_config":  [os.path.join(DESKTOP_DIR, "claude_desktop_config.json")],
     "desktop_skill_manifest_glob":
@@ -123,7 +125,8 @@ def _short(v, n=160):
 
 DESC_KEYS = {"desc", "description", "설명", "summary"}
 
-def card(name, kv, badge=None, ok=False, edit=None, scope=None, project=None, source=None):
+def card(name, kv, badge=None, ok=False, edit=None, scope=None, project=None, source=None,
+         plugin=None, builtin=False):
     # 서술형 값은 넉넉히 담고(줄 수 표시는 UI 의 -webkit-line-clamp 가 담당),
     # 코드형/경로 값만 160자 선절단 — 슬라이더(2~10줄) 전 구간이 실제 텍스트로 채워지게.
     c = {"name": name, "badge": badge, "ok": ok,
@@ -139,6 +142,15 @@ def card(name, kv, badge=None, ok=False, edit=None, scope=None, project=None, so
     # 같은 이름의 카드(allow 등)가 파일마다 나오므로 카드 자신이 출처를 들고 있어야 한다.
     if source:
         c["source"] = source
+    # plugin 은 이 항목이 플러그인에서 온 것임을 표시(값은 토글 키인 id). 로컬 항목에는 없다.
+    # scope/source 와 직교한다 - 플러그인 항목은 파일이 아니라 플러그인 캐시에서 오기 때문.
+    if plugin:
+        c["plugin"] = plugin
+    # builtin = 내가 만든 게 아니라 기본 제공된 항목(Desktop Skills 의 creatorType=anthropic).
+    # plugin 과 다른 축이다: 플러그인은 내가 설치한 것이고 이쪽은 처음부터 있던 것이라,
+    # 목록을 줄일 때 각각 따로 끄고 싶어진다.
+    if builtin:
+        c["builtin"] = True
     return c
 
 def _dir_settings(d):
@@ -360,6 +372,151 @@ def _append_project_cards(sections, projects):
         sec["title"] = f"{base} · {len(sec['cards'])}"
 
 
+# --- 플러그인(~/.claude/plugins) --------------------------------------------
+# 플러그인 항목은 세션에서 <ns>:<item> 으로 네임스페이스가 붙어 로컬 항목과 이름이 겹치지
+# 않는다(실측: superpowers:brainstorming, Notion:create-page). 그래서 override/conflict
+# 배지를 붙이지 않는다 - 붙이면 없는 충돌을 만들어낸다.
+# 편집(제거) op 도 붙이지 않는다: 플러그인 항목을 끄는 단위는 항목이 아니라 플러그인이고,
+# 그 토글은 Plugins 섹션 카드에 있다.
+
+# 플러그인 항목이 합류할 기존 섹션. 키는 섹션 title 의 접두사.
+PLUGIN_MERGE_SECTIONS = ("Skills (code)", "Agents", "Commands", "Hooks",
+                         "Claude Code (.claude.json)")
+_STATE_BADGE = {"ok": "plugin", "disabled": "disabled", "stale": "stale", "missing": "missing"}
+
+
+def norm_path(p):
+    """경로 비교용 정규화(대소문자/구분자/./.. 흡수). lib_store.norm 과 같은 규칙."""
+    return os.path.normcase(os.path.normpath(p))
+
+
+def _plugin_section_cards(plugins, settings_fallback, global_settings=()):
+    """Plugins 섹션 - 플러그인 단위 카드. 토글이 여기 붙는다(토글 단위가 플러그인이므로).
+
+    global_settings 는 전역 settings 체인이다. enabled_from 이 그 안에 없으면 프로젝트
+    settings 가 정한 값이므로 카드를 project 스코프로 태깅한다 - 안 하면 스코프 칩이
+    전역으로 분류해서 "어느 프로젝트가 이걸 껐는지"를 화면에서 못 찾는다."""
+    gset = {norm_path(p) for p in (global_settings or []) if p}
+    cards = []
+    for r in plugins:
+        counts = plugin_state.item_counts(r)
+        kv = [("desc", r["desc"] or "-"),
+              ("market", r["market"] or "-"),
+              ("version", r["version"] or "-"),
+              ("gives", " · ".join(f"{k} {v}" for k, v in counts.items()) or "-")]
+        # 표시 접두(ns)는 plugin.json 에서, 토글 키(id)는 마켓 매니페스트에서 온다.
+        # 실측으로 갈리는 경우가 있어(notion -> "Notion:") 다를 때만 따로 보여준다.
+        if r["ns"] and r["ns"] != r["name"]:
+            kv.append(("namespace", f'{r["ns"]}:'))
+        kv.append(("id", r["id"]))
+        if r["state"] == "stale":
+            kv.append(("note", "enabledPlugins 에만 남은 키 - 설치 기록이 없습니다"))
+        elif r["state"] == "missing":
+            kv.append(("note", f'설치 경로가 없습니다: {r["root"] or "-"}'))
+        else:
+            kv.append(("path", r["root"]))
+        # 설치 스코프는 토글 스코프와 다른 축이다(토글은 enabledPlugins 를 정한 파일,
+        # 이쪽은 원장이 기록한 설치 위치). 제거/갱신이 향할 곳이라 카드에 보이게 둔다.
+        if r["scope"] and r["scope"] != "user":
+            kv.append(("installed", f'{r["scope"]}  {r["project_path"] or "-"}'))
+        kv.append(("source", r["enabled_from"] or (settings_fallback or "-")))
+        # 토글 대상은 **그 값을 정한 파일**이다. 프로젝트에서 켠 것을 전역 파일에서 끄면
+        # 안 먹으므로 카드가 자기 대상 경로를 들고 간다(_perm_cards 와 같은 규율).
+        edit = None
+        if r["state"] in ("ok", "disabled"):
+            # scope/cwd 는 claude 위임(제거·갱신)이 쓴다. 안 넘기면 CLI 기본값 user 로 흘러가
+            # project 스코프 설치를 영영 못 지운다 - claude 가 "project 스코프에 있다"며
+            # 거절하고, 사용자는 대시보드에서 빠져나갈 길이 없다(실측 재현).
+            edit = {"kind": "plugin", "id": r["id"], "on": r["enabled"],
+                    "settings": r["enabled_from"] or settings_fallback,
+                    "scope": r["scope"] or "user", "cwd": r["project_path"] or ""}
+        # <root>/.claude/settings.json -> <root> (_append_project_cards 와 같은 라벨 기준)
+        src = r["enabled_from"]
+        scope = proj = None
+        if src and norm_path(src) not in gset:
+            scope, proj = "project", os.path.dirname(os.path.dirname(src))
+        cards.append(card(r["name"], kv, badge=_STATE_BADGE.get(r["state"], r["state"]),
+                          ok=(r["state"] == "ok"), edit=edit, plugin=r["id"],
+                          scope=scope, project=proj))
+    return cards
+
+
+def _plugin_mcp_kv(cfg):
+    """stdio 는 command/args, 원격은 type/url. 해당 없는 키를 '-' 로 채우지 않는다."""
+    cfg = cfg or {}
+    if cfg.get("command"):
+        return [("command", cfg["command"]),
+                ("args", " ".join(cfg.get("args") or []) or "-")]
+    return [("type", cfg.get("type", "-")), ("url", cfg.get("url", "-"))]
+
+
+def _plugin_item_cards(r):
+    """state == ok 인 플러그인 하나가 기존 섹션에 낼 카드들 -> {섹션 접두사: [card]}."""
+    pid, ns, items = r["id"], r["ns"], r["items"]
+    out = {pfx: [] for pfx in PLUGIN_MERGE_SECTIONS}
+
+    for it in items["skills"]:
+        meta = read_frontmatter(it["path"])
+        out["Skills (code)"].append(card(f'{ns}:{it["name"]}', [
+            ("desc", meta.get("description", "-")), ("from", pid), ("path", it["path"]),
+        ], badge="plugin", ok=True, plugin=pid))
+
+    for it in items["agents"]:
+        meta = read_frontmatter(it["path"])
+        # 에이전트는 frontmatter name 이 실제 호출 이름이다(_agent_cards 와 같은 기준).
+        out["Agents"].append(card(f'{ns}:{meta.get("name") or it["name"]}', [
+            ("desc", meta.get("description", "-")), ("tools", meta.get("tools", "-")),
+            ("from", pid), ("path", it["path"]),
+        ], badge="plugin", ok=True, plugin=pid))
+
+    for it in items["commands"]:
+        meta = read_frontmatter(it["path"])
+        out["Commands"].append(card(f'{ns}:{it["name"]}', [
+            ("desc", meta.get("description", "-")), ("from", pid), ("path", it["path"]),
+        ], badge="plugin", ok=True, plugin=pid))
+
+    hooks_src = os.path.join(r["root"], "hooks", "hooks.json")
+    for h in items["hooks"]:
+        out["Hooks"].append(card(h["event"], [
+            ("matchers", h["matchers"]),
+            ("commands", " ; ".join(h["commands"]) or "-"),
+            ("from", pid), ("path", hooks_src),
+        ], badge="plugin", plugin=pid))
+
+    # 플러그인 MCP 는 .claude.json 에 기록되지 않고 Claude Code 가 세션에 직접 주입한다.
+    # 그래도 "Code 에서 실제로 붙는 MCP 서버"라는 점에서 이 섹션이 가장 가깝다.
+    for m in items["mcp"]:
+        out["Claude Code (.claude.json)"].append(card(
+            f'{ns}:{m["name"]}', _plugin_mcp_kv(m["cfg"]) + [("from", pid)],
+            badge="plugin mcp", ok=True, plugin=pid))
+    return out
+
+
+def _append_plugin_cards(sections, plugins):
+    """state == ok 인 플러그인의 항목을 해당 전역 섹션 뒤에 append. title 개수 재계산.
+
+    disabled / stale / missing 은 합류시키지 않는다 - 지금 적용되고 있지 않기 때문이다.
+    (설치됨 ≠ 적용됨. 실측: chrome-devtools-mcp 는 설치돼 있고 enabled=false 다.)"""
+    by_prefix = {}
+    for sec in sections:
+        for pfx in PLUGIN_MERGE_SECTIONS:
+            if sec["title"].startswith(pfx):
+                by_prefix[pfx] = sec
+    touched = set()
+    for r in plugins:
+        if r["state"] != "ok":
+            continue
+        for pfx, cards in _plugin_item_cards(r).items():
+            sec = by_prefix.get(pfx)
+            if sec is not None and cards:
+                sec["cards"].extend(cards)
+                touched.add(pfx)
+    for pfx in touched:
+        sec = by_prefix[pfx]
+        base = sec["title"].split(" · ")[0]
+        sec["title"] = f"{base} · {len(sec['cards'])}"
+
+
 def parse(found, project_dirs=None):
     # 주의: 아래 섹션2 에서 지역변수 projects(=.claude.json 의 projects 맵)를 쓰므로
     # 파라미터명은 project_dirs 로 구분(같은 이름이면 섀도잉으로 프로젝트 append 가 오작동).
@@ -453,6 +610,19 @@ def parse(found, project_dirs=None):
     cmd_cards = _command_cards(cmd_dir)
     add({"title": f"Commands · {len(cmd_cards)}", "source": cmd_dir, "cards": cmd_cards})
 
+    # 6-2) Plugins (~/.claude/plugins). 여기가 사각지대였다 - 플러그인이 주는
+    #      스킬/에이전트/커맨드/hooks/MCP 는 ~/.claude/skills 가 아니라 플러그인 캐시에 있어서
+    #      위 섹션들에 하나도 안 잡혔다.
+    pdir = found.get("plugins_dir") or plugin_state.DEFAULT_PLUGINS_DIR
+    # enabledPlugins 우선순위 오름차순: 전역 먼저, 프로젝트 나중(프로젝트가 이긴다).
+    psettings = list(chain)
+    for cdir in (project_dirs or []):
+        if cdir and os.path.isdir(cdir):
+            psettings += _dir_settings(cdir)
+    plugins = plugin_state.read_plugins(pdir, psettings)
+    pcards = _plugin_section_cards(plugins, found.get("code_settings"), chain)
+    add({"title": f"Plugins · {len(pcards)}", "source": pdir, "cards": pcards})
+
     # 7) Scheduled tasks
     cards = []
     schd = found.get("scheduled_dir")
@@ -494,10 +664,14 @@ def parse(found, project_dirs=None):
             ("creator", ct),
             ("enabled", s.get("enabled", "-")),
             ("updated", s.get("updatedAt") or "-"),
-        ], badge=("user" if ct == "user" else "anthropic"), ok=(ct == "user")))
+        ], badge=("user" if ct == "user" else "anthropic"), ok=(ct == "user"),
+           builtin=(ct != "user")))
     src = (f"{mans[0]}  (+{len(mans)-1} more)" if mans and len(mans) > 1 else (mans[0] if mans else None))
     add({"title": f"Desktop Skills · user {n_user} / anthropic {len(items)-n_user}", "source": src, "cards": cards})
 
+    # 플러그인 항목을 먼저 합류시킨 뒤 프로젝트 항목을 얹는다. 양쪽 다 자기 접두사의
+    # title 개수를 재계산하므로 순서가 개수를 어긋나게 만들지 않는다.
+    _append_plugin_cards(state["sections"], plugins)
     if project_dirs:
         _append_project_cards(state["sections"], project_dirs)
     return state

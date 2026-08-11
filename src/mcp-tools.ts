@@ -64,11 +64,28 @@ export function buildTools(scriptDir: string): ToolDef[] {
   const STORE = process.env.CLAUDE_SNAPSHOT_STORE ||
     (process.platform === "win32" ? "D:\\.claude-snapshot" : path.join(process.env.HOME || "", ".claude-snapshot"));
   const runPy = async (script: string, args: string[]): Promise<string> => {
-    const { stdout } = await pexec(PY, [path.join(scriptDir, script), ...args], {
-      env: PY_ENV,
-      maxBuffer: 16 * 1024 * 1024,
-    });
-    return stdout;
+    try {
+      const { stdout } = await pexec(PY, [path.join(scriptDir, script), ...args], {
+        env: PY_ENV,
+        maxBuffer: 16 * 1024 * 1024,
+      });
+      return stdout;
+    } catch (e: any) {
+      // config_edit.out(ok=False, ...) 는 exit 1 이어도 stdout 에 유효 JSON 을 이미 찍는다.
+      // execFile 은 nonzero exit 에서 무조건 reject 해 그 JSON 을 버리므로, 여기서 err.stdout 을
+      // 건져 파싱되면 정상 결과처럼 돌려준다 - 호출부의 ok===false 가드가 처리하게 둔다.
+      // stdout 이 없거나 JSON 이 아니면(=인터프리터가 진짜 죽은 경우) 예외로 전파한다(stderr 포함해 진단 가능하게).
+      const stdout: string = typeof e?.stdout === "string" ? e.stdout : "";
+      if (stdout.trim()) {
+        try {
+          JSON.parse(stdout);
+          return stdout;
+        } catch { /* JSON 아님 -> 아래에서 진짜 실패로 전파 */ }
+      }
+      const stderr: string = typeof e?.stderr === "string" ? e.stderr : "";
+      const msg = `${script} ${args.join(" ")} failed: ${e?.message || String(e)}${stderr.trim() ? `\n${stderr}` : ""}`;
+      throw new Error(msg);
+    }
   };
 
   return [
@@ -303,6 +320,23 @@ export function buildTools(scriptDir: string): ToolDef[] {
       },
     },
     {
+      name: "config_plugin_toggle",
+      meta: {
+        title: "Toggle Claude Code Plugin",
+        description: "settings.json 의 enabledPlugins[<id>] 만 켜고 끈다. **적용은 다음 세션부터** — Claude Code 가 세션 시작 시 읽기 때문. id 는 '<플러그인 이름>@<마켓 이름>' 이고 **마켓 매니페스트 엔트리 이름** 쪽에서 온다(plugin.json 의 name/표시 네임스페이스와 다를 수 있다: 실측 notion vs 'Notion'). Plugins 카드의 edit.id 를 그대로 넘길 것 — 대소문자를 고치면 다른 키가 된다. settings 는 그 값을 정한 파일(카드의 edit.settings)을 넘긴다. 플러그인 설치/제거는 하지 않는다(그건 `claude plugin` 의 몫)",
+        inputSchema: z.object({
+          id: z.string().describe("plugin@marketplace — Plugins 카드의 edit.id 원문"),
+          on: z.boolean(),
+          settings: z.string().optional().describe("대상 settings.json(카드의 edit.settings). 미지정 시 전역"),
+        }), annotations: EDIT,
+      },
+      run: async (a: { id: string; on: boolean; settings?: string }) => {
+        const args = a.settings ? ["--settings", a.settings] : [];
+        args.push("plugin-toggle", a.id, a.on ? "on" : "off");
+        return jsonResult(await runPy("config_edit.py", args));
+      },
+    },
+    {
       name: "skill_scaffold",
       meta: {
         title: "Scaffold Code Skill",
@@ -406,7 +440,7 @@ export function buildTools(scriptDir: string): ToolDef[] {
       name: "library_scan",
       meta: {
         title: "Scan Personal Library",
-        description: "라이브러리(.claude 구조, CLAUDE_CONFIG_LIBRARIES env 또는 등록분)의 agents/skills/commands 를 열거하고 라이브 설정과 해시 비교해 3상태(not_installed/installed/modified) 반환. lib 지정 시 신규 등록 후 스캔",
+        description: "라이브러리(로컬 등록분 + env + 원격/마켓 캐시)의 agents/skills/commands 를 열거하고 라이브 설정과 해시 비교해 4상태(not_installed/installed/modified/conflict) 반환. 각 행에 source(env|registered|remote|market)·origin·고정 sha·fetched_at, 각 항목에 origin 과 conflict 시 owner 를 붙인다. **네트워크를 타지 않는다**(오프라인 동작 보장). lib 지정 시 신규 등록 후 스캔",
         inputSchema: z.object({
           lib: z.string().optional().describe("라이브러리 루트 경로(.claude 구조 디렉토리). 최초 1회 등록용"),
           targetDir: z.string().optional().describe("설치/비교 대상 .claude 루트(기본 ~/.claude). 프로젝트-로컬 스캔 시 지정"),
@@ -430,15 +464,17 @@ export function buildTools(scriptDir: string): ToolDef[] {
           category: z.enum(["agents", "skills", "commands"]),
           path: z.string().describe("카테고리 루트 기준 상대경로. skills 는 그룹 포함 가능, agents/commands 는 이름"),
           lib: z.string().optional(),
+          origin: z.string().optional().describe("출처 식별자(local:/remote:/market:). 동일 이름 캐시가 여러 개일 때 모호성 해소용 필수"),
           targetDir: z.string().optional().describe("설치 대상 .claude 루트(기본 ~/.claude). 프로젝트-로컬 설치 시 지정"),
         }), annotations: EDIT,
       },
-      run: async (a: { category: string; path: string; lib?: string; targetDir?: string }) => {
-        // --target 은 부모 파서 옵션이라 subcommand 앞에 와야 argparse 가 인식(--lib 는 install 서브파서 옵션).
+      run: async (a: { category: string; path: string; lib?: string; origin?: string; targetDir?: string }) => {
+        // --target 은 부모 파서 옵션이라 subcommand 앞에 와야 argparse 가 인식(--lib/--origin 은 install 서브파서 옵션).
         const args: string[] = [];
         if (a.targetDir) args.push("--target", a.targetDir);
         args.push("install", a.category, a.path);
         if (a.lib) args.push("--lib", a.lib);
+        if (a.origin) args.push("--origin", a.origin);
         return jsonResult(await runPy("library.py", args));
       },
     },
@@ -446,30 +482,356 @@ export function buildTools(scriptDir: string): ToolDef[] {
       name: "library_uninstall",
       meta: {
         title: "Uninstall Library Item",
-        description: "대상 .claude(기본 ~/.claude, targetDir 로 프로젝트-로컬 지정)의 해당 항목을 .trash 로 이동(복구 가능). 라이브러리 원본은 건드리지 않음",
+        description: "대상 .claude(기본 ~/.claude, targetDir 로 프로젝트-로컬 지정)의 해당 항목을 .trash 로 이동(복구 가능). 라이브러리 원본은 건드리지 않음. origin 지정 시 원장의 소유자와 다르면 거부(다른 출처의 설치를 지우지 않음)",
         inputSchema: z.object({
           category: z.enum(["agents", "skills", "commands"]),
           name: z.string(),
+          origin: z.string().optional().describe("요청 출처. 원장의 소유자와 다르면 거부"),
           targetDir: z.string().optional().describe("제거 대상 .claude 루트(기본 ~/.claude)"),
         }), annotations: EDIT,
       },
-      run: async (a: { category: string; name: string; targetDir?: string }) => {
+      run: async (a: { category: string; name: string; origin?: string; targetDir?: string }) => {
         const args: string[] = [];
         if (a.targetDir) args.push("--target", a.targetDir);
         args.push("uninstall", a.category, a.name);
+        if (a.origin) args.push("--origin", a.origin);
         return jsonResult(await runPy("library.py", args));
       },
     },
     {
       name: "library_unregister",
       meta: {
-        title: "Unregister Library Path",
-        description: "등록된 라이브러리 경로를 store/config.json 의 libraries 에서 제거(추적 해제). 설치된 항목·라이브러리 원본 디렉토리는 건드리지 않음. env(CLAUDE_CONFIG_LIBRARIES) 지정 경로는 제거 불가",
-        inputSchema: z.object({ lib: z.string().describe("등록 해제할 라이브러리 루트 경로") }),
+        title: "Unregister Library / Remote / Marketplace",
+        description: "등록을 해제한다. lib=로컬 경로(캐시 개념 없음), origin=remote:<id>|market:<id>(캐시도 함께 삭제). 원장이 그 캐시를 참조하는 hooks/MCP 가 있으면 거부하고 무엇이 걸렸는지 알린다. 설치된 항목·로컬 라이브러리 원본은 건드리지 않음. env 지정 경로는 제거 불가",
+        inputSchema: z.object({
+          lib: z.string().optional().describe("등록 해제할 로컬 라이브러리 루트 경로"),
+          origin: z.string().optional().describe("remote:<id> | market:<id>"),
+        }),
         annotations: EDIT,
       },
-      run: async (a: { lib: string }) =>
-        jsonResult(await runPy("library.py", ["unregister", "--lib", a.lib])),
+      run: async (a: { lib?: string; origin?: string }) => {
+        const args = ["unregister"];
+        if (a.lib) args.push("--lib", a.lib);
+        if (a.origin) args.push("--origin", a.origin);
+        return jsonResult(await runPy("library.py", args));
+      },
+    },
+    {
+      name: "library_remote_add",
+      meta: {
+        title: "Add Remote Library (git)",
+        description: "임의 git 레포를 라이브러리로 등록. clone 후 agents/skills/commands 레이아웃을 대소문자 무시로 탐지하고 store/config.json 의 remotes[] 에 영속화한다. **네트워크를 탄다** — library_scan 은 타지 않으므로 등록 후 scan 은 캐시만 읽는다. 고정 sha 를 기록하며 자동 pull 은 없다",
+        inputSchema: z.object({
+          url: z.string().describe("git 레포 URL(https/ssh/file). config-monitor 는 이 URL 을 심사하지 않는다"),
+          ref: z.string().optional().describe("브랜치/태그. 생략 시 기본 HEAD"),
+          id: z.string().optional().describe("라이브러리 id. 생략 시 URL 의 레포명에서 파생"),
+          map: z.string().optional().describe('레이아웃 매핑 JSON, 예: {"agents":"Agents","skills":"Skills"}. 탐지 실패 시에만 필요'),
+        }), annotations: EDIT,
+      },
+      run: async (a: { url: string; ref?: string; id?: string; map?: string }) => {
+        const args = ["remote-add", "--url", a.url];
+        if (a.ref) args.push("--ref", a.ref);
+        if (a.id) args.push("--id", a.id);
+        if (a.map) args.push("--map", a.map);
+        return jsonResult(await runPy("library.py", args));
+      },
+    },
+    {
+      name: "library_marketplace_add",
+      meta: {
+        title: "Add Marketplace",
+        description: ".claude-plugin/marketplace.json 을 가진 레포를 카탈로그로 등록. 매니페스트만 sparse checkout 한다(공식 마켓 기준 401K, 전체 체크아웃은 9.7M). 플러그인은 선택 시점에 받는다. **네트워크를 탄다**. 공식/비공식 구분은 없다 — URL 이 전부다",
+        inputSchema: z.object({
+          url: z.string().describe("마켓 레포 URL. config-monitor 는 이 URL 을 심사하지 않는다"),
+          ref: z.string().optional(),
+          id: z.string().optional().describe("마켓 id. 생략 시 URL 의 레포명에서 파생"),
+        }), annotations: EDIT,
+      },
+      run: async (a: { url: string; ref?: string; id?: string }) => {
+        const args = ["market-add", "--url", a.url];
+        if (a.ref) args.push("--ref", a.ref);
+        if (a.id) args.push("--id", a.id);
+        return jsonResult(await runPy("library.py", args));
+      },
+    },
+    {
+      name: "claude_plugin_install",
+      meta: {
+        title: "Install Plugin into Claude Code",
+        description: "플러그인을 **통째로** Claude Code 에 설치한다 — `claude plugin install <plugin>@<market> --scope` 위임. library_plugin_fetch(항목 단위로 골라 ~/.claude 에 복사, 설치 전 diff·롤백 O, Desktop 가능)와는 **다른 설치 모델**이다: 이쪽은 플러그인 캐시에 통째로 두고 <ns>:<item> 네임스페이스로 주입되며 config_plugin_toggle 로 껐다 켠다. **네트워크를 탄다.** 적용은 다음 세션부터. scope=project/local 은 cwd 로 프로젝트를 정하므로 cwd 를 넘길 것. dryRun 으로 실행될 명령을 먼저 확인할 수 있다",
+        inputSchema: z.object({
+          marketplace: z.string(), plugin: z.string(),
+          scope: z.enum(["user", "project", "local"]).optional(),
+          cwd: z.string().optional().describe("scope=project/local 기준 디렉토리"),
+          dryRun: z.boolean().optional(),
+        }), annotations: EDIT,
+      },
+      run: async (a: { marketplace: string; plugin: string; scope?: string; cwd?: string; dryRun?: boolean }) => {
+        const args = ["install", "--marketplace", a.marketplace, "--plugin", a.plugin,
+          "--scope", a.scope || "user"];
+        if (a.cwd) args.push("--cwd", a.cwd);
+        if (a.dryRun) args.push("--dry-run");
+        return jsonResult(await runPy("plugin_cli.py", args));
+      },
+    },
+    {
+      name: "claude_plugin_uninstall",
+      meta: {
+        title: "Uninstall Plugin from Claude Code",
+        description: "`claude plugin uninstall <plugin>@<market> --scope -y` 위임. Library 로 설치한 **항목**은 건드리지 않는다(모델이 다르다 — 그쪽은 library_uninstall). **끄기만 하려면 지우지 말고 config_plugin_toggle 을 쓸 것.** keepData 는 ~/.claude/plugins/data/<id>/ 를 남긴다",
+        inputSchema: z.object({
+          marketplace: z.string(), plugin: z.string(),
+          scope: z.enum(["user", "project", "local"]).optional(),
+          keepData: z.boolean().optional(),
+          cwd: z.string().optional(), dryRun: z.boolean().optional(),
+        }), annotations: EDIT,
+      },
+      run: async (a: { marketplace: string; plugin: string; scope?: string; keepData?: boolean; cwd?: string; dryRun?: boolean }) => {
+        const args = ["uninstall", "--marketplace", a.marketplace, "--plugin", a.plugin,
+          "--scope", a.scope || "user"];
+        if (a.keepData) args.push("--keep-data");
+        if (a.cwd) args.push("--cwd", a.cwd);
+        if (a.dryRun) args.push("--dry-run");
+        return jsonResult(await runPy("plugin_cli.py", args));
+      },
+    },
+    {
+      name: "claude_plugin_update",
+      meta: {
+        title: "Update Claude Code Plugin",
+        description: "`claude plugin update <plugin>@<market> --scope` 위임. **네트워크를 탄다**. 적용은 다음 세션부터. scope 는 update 만 managed 를 추가로 받는다. Library 로 가져온 플러그인의 갱신은 이것과 무관하다 — 그쪽은 library_fetch(고정 sha 갱신 + 설치 전 diff)",
+        inputSchema: z.object({
+          marketplace: z.string(), plugin: z.string(),
+          scope: z.enum(["user", "project", "local", "managed"]).optional(),
+          cwd: z.string().optional(), dryRun: z.boolean().optional(),
+        }), annotations: EDIT,
+      },
+      run: async (a: { marketplace: string; plugin: string; scope?: string; cwd?: string; dryRun?: boolean }) => {
+        const args = ["update", "--marketplace", a.marketplace, "--plugin", a.plugin,
+          "--scope", a.scope || "user"];
+        if (a.cwd) args.push("--cwd", a.cwd);
+        if (a.dryRun) args.push("--dry-run");
+        return jsonResult(await runPy("plugin_cli.py", args));
+      },
+    },
+    {
+      name: "claude_marketplace_add",
+      meta: {
+        title: "Register Marketplace in Claude Code",
+        description: "`claude plugin marketplace add <source> --scope` 위임 — 대시보드에서 등록한 마켓을 Claude Code 쪽에도 올린다(export). source 는 owner/repo · git URL · marketplace.json URL · 로컬 경로 4형식. **scope=project 는 프로젝트 .claude/settings.json 에 선언이 들어가 팀에 공유된다** — cwd 로 그 프로젝트를 지정할 것. config-monitor 자기 스토어에 등록하는 건 library_marketplace_add 로, 별개다(캐시를 각자 유지한다)",
+        inputSchema: z.object({
+          source: z.string(),
+          scope: z.enum(["user", "project", "local"]).optional(),
+          sparse: z.array(z.string()).optional().describe("모노레포에서 체크아웃할 디렉토리"),
+          cwd: z.string().optional(), dryRun: z.boolean().optional(),
+        }), annotations: EDIT,
+      },
+      run: async (a: { source: string; scope?: string; sparse?: string[]; cwd?: string; dryRun?: boolean }) => {
+        const args = ["market-add", a.source, "--scope", a.scope || "user"];
+        if (a.sparse && a.sparse.length) args.push("--sparse", ...a.sparse);
+        if (a.cwd) args.push("--cwd", a.cwd);
+        if (a.dryRun) args.push("--dry-run");
+        return jsonResult(await runPy("plugin_cli.py", args));
+      },
+    },
+    {
+      name: "claude_marketplace_update",
+      meta: {
+        title: "Update Claude Code Marketplace",
+        description: "`claude plugin marketplace update [name]` 위임. name 을 생략하면 **등록된 마켓 전체**를 갱신한다. **네트워크를 탄다**. 매니페스트만 갱신하며 설치된 플러그인 버전은 그대로다(그건 claude_plugin_update)",
+        inputSchema: z.object({
+          name: z.string().optional().describe("생략하면 전체"),
+          cwd: z.string().optional(), dryRun: z.boolean().optional(),
+        }), annotations: EDIT,
+      },
+      run: async (a: { name?: string; cwd?: string; dryRun?: boolean }) => {
+        const args = ["market-update"];
+        if (a.name) args.push("--name", a.name);
+        if (a.cwd) args.push("--cwd", a.cwd);
+        if (a.dryRun) args.push("--dry-run");
+        return jsonResult(await runPy("plugin_cli.py", args));
+      },
+    },
+    {
+      name: "claude_marketplace_remove",
+      meta: {
+        title: "Remove Claude Code Marketplace",
+        description: "`claude plugin marketplace remove <name>` 위임. **scope 를 생략하면 모든 스코프의 선언을 지운다**(claude 기본). 그 마켓에서 설치한 플러그인이 남아 있으면 claude 가 거절하거나 경고할 수 있으니 stderr 를 그대로 보고할 것. config-monitor 스토어의 마켓 해제는 library_unregister 로, 별개다",
+        inputSchema: z.object({
+          name: z.string(),
+          scope: z.enum(["user", "project", "local"]).optional().describe("생략하면 모든 스코프"),
+          cwd: z.string().optional(), dryRun: z.boolean().optional(),
+        }), annotations: EDIT,
+      },
+      run: async (a: { name: string; scope?: string; cwd?: string; dryRun?: boolean }) => {
+        const args = ["market-remove", "--name", a.name];
+        if (a.scope) args.push("--scope", a.scope);
+        if (a.cwd) args.push("--cwd", a.cwd);
+        if (a.dryRun) args.push("--dry-run");
+        return jsonResult(await runPy("plugin_cli.py", args));
+      },
+    },
+    {
+      name: "plugin_catalog_details",
+      meta: {
+        title: "Plugin Inventory and Token Cost",
+        description: "설치 **전에** 그 플러그인이 무엇을 넣는지와 토큰 비용을 돌려준다 — components(commands/agents/skills/hooks/mcpServers/lspServers 이름), unique_installs, tokens(모델별 always_on / on_invoke), homepage, last_updated. Claude Code 가 캐시해 둔 ~/.claude/plugins/plugin-catalog-cache.json 을 읽을 뿐이라 **네트워크도 fetch 도 타지 않는다.** 다만 그 캐시는 **공식 마켓 전용**이라 다른 마켓 플러그인은 조회되지 않는다(오류가 아니다 — 그 경우 fetch 해야 개수를 알 수 있다). id 형식: <plugin>@<marketplace>",
+        inputSchema: z.object({ id: z.string(), cache: z.string().optional() }), annotations: READ,
+      },
+      run: async (a: { id: string; cache?: string }) => {
+        const args = ["details", a.id];
+        if (a.cache) args.push("--cache", a.cache);
+        return jsonResult(await runPy("plugin_catalog.py", args));
+      },
+    },
+    {
+      name: "plugin_catalog_summary",
+      meta: {
+        title: "Plugin Inventory Summary",
+        description: "카탈로그 행을 채우기 위한 경량 맵 — {id: {installs, components: {kind: 개수}, total}}. 컴포넌트 **이름은 담지 않는다**(255개 전부는 크다) — 이름이 필요하면 plugin_catalog_details. 공식 마켓 전용이며 네트워크를 타지 않는다",
+        inputSchema: z.object({ cache: z.string().optional() }), annotations: READ,
+      },
+      run: async (a: { cache?: string }) => {
+        const args = ["summary"];
+        if (a.cache) args.push("--cache", a.cache);
+        return jsonResult(await runPy("plugin_catalog.py", args));
+      },
+    },
+    {
+      name: "library_market_discover",
+      meta: {
+        title: "Discover Marketplaces from Claude Code",
+        description: "Claude Code(`/plugins`)에 등록된 마켓플레이스를 읽어 이 스토어와 대조한다. **네트워크를 타지 않는다** — known_marketplaces.json 하나만 읽고, 실제 등록은 사용자가 후보를 골라 library_marketplace_add 를 눌렀을 때만 일어난다. new=가져올 수 있는 것 / both=양쪽 등록(두 도구가 같은 레포를 각자 캐시에 다른 시점으로 들고 있으므로 sha·시각을 나란히 돌려준다) / unusable=URL 이 없어 가져올 수 없는 것",
+        inputSchema: z.object({
+          pluginsDir: z.string().optional().describe("기본 ~/.claude/plugins"),
+        }), annotations: READ,
+      },
+      run: async (a: { pluginsDir?: string }) => {
+        const args = ["market-discover"];
+        if (a.pluginsDir) args.push("--plugins-dir", a.pluginsDir);
+        return jsonResult(await runPy("library.py", args));
+      },
+    },
+    {
+      name: "library_catalog",
+      meta: {
+        title: "Browse Marketplace Catalog",
+        description: "등록된 마켓플레이스의 플러그인 목록(name/description/category/author)과 마켓 요약(marketplaces[]: id/name/url/total). **네트워크를 타지 않는다** — 캐시된 매니페스트만 읽는다. '설치 가능 N개' 칼럼은 없다(컴포넌트 선언 엔트리가 4/278 뿐이라 fetch 전에는 알 수 없음)",
+        inputSchema: z.object({
+          marketplace: z.string().optional().describe("지정 시 그 마켓만 — 마켓별로 따로 페이징할 때 쓴다"),
+          query: z.string().optional(),
+          category: z.string().optional(),
+          limit: z.number().int().optional().describe("음수면 행 없이 요약(marketplaces/categories)만 반환"),
+          offset: z.number().int().optional(),
+        }), annotations: READ,
+      },
+      run: async (a: { marketplace?: string; query?: string; category?: string; limit?: number; offset?: number }) => {
+        const args = ["catalog"];
+        if (a.marketplace) args.push("--marketplace", a.marketplace);
+        if (a.query) args.push("--query", a.query);
+        if (a.category) args.push("--category", a.category);
+        if (a.limit !== undefined) args.push("--limit", String(a.limit));
+        if (a.offset !== undefined) args.push("--offset", String(a.offset));
+        return jsonResult(await runPy("library.py", args));
+      },
+    },
+    {
+      name: "library_plugin_fetch",
+      meta: {
+        title: "Fetch Marketplace Plugin",
+        description: "카탈로그의 플러그인 1개를 물질화해 Library 에 합류시킨다. 번들이면 마켓 레포의 sparse 집합을 확장(+42K), 외부면 그 플러그인만 별도 fetch(~444K). **네트워크를 탄다**. 고정 sha 로 받으며 반환에 실제 컴포넌트 개수와 hooks/MCP 보유 여부가 담긴다",
+        inputSchema: z.object({ marketplace: z.string(), plugin: z.string() }), annotations: EDIT,
+      },
+      run: async (a: { marketplace: string; plugin: string }) =>
+        jsonResult(await runPy("library.py",
+          ["plugin-fetch", "--marketplace", a.marketplace, "--plugin", a.plugin])),
+    },
+    {
+      name: "library_fetch",
+      meta: {
+        title: "Refresh Remote/Marketplace",
+        description: "등록된 remote/market 을 명시적으로 갱신한다. 자동 pull 은 없다 — hooks 라면 매 세션 실행되는 코드가 조용히 바뀌는 것이므로 사용자가 눌러야 한다. origin 형식: remote:<id> / market:<id> / market:<id>/<plugin>",
+        inputSchema: z.object({ origin: z.string().describe("remote:<id> | market:<id> | market:<id>/<plugin>") }),
+        annotations: EDIT,
+      },
+      run: async (a: { origin: string }) =>
+        jsonResult(await runPy("library.py", ["fetch", "--origin", a.origin])),
+    },
+    {
+      name: "library_hooks_install",
+      meta: {
+        title: "Install Plugin Hooks",
+        description: "플러그인의 hooks/hooks.json 을 settings.json 에 병합한다. ${CLAUDE_PLUGIN_ROOT} 를 절대 캐시 경로로 치환하므로 **캐시는 지우면 안 된다**(load-bearing). matcher·timeout 을 그대로 보존하고 같은 플러그인의 기존 엔트리는 먼저 걷어낸다(멱등). **네트워크를 타지 않는다** — 미물질화 플러그인이면 거부하고 fetch 를 먼저 요구한다. dryRun 으로 치환된 명령 원문과 인터프리터 경고를 먼저 확인할 것",
+        inputSchema: z.object({
+          origin: z.string().describe("remote:<id> | market:<id>/<plugin>"),
+          settings: z.string().optional().describe("대상 settings.json(기본 <targetDir>/settings.json)"),
+          targetDir: z.string().optional(),
+          dryRun: z.boolean().optional().describe("쓰지 않고 치환된 명령·경고만 반환"),
+        }), annotations: EDIT,
+      },
+      run: async (a: { origin: string; settings?: string; targetDir?: string; dryRun?: boolean }) => {
+        const args: string[] = [];
+        if (a.targetDir) args.push("--target", a.targetDir);
+        args.push("hooks-install", "--origin", a.origin);
+        if (a.settings) args.push("--settings", a.settings);
+        if (a.dryRun) args.push("--dry-run");
+        return jsonResult(await runPy("library.py", args));
+      },
+    },
+    {
+      name: "library_hooks_uninstall",
+      meta: {
+        title: "Uninstall Plugin Hooks",
+        description: "settings.json 에서 이 플러그인의 hook 엔트리를 걷어낸다. needle 은 원장에 기록된 root 라 sha 가 바뀐 뒤에도 정확하다. 캐시 디렉토리는 지우지 않는다(다른 항목이 참조할 수 있음)",
+        inputSchema: z.object({
+          origin: z.string(), settings: z.string().optional(), targetDir: z.string().optional(),
+        }), annotations: EDIT,
+      },
+      run: async (a: { origin: string; settings?: string; targetDir?: string }) => {
+        const args: string[] = [];
+        if (a.targetDir) args.push("--target", a.targetDir);
+        args.push("hooks-uninstall", "--origin", a.origin);
+        if (a.settings) args.push("--settings", a.settings);
+        return jsonResult(await runPy("library.py", args));
+      },
+    },
+    {
+      name: "library_mcp_install",
+      meta: {
+        title: "Install Plugin MCP Servers",
+        description: "플러그인의 .mcp.json 서버를 설치. scope=user 는 ~/.claude.json, scope=desktop 은 claude_desktop_config.json(Desktop 재시작 필요). **Claude Desktop 에는 /plugin 마켓플레이스가 없어서 플러그인의 MCP 서버를 Desktop 에 꽂는 경로는 이것뿐이다.** ${CLAUDE_PLUGIN_ROOT} 치환은 hooks 와 동일. **네트워크를 타지 않는다** — 미물질화면 거부",
+        inputSchema: z.object({
+          origin: z.string(), server: z.string().optional().describe("생략 시 전부"),
+          scope: z.enum(["user", "desktop"]).optional(), targetDir: z.string().optional(),
+          dryRun: z.boolean().optional(),
+        }), annotations: EDIT,
+      },
+      run: async (a: { origin: string; server?: string; scope?: string; targetDir?: string; dryRun?: boolean }) => {
+        const args: string[] = [];
+        if (a.targetDir) args.push("--target", a.targetDir);
+        args.push("mcp-install", "--origin", a.origin, "--scope", a.scope || "user");
+        if (a.server) args.push("--server", a.server);
+        if (a.dryRun) args.push("--dry-run");
+        return jsonResult(await runPy("library.py", args));
+      },
+    },
+    {
+      name: "library_mcp_uninstall",
+      meta: {
+        title: "Uninstall Plugin MCP Servers",
+        description: "원장에 기록된 서버 이름만 제거한다. 사용자가 직접 넣은 동명 서버는 건드리지 않는다",
+        inputSchema: z.object({
+          origin: z.string(), server: z.string().optional(),
+          scope: z.enum(["user", "desktop"]).optional(), targetDir: z.string().optional(),
+        }), annotations: EDIT,
+      },
+      run: async (a: { origin: string; server?: string; scope?: string; targetDir?: string }) => {
+        const args: string[] = [];
+        if (a.targetDir) args.push("--target", a.targetDir);
+        args.push("mcp-uninstall", "--origin", a.origin, "--scope", a.scope || "user");
+        if (a.server) args.push("--server", a.server);
+        return jsonResult(await runPy("library.py", args));
+      },
     },
 
     // ----- 브라우저 열기 -----

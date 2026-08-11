@@ -8,7 +8,7 @@ config_edit.py - Claude 설정 파일 안전 편집기 (스냅샷-선행 + atomi
   3) tmp 파일에 쓴 뒤 JSON 파싱 검증 통과해야 os.replace 로 원자적 교체.
 
 대상:
-  ~/.claude/settings.json                          permissions / hooks
+  ~/.claude/settings.json                          permissions / hooks / enabledPlugins
   ~/.claude.json                                   전역 mcpServers (scope=user)
   <Desktop>/claude_desktop_config.json             Desktop mcpServers (scope=desktop)
     <Desktop> = Win32 는 %APPDATA%/Claude, MSIX/Store 는 패키지 하위. paths.py 가 프로브해 해석.
@@ -29,6 +29,7 @@ ops:
   agent-remove   <name>                            (.trash 로 이동)
   mcp-add        <name> --json '<serverConfig>' [--scope user|desktop]
   mcp-remove     <name> [--scope user|desktop]
+  plugin-toggle  <id> <on|off>                     enabledPlugins[<id>] (다음 세션부터 적용)
 
 파괴적 삭제는 없다: JSON 편집은 스냅샷+.bak+atomic, 파일/디렉토리 삭제는 .trash 이동.
 """
@@ -157,7 +158,8 @@ def op_hook_remove(s, event, needle):
       - 접두가 같은 다른 훅까지 제거('node a.js' 로 'node a.js --verbose' 까지)
       - 명령 속 " 나 \ 가 json.dumps 로 이스케이프돼 매칭 자체가 성립 안 함(제거 불가)
       - 엔트리째 버려서 같은 matcher 안의 형제 훅까지 소실
-    훅 단위로 지우고 비게 된 엔트리만 정리한다."""
+    훅 단위로 지우고 비게 된 엔트리·이벤트 키·hooks 딕셔너리까지 정리한다 - 빈 껍데기를
+    남기면 {"hooks":{"PostToolUse":[]}} 같은 찌꺼기가 사용자 settings.json 에 쌓인다."""
     arr = _slot_list(_slot_dict(s, "hooks"), event)
     removed, kept = 0, []
     for ent in arr:
@@ -171,7 +173,35 @@ def op_hook_remove(s, event, needle):
         if left:
             kept.append(ent)
     arr[:] = kept
+    if removed and not arr:
+        hooks_map = s.get("hooks")
+        if isinstance(hooks_map, dict):
+            hooks_map.pop(event, None)
+            if not hooks_map:
+                s.pop("hooks", None)
     return s, f"hook 제거됨 {removed}건: {event} ~ '{needle}'", removed > 0
+
+def op_plugin_toggle(s, pid, on):
+    """settings.json 의 enabledPlugins[<id>] **만** 건드린다.
+
+    id 는 '<플러그인 이름>@<마켓 이름>' 이고 **마켓 매니페스트 엔트리 이름** 쪽에서 온다.
+    plugin.json 의 name(표시 네임스페이스)과 다를 수 있다 - 실측: 매니페스트는 'notion',
+    plugin.json 은 'Notion', 세션 표시는 'Notion:create-page', 토글 키는
+    'notion@claude-plugins-official'. 그래서 여기서 대소문자 정규화 같은 걸 하지 않는다.
+    호출부는 plugin_state 가 준 id 를 그대로 넘겨야 한다.
+
+    대상 파일은 --settings 로 온다. plugin_state.read_enabled 가 **그 값을 정한 파일**을
+    enabled_from 에 남기고 카드가 그걸 들고 오므로, 프로젝트에서 켠 플러그인을 전역
+    파일에서 껐다가 안 먹는 상황이 생기지 않는다.
+
+    적용은 다음 세션부터다 - Claude Code 가 enabledPlugins 를 세션 시작 시 읽는다."""
+    if not pid:
+        return s, "플러그인 id 가 비어 있음", False
+    m = s.setdefault("enabledPlugins", {})
+    if m.get(pid) is on:
+        return s, f"이미 {'켜짐' if on else '꺼짐'}: {pid}", False
+    m[pid] = on
+    return s, f"플러그인 {'켬' if on else '끔'}: {pid} (다음 세션부터 적용)", True
 
 def op_mcp_add(d, name, server):
     servers = _slot_dict(d, "mcpServers")
@@ -226,6 +256,7 @@ def main():
     p.add_argument("--tools", default=""); p.add_argument("--model", default="")
     p.add_argument("--content", default=None, help="에이전트 md 전체 내용(frontmatter 포함). 지정 시 desc/tools/model 무시")
     p = sub.add_parser("agent-remove");   p.add_argument("name")
+    p = sub.add_parser("plugin-toggle"); p.add_argument("id"); p.add_argument("state", choices=["on", "off"])
     p = sub.add_parser("mcp-add");    p.add_argument("name"); p.add_argument("--json", dest="server_json", required=True)
     p.add_argument("--scope", choices=["user", "desktop"], default="user")
     p = sub.add_parser("mcp-remove"); p.add_argument("name")
@@ -318,6 +349,7 @@ def main():
     elif a.op == "perm-remove": s, msg, changed = op_perm_remove(s, a.kind, a.rule)
     elif a.op == "hook-add":    s, msg, changed = op_hook_add(s, a.event, a.command, a.matcher)
     elif a.op == "hook-remove": s, msg, changed = op_hook_remove(s, a.event, a.needle)
+    elif a.op == "plugin-toggle": s, msg, changed = op_plugin_toggle(s, a.id, a.state == "on")
     else:
         out(False, f"알 수 없는 op: {a.op}")
 

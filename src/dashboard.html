@@ -25,7 +25,7 @@
   ::-webkit-scrollbar-thumb{background:#D2D6DC;border:3px solid var(--bg);border-radius:8px}
   ::-webkit-scrollbar-thumb:hover{background:#BFC4CC}
   @keyframes cmPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.78)}}
-  @keyframes cmFade{from{opacity:0;transform:translate(-50%,8px)}to{opacity:1;transform:translate(-50%,0)}}
+  @keyframes cmFade{from{opacity:0;transform:translate(-50%,-8px)}to{opacity:1;transform:translate(-50%,0)}}
 
   /* inline 위젯은 고정 높이(호스트 auto-resize 가 html max-content 를 측정 -> 이 높이를 iframe 에 적용).
      fullscreen 모드(requestDisplayMode)에서는 호스트가 큰 iframe 을 주므로 100vh 로 채운다. */
@@ -150,6 +150,22 @@
   .scopechip{border:1px solid #D1D6DE;background:#FFF;color:#5A6069;border-radius:999px;padding:4px 12px;
     font-family:var(--mono);font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap}
   .scopechip:hover{border-color:#B9C0CA}
+  /* 출처 토글: 스코프 칩과 다른 축이라 칩이 아닌 스위치로 그린다(형태가 축을 구분한다).
+     칩은 배타 선택, 스위치는 각각 독립 on/off. */
+  .orgtgls{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin:-4px 0 13px}
+  .tgl{display:inline-flex;align-items:center;gap:7px;cursor:pointer;user-select:none}
+  .tgl input{position:absolute;opacity:0;width:0;height:0}
+  .tgl .tglui{width:30px;height:17px;border-radius:999px;background:#C9CFD8;position:relative;
+    flex:0 0 auto;transition:background .13s}
+  .tgl .tglui::after{content:"";position:absolute;top:2.5px;left:2.5px;width:12px;height:12px;
+    border-radius:50%;background:#fff;transition:transform .13s}
+  /* :checked 로 그린다 - 클래스에 의존하면 재렌더 전까지 스위치가 안 움직여 눌린 게 아닌
+     것처럼 보인다. .on 은 초기 상태 표시용으로만 남긴다. */
+  .tgl input:checked+.tglui{background:var(--accent)}
+  .tgl input:checked+.tglui::after{transform:translateX(13px)}
+  .tgl .tgllbl{font-family:var(--mono);font-size:11px;font-weight:600;color:#8A9099}
+  .tgl input:checked~.tgllbl{color:#5A6069}
+  .tgl input:focus-visible+.tglui{outline:2px solid var(--accent);outline-offset:2px}
   .scopechip.on{border-color:var(--accent);background:var(--accent);color:#FFF}
   .secsum{font-family:var(--mono);font-size:11px;color:#6B7077;margin-left:8px}
   .srcgrp{grid-column:1/-1;display:flex;align-items:center;gap:8px;padding:5px 4px;border-radius:5px;
@@ -168,6 +184,10 @@
   .card.shadowed{border:1px dashed #C9CFD8;background:#FBFBFC}
   .shbadge{background:rgba(180,83,9,.11);color:#B45309;font-size:10px;font-weight:600;padding:2px 7px;
     border-radius:4px;white-space:nowrap}
+  /* 플러그인 출처 배지. shadowed(앰버 점선)와 다른 축이다 - 이름 충돌 경고가 아니라 출처 표시다.
+     플러그인 항목은 <ns>:<item> 으로 네임스페이스가 붙어 로컬 항목과 이름이 겹치지 않는다. */
+  .badge.plg{background:rgba(43,92,230,.12);color:var(--accent)}
+  .plgnote{font-size:10px;color:var(--mut);align-self:center}
 
   .card{background:var(--panel);border:1px solid var(--line2);border-radius:6px;padding:12px 13px;
     box-shadow:0 1px 2px rgba(20,24,34,.05)}
@@ -176,6 +196,7 @@
   .badge{font-size:10px;font-weight:600;padding:2px 7px;border-radius:4px;white-space:nowrap;background:#E6E8EC;color:var(--mut)}
   .badge.ok{background:var(--okbg);color:var(--ok)}
   .badge.warn{background:var(--warnbg);color:var(--warn)}
+  .badge.err{background:var(--delbg);color:var(--del)}
   .kv{display:flex;gap:11px;font-size:12px;margin-top:6px}
   .kv .k{font-size:10px;text-transform:uppercase;letter-spacing:.05em;font-weight:600;color:#5F6670;
     min-width:60px;flex:0 0 auto;padding-top:1px}
@@ -188,6 +209,17 @@
 
   /* inline edit */
   .edit{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+  /* Plugins 카드: 끄기 · 갱신 · 제거를 3열 1행으로. 세로로 쌓이면 카드 하나가 길어져
+     플러그인 목록을 훑을 수가 없다. 재시작 안내는 아래 한 줄을 통째로 쓴다. */
+  .edit.plgrow{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;align-items:center}
+  .edit.plgrow>*{min-width:0}
+  .edit.plgrow button{width:100%;padding:5px 8px;font-size:11.5px}
+  .edit.plgrow .plgnote{grid-column:1/-1;text-align:right;margin-top:2px}
+  .inlineconfirm{display:flex;gap:4px}
+  .inlineconfirm button{flex:1}
+  /* 파괴적 동작은 hover 에서만 붉어진다. 평상시 같은 무게로 둬야 '제거'가 먼저 눈에
+     들어오지 않는다(.file .untrackbtn 과 같은 규율). */
+  .edit .cx:hover,.mkacts .cx:hover{border-color:var(--del);color:var(--del);background:var(--delbg)}
   .chips{display:flex;flex-wrap:wrap;gap:6px}
   .chip{display:inline-flex;align-items:center;gap:7px;background:#F3F4F6;border:1px solid var(--line2);
     border-radius:5px;padding:3px 6px 3px 9px;font-family:var(--mono);font-size:11px;color:var(--fg2)}
@@ -203,6 +235,126 @@
   .libtbar input{flex:1;min-width:120px;padding:6px 9px;border:1px solid var(--line2);border-radius:6px;
     font-family:var(--mono);font-size:11.5px}
   .libtbar .selbtn{flex:0 0 auto;margin-left:auto}
+
+  /* 진행 중("...") 표시: 버튼 외형을 유지하면 다시 눌러도 되는 것처럼 읽힌다 -> 단순 텍스트로. */
+  button.pending, .addbtn.pending{border:none;background:none;color:var(--mut2);cursor:default;
+    pointer-events:none;box-shadow:none;font-weight:500}
+  button.pending:hover{background:none;border:none}
+  /* 라이브러리 경로 등록행 묶음: 사이의 경고 박스가 접혀 있어도(display:none -> flex 항목에서 제외)
+     로컬 경로 입력행과 git URL 입력행 사이 간격이 유지된다. */
+  /* 라이브러리 등록 모달의 판별 결과 줄. 입력 바로 아래에 붙어 "이렇게 해석했다"를 말한다.
+     입력이 비었을 때는 문자열이 비어 자리도 차지하지 않는다(빈 줄로 폼이 벌어지지 않게). */
+  .libkind{font-family:var(--mono);font-size:10.5px;color:var(--mut2);overflow-wrap:anywhere}
+  .libkind:empty{display:none}
+  /* 항목/유닛 행의 출처 태그: 같은 이름이 여러 라이브러리에서 올 때 행을 구분하는 유일한 단서. */
+  /* 출처 칸은 줄어들지 않는다(0 0 auto). shrink 를 허용하면 이름칸이 basis 0(flex:1)이라
+     폭이 모자랄 때 이 칸부터 깎여 나가 매번 말줄임으로 잘렸다 - 출처 구실을 못 한다.
+     대신 이름칸이 줄바꿈(word-break)으로 흡수하므로 행이 가로로 삐져나오지도 않는다.
+     max-width 로 상한만 두고 전체 문자열은 title 로 남긴다. */
+  .libskill .libsrc{font-family:var(--mono);font-size:10px;color:#5A6069;background:#EEF1F6;
+    border:1px solid var(--line2);border-radius:4px;padding:2px 7px;flex:0 0 auto;
+    min-width:0;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* 카탈로그: 마켓 단위 구획(어느 URL 에서 온 플러그인인지) + 마켓별 페이지 이동 바.
+     마켓은 서로 다른 출처지 한 목록의 뒷부분이 아니므로 접기와 페이징을 각자 가진다. */
+  .catgrp{border:1px solid var(--line2);border-radius:6px;background:var(--panel);margin:9px 0;overflow:hidden}
+  .catgrphead{display:flex;align-items:center;gap:9px;padding:8px 11px;background:#F3F4F6;
+    border-bottom:1px solid var(--line2);cursor:pointer;user-select:none}
+  .catgrphead:hover{background:#ECEEF2}
+  .catgrp.collapsed .catgrphead{border-bottom-color:transparent}
+  .catgrphead .chev2{display:inline-block;transition:transform .15s;color:var(--mut2);font-size:10px;flex:0 0 auto}
+  .catgrp.collapsed .chev2{transform:rotate(-90deg)}
+  .catgrphead .mname{font-weight:600;font-size:12.5px;color:var(--fg);flex:0 0 auto}
+  .catgrphead .murl{font-family:var(--mono);font-size:10.5px;color:var(--mut2);flex:0 1 auto;min-width:0;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .catgrpbody{padding:4px 7px 6px}
+  .catgrp.collapsed .catgrpbody{display:none}
+  /* 검색 옆 분류 선택: 기본 select 는 입력칸과 따로 놀아 한 행으로 안 읽힌다 -> 입력칸과 같은 규격 */
+  /* 세로 패딩을 주지 않는다: .adder 는 align-items:stretch 라 select 가 입력칸 높이로 늘어나고
+     select 는 선택된 옵션을 세로 중앙에 그린다 - 두 컨트롤 높이가 계산 없이 정확히 맞는다.
+     shrink 를 허용해야(0 1 auto) 좁은 창에서 검색 입력과 함께 줄어들고 행이 안 삐져나온다. */
+  .catsel{flex:0 1 auto;min-width:88px;max-width:190px;background-color:var(--panel);
+    border:1px solid var(--line2);border-radius:5px;padding:0 30px 0 11px;
+    font-family:var(--mono);font-size:11px;color:var(--fg2);
+    cursor:pointer;outline:none;-webkit-appearance:none;appearance:none;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='%236B7077' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+    background-repeat:no-repeat;background-position:right 10px center;background-size:9px 6px}
+  .catsel:hover{border-color:#C3C8D0}
+  .catsel:focus{border-color:var(--accent)}
+
+  /* 중앙 확인 모달: 되돌릴 수 없는 등록 앞에서는 인라인 경고 대신 흐름을 끊는다.
+     z-index 는 setpop-backdrop(65)/toast(60) 위. iframe 안에서도 fixed 는 iframe 뷰포트 기준. */
+  .modalback{position:fixed;inset:0;z-index:80;background:rgba(20,24,34,.42);
+    display:flex;align-items:center;justify-content:center;padding:18px}
+  .modal{width:min(440px,100%);max-height:calc(100vh - 36px);overflow:auto;background:var(--panel);
+    border:1px solid #CAD0D9;border-radius:10px;box-shadow:0 18px 48px rgba(20,24,34,.28)}
+  .modaltitle{padding:15px 18px 0;font-size:14px;font-weight:600;color:var(--fg)}
+  .modalbody{padding:12px 18px 16px;display:flex;flex-direction:column;gap:12px}
+  .modaltext{font-size:12.5px;line-height:1.6;color:var(--fg2)}
+  .modalinput{width:100%;background:#FBFBFC;border:1px solid var(--line2);border-radius:6px;
+    padding:9px 11px;font-family:var(--mono);font-size:11.5px;color:var(--fg);outline:none}
+  .modalinput:focus{border-color:var(--accent)}
+  .modalrow{display:flex;gap:8px;margin-top:2px}
+  .modalrow .addbtn.primary{background:#15171C;color:#fff;border-color:#15171C}
+  .modalrow .addbtn.primary:hover{background:#2A2D35}
+  .modalwarn{display:flex;gap:11px;align-items:flex-start;background:var(--warnbg);
+    border:1px solid rgba(180,83,9,.3);border-radius:8px;padding:12px 13px;
+    font-size:12.5px;line-height:1.6;color:#7C3D08}
+  .modalwarn .ico{font-size:15px;line-height:1.35;flex:0 0 auto}
+  .modalwarn .em{display:block;font-family:var(--mono);font-size:10.5px;color:var(--mut2);
+    word-break:break-all;margin-top:7px}
+  /* 실패 사유는 모달 안에 남긴다 - 토스트는 몇 초 만에 사라지는데 모달은 그대로 열려 있다. */
+  .modalerr{background:var(--delbg);border:1px solid rgba(192,57,43,.28);border-radius:7px;
+    padding:10px 12px;font-family:var(--mono);font-size:11px;line-height:1.55;color:#A3312A;
+    word-break:break-word;max-height:170px;overflow:auto}
+  .modalerr[hidden]{display:none}
+  /* Claude Code 에 등록된 마켓 제안. 고른 URL 도 기존 '등록 전 확인' 단계를 그대로 거친다.
+     입력 폼과 같은 평면에 그냥 얹으면 폼의 일부로 읽히므로 구분선으로 제 영역을 준다.
+     후보가 하나도 없으면 :empty 라 선만 남는 일이 없다(자식은 전부 요소 - 공백 텍스트 노드 없음). */
+  .modaldisc{display:flex;flex-direction:column;gap:7px;
+    border-top:1px solid var(--line2);padding-top:12px;margin-top:2px}
+  .modaldisc:empty{display:none}
+  .modaldisc .disclbl{font-size:10px;letter-spacing:.05em;text-transform:uppercase;
+    color:var(--mut3);font-weight:600}
+  .modaldisc .chip.pick{cursor:pointer;align-self:flex-start;max-width:100%}
+  .modaldisc .chip.pick:hover{border-color:var(--accent);color:var(--accent)}
+  /* 양쪽 등록된 마켓: 이름/상태와 sha/시각을 한 줄에 이어 붙이면 mono 폭에서 토큰 중간이
+     잘린다. 사람이 읽는 이름은 위, 대조용 식별자는 아래로 내려 줄바꿈 지점을 고정한다. */
+  .modaldisc .discboth{display:flex;flex-direction:column;gap:2px}
+  .modaldisc .dbhead{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .modaldisc .dbname{font-family:var(--mono);font-size:11px;color:var(--fg2);overflow-wrap:anywhere}
+  .modaldisc .dbtag{font-size:9.5px;font-weight:600;padding:1px 6px;border-radius:4px;
+    background:#E6E8EC;color:var(--mut3);white-space:nowrap;flex:0 0 auto}
+  .modaldisc .dbmeta{font-family:var(--mono);font-size:10px;color:var(--mut3);overflow-wrap:anywhere}
+  .modalnote{font-size:11px;color:var(--mut);font-family:var(--mono);overflow-wrap:anywhere}
+  .modallink{font-size:12px;color:var(--accent);text-decoration:none;align-self:flex-start}
+  .modallink:hover{text-decoration:underline}
+  /* 설치 스코프 3종 + 프로젝트 선택. CLI 의 Plugin details 하단과 같은 순서로 둔다.
+     라벨이 스코프 키워드를 달고 있어 전역 button 규격(13px)으로는 440px 모달에서 3개가
+     한 줄에 안 들어간다 -> .adder 와 같은 콤팩트 규격으로 낮춰 한 행을 유지한다. */
+  .modalscopes{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:4px}
+  .modalscopes .addbtn{padding:4px 12px;font-size:11px;font-weight:600}
+  /* 프로젝트 스코프 구획: 대상 select 가 지배하는 범위를 담김 관계로 보인다. 전역 버튼은
+     이 바깥에 있어야 "그 프로젝트에 설치되는 것"으로 읽히지 않는다(전역은 cwd 를 안 쓴다). */
+  .scopeproj{width:100%;display:flex;flex-wrap:wrap;gap:6px;align-items:center;
+    background:#F3F4F6;border:1px solid var(--line2);border-radius:7px;padding:9px 10px}
+  /* 대상 프로젝트 줄은 버튼보다 위. 어디로 설치되는지 누르기 전에 보여야 한다. */
+  .modalscoperow{display:flex;gap:7px;align-items:center;width:100%;flex-wrap:wrap}
+  .modalscoperow .catsel{flex:1;min-width:0}
+  /* 카탈로그 행: 이름을 눌러 상세를 연다. 버튼이지만 텍스트처럼 보여야 목록이 안 시끄럽다. */
+  .sknm.asname{background:none;border:0;padding:0;font:inherit;color:inherit;text-align:left;cursor:pointer}
+  .sknm.asname:hover{color:var(--accent);text-decoration:underline}
+  .cinstalls{font-size:10px;color:var(--mut);white-space:nowrap;flex:0 0 auto}
+  /* 마켓 헤더의 Claude Code 쪽 액션. 헤더 클릭(접기)과 겹치지 않게 오른쪽 끝에 붙인다.
+     그룹 라벨은 버튼마다 "Claude Code" 를 반복하지 않기 위한 것이라 버튼보다 가벼워야 한다 -
+     같은 무게면 라벨이 눌리는 것으로 읽힌다. 구분선은 그 그룹과 config-monitor 쪽 제거를 가른다. */
+  .mkacts{display:flex;align-items:center;gap:5px;margin-left:auto;flex:0 0 auto}
+  .mkacts .mklbl{font-size:10px;color:var(--mut3);white-space:nowrap;flex:0 0 auto;cursor:default}
+  .mkacts .mksep{width:1px;align-self:stretch;background:var(--line2);flex:0 0 auto;margin:1px 1px}
+  .inlineconfirm{display:inline-flex;gap:5px}
+  .catpager{display:flex;align-items:center;gap:10px;margin-top:11px}
+  .catpager .pinfo{font-family:var(--mono);font-size:11px;color:var(--mut2)}
+  .catpager button:disabled{opacity:.42;cursor:default}
+  .catpager button:disabled:hover{background:var(--panel);border-color:#DDE0E5}
 
   .libcat{border:1px solid var(--line2);border-radius:7px;background:#F6F7FA;margin-bottom:8px;overflow:hidden}
   .libcathead{display:flex;align-items:center;gap:9px;padding:9px 12px;cursor:pointer;user-select:none}
@@ -233,10 +385,26 @@
   .libskill .libcb{width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex:0 0 auto;margin:0}
   .libskill .sknm{font-family:var(--mono);font-size:12px;color:var(--fg);flex:1;min-width:0;word-break:break-all}
   .libskill .badge{flex:0 0 auto}
-  .libskill .edit{flex-direction:row;margin:0;gap:6px;flex:0 0 auto}
-  .librootdiv{display:flex;align-items:center;gap:8px;margin:9px 2px 5px}
+  /* 라이브러리/유닛 행은 두 묶음이다: 왼쪽 [체크박스 · 이름 · 출처], 오른쪽 [상태 · 동작].
+     이름이 남는 폭을 다 먹으면(.libskill .sknm 의 flex:1) 출처 태그가 오른쪽 끝까지 밀려
+     이름에서 떨어진다 - 출처는 이름에 붙어 있어야 "어느 라이브러리의 무엇"으로 읽힌다.
+     이름은 제 폭만 쓰되 좁아지면 줄바꿈으로 흡수하고, 남는 폭은 상태 앞의 auto 여백이 먹는다.
+     .libskill .sknm 과 특정도가 같으므로 반드시 그 뒤에 온다(뒤가 이긴다). */
+  .librow .sknm{flex:0 1 auto}
+  .librow .libstat{margin-left:auto}
+  /* .edit 는 기본이 align-items:stretch 라, 버튼과 배지를 나란히 두면 배지 span 이 버튼
+     높이까지 늘어나고 글자가 그 위쪽에 그려진다. 행에서는 가운데로 맞춘다. */
+  .libskill .edit{flex-direction:row;align-items:center;margin:0;gap:6px;flex:0 0 auto}
+  /* 루트(폴더 없는) 항목 묶음의 헤더. 폴더 그룹과 달리 박스를 두르지 않는다 - 폴더가 아니라
+     "폴더에 안 들어간 나머지"이기 때문이다. 구분선 자체가 토글이라 별도 영역이 필요 없다. */
+  .librootdiv{display:flex;align-items:center;gap:8px;margin:9px 2px 5px;cursor:pointer;user-select:none}
   .librootdiv .rline{flex:1;height:1px;background:var(--line2)}
   .librootdiv .rlbl{font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--mut3);font-weight:600;flex:0 0 auto}
+  .librootdiv .chev4{display:inline-block;transition:transform .15s;font-size:10px;color:var(--mut3);flex:0 0 auto}
+  .librootdiv.open .chev4{transform:rotate(90deg)}
+  .librootdiv:hover .rlbl,.librootdiv:hover .chev4{color:var(--fg2)}
+  .librootbody{display:none}
+  .librootbody.open{display:block}
   .chip .cx{border:none;background:none;color:var(--mut3);cursor:pointer;font-size:12px;padding:0 1px;line-height:1}
   .chip .cx:hover{color:var(--del)}
   .chip .ok{border:none;background:var(--del);color:#fff;border-radius:4px;padding:1px 7px;font-size:10px;cursor:pointer}
@@ -359,10 +527,12 @@
   #setpop-backdrop{position:fixed;inset:0;z-index:65;background:transparent}
   body.nosrc .secsrc{display:none}
 
-  /* toast */
-  #toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#15171C;color:#fff;
+  /* toast - 상단 중앙. 하단에 두면 호스트(Claude) 프롬프트 입력창이 iframe 아래를 덮어
+     전체화면에서 토스트가 늘 가린다(.app.fullscreen 의 padding-bottom 보정과 같은 이유).
+     위쪽은 어느 모드에서도 덮이지 않아 모드별 분기도 매직넘버도 필요 없다. */
+  #toast{position:fixed;top:16px;left:50%;transform:translateX(-50%);background:#15171C;color:#fff;
     padding:10px 20px;border-radius:7px;font-size:13px;box-shadow:0 10px 30px rgba(0,0,0,.22);
-    animation:cmFade .18s ease;z-index:60;display:none}
+    animation:cmFade .18s ease;z-index:60;display:none;max-width:calc(100% - 32px);text-align:center}
 </style>
 </head>
 <body>

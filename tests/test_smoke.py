@@ -245,7 +245,7 @@ class ConfigEdit(unittest.TestCase):
         rc, out, err = self.edit("hook-remove", "PostToolUse", cmd)
         self.assertEqual(rc, 0, err)
         self.assertTrue(json.loads(out)["changed"], "따옴표 포함 명령이 제거되지 않음")
-        self.assertEqual(self._load()["hooks"]["PostToolUse"], [])
+        self.assertNotIn("hooks", self._load())   # 마지막 훅이 빠지면 빈 껍데기도 남기지 않는다
 
     def test_hook_remove_is_exact_not_substring(self):
         # 회귀: 부분 문자열 매칭이면 짧은 명령을 지울 때 그것을 접두로 갖는 다른 훅까지 사라진다.
@@ -298,7 +298,44 @@ class ConfigEdit(unittest.TestCase):
 
         rc, out, err = self.edit("hook-remove", "PostToolUse", "echo hi")
         self.assertEqual(rc, 0, err)
-        self.assertEqual(self._load()["hooks"]["PostToolUse"], [])
+        self.assertTrue(json.loads(out)["changed"])
+        # 비게 된 이벤트 키/hooks 는 남기지 않는다(빈 배열이 쌓이면 설정 파일이 지저분해진다).
+        self.assertNotIn("hooks", self._load())
+
+    def test_hook_remove_matches_windows_path_command(self):
+        """대시보드가 카드에 표시하는 command 원문(백슬래시 경로)이 needle 로 그대로 온다.
+
+        회귀 가드: 직렬화 결과(json.dumps)에 매칭하던 구버전은 JSON 이 \\ 를 \\\\ 로
+        이스케이프해 이런 needle 을 영원히 못 찾았다 - ok:true / changed:false 로 조용히
+        no-op 이 되어 "설정에서 hooks 삭제가 안 된다"로 나타났다."""
+        cmd = r'node "D:\my-tools\Hooks\recursive-eval\index.js"'
+        rc, out, err = self.edit("hook-add", "PostToolUse", cmd, "--matcher", "Edit")
+        self.assertEqual(rc, 0, err)
+
+        rc, out, err = self.edit("hook-remove", "PostToolUse", cmd)
+        self.assertEqual(rc, 0, err)
+        res = json.loads(out)
+        self.assertTrue(res["ok"])
+        self.assertTrue(res["changed"], "백슬래시 경로 needle 이 매칭되지 않았다")
+        self.assertNotIn("hooks", self._load())
+
+    def test_hook_remove_keeps_siblings_in_the_same_matcher(self):
+        # UI 가 나열하는 단위는 command 다 - 같은 matcher 에 묶인 다른 hook 까지 날리면 안 된다.
+        with open(self.settings, "w", encoding="utf-8") as f:
+            json.dump({"hooks": {"PreToolUse": [{"matcher": "*", "hooks": [
+                {"type": "command", "command": "keep-me"},
+                {"type": "command", "command": "drop-me"}]}]}}, f)
+        rc, out, err = self.edit("hook-remove", "PreToolUse", "drop-me")
+        self.assertEqual(rc, 0, err)
+        left = self._load()["hooks"]["PreToolUse"]
+        self.assertEqual([h["command"] for h in left[0]["hooks"]], ["keep-me"])
+
+    def test_hook_remove_reports_no_op_when_nothing_matches(self):
+        # 조용한 실패 가드: 지운 게 없으면 changed:false 로 알려야 UI 가 "제거됨"을 띄우지 않는다.
+        self.edit("hook-add", "PostToolUse", "echo hi")
+        rc, out, err = self.edit("hook-remove", "PostToolUse", "no-such-command")
+        self.assertEqual(rc, 0, err)
+        self.assertFalse(json.loads(out)["changed"])
 
 
 class ConfigEditExtended(unittest.TestCase):
