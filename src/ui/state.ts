@@ -47,9 +47,11 @@ export let collapsedInit = false;                    // 기본 접힘 1회만 �
 // 출처 표시 토글(스코프 필터와 독립). 기본은 둘 다 표시 - buildOriginToggles 주석 참고.
 export let showPlugin = true;                        // 플러그인이 넣은 항목
 export let showBuiltin = true;                       // 기본 제공(Desktop Skills creatorType=anthropic)
-export const libGroupOpen = new Set<string>();      // 펼친 라이브러리 스킬 그룹 경로(기본 접힘)
 // 루트(폴더 없는) 항목 묶음의 예약 키. 폴더 경로에는 ':' 가 들어갈 수 없어 실제 경로와 겹치지 않는다.
 export const ROOT_GROUP_KEY = "::root";
+// 펼친 라이브러리 스킬 그룹 경로. 폴더 그룹은 기본 접힘, 루트 묶음만 기본 펼침
+// (폴더 없는 항목은 목록의 본체라 접어두면 스킬이 비어 보인다).
+export const libGroupOpen = new Set<string>([ROOT_GROUP_KEY]);
 export const libChecked = new Set<string>();        // 선택 설치용 체크된 항목 key(카테고리 무관)
 export const libOpen = new Set<string>(["skills"]); // 펼친 카테고리(기본값: Skills 만)
 export let libProjectTargets: string[] = [];        // 설치 대상 후보(추적 중인 프로젝트 .claude 경로들). renderTracked 가 매 새로고침 갱신

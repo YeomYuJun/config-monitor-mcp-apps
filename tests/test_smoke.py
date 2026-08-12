@@ -890,6 +890,28 @@ class ClaudeConfigDump(unittest.TestCase):
         finally:
             import shutil; shutil.rmtree(tmp, ignore_errors=True)
 
+    def test_projects_dedup_same_dir_different_spelling(self):
+        # 회귀: Claude Code 가 세션 CWD 표기 그대로 키를 쌓아 같은 폴더가 여러 키로 남는다
+        # (d:/x, D:/x, D:\x). 그대로 나열하면 '프로젝트에서 추가' 목록에 같은 폴더가 중복 표시됐다.
+        tmp = tempfile.mkdtemp(prefix="dedup_test_")
+        try:
+            pa = os.path.join(tmp, "projA"); os.makedirs(os.path.join(pa, ".claude"))
+            variants = [pa, pa + os.sep, os.path.join(pa, ".")]
+            if os.name == "nt":
+                variants += [pa.replace("\\", "/"), pa.upper()]
+            cj = os.path.join(tmp, ".claude.json")
+            with open(cj, "w", encoding="utf-8") as f:
+                json.dump({"projects": {v: {} for v in variants}}, f)
+            p = subprocess.run([sys.executable, CFG, "projects", "--paths", f"claude_json={cj}"],
+                               capture_output=True, text=True, encoding="utf-8", timeout=60)
+            self.assertEqual(p.returncode, 0, p.stderr)
+            rows = json.loads(p.stdout)["projects"]
+            self.assertEqual(len(rows), 1, f"중복 표기가 그대로 나열됨: {[r['path'] for r in rows]}")
+            self.assertEqual(rows[0]["path"], pa, "먼저 나온 표기를 살려야 함")
+            self.assertTrue(rows[0]["has_claude"])
+        finally:
+            import shutil; shutil.rmtree(tmp, ignore_errors=True)
+
     def test_agents_scanned_recursively(self):
         # Claude 는 하위 폴더의 에이전트까지 읽는다. 한 단계만 보면 있는 것을 없다고 표시함.
         # 동시에 .trash(삭제 보관분)는 어느 깊이에서도 살아있는 항목으로 나오면 안 되고,

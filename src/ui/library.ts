@@ -197,10 +197,10 @@ function renderSkillTreeBody(skills: any[]): HTMLElement {
   const frag = document.createElement("div");
   frag.appendChild(renderGroups(root, ""));
   if (root.skills.length) {
-    // 루트 항목도 폴더 그룹처럼 접힌다. 다만 .libgrp 박스로 감싸지 않는다 - 이건 폴더가
-    // 아니라 "폴더에 안 들어간 나머지"라, 박스를 두르면 없는 폴더가 하나 있는 것처럼 읽힌다.
-    // 구분선 자체가 헤더 역할을 하고, 상태는 그룹과 같은 Set 을 쓴다(경로에 ':' 는 못 들어가
-    // 실제 폴더 경로와 키가 겹칠 수 없다).
+    // 루트 항목도 폴더 그룹처럼 토글되지만 기본은 펼침(libGroupOpen 초기값). 다만 .libgrp
+    // 박스로 감싸지 않는다 - 이건 폴더가 아니라 "폴더에 안 들어간 나머지"라, 박스를 두르면
+    // 없는 폴더가 하나 있는 것처럼 읽힌다. 구분선 자체가 헤더 역할을 하고, 상태는 그룹과
+    // 같은 Set 을 쓴다(경로에 ':' 는 못 들어가 실제 폴더 경로와 키가 겹칠 수 없다).
     const div = document.createElement("div");
     div.className = "librootdiv" + (libGroupOpen.has(ROOT_GROUP_KEY) ? " open" : "");
     div.innerHTML =

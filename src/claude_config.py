@@ -756,7 +756,14 @@ def list_projects(found):
     data = safe_load(cj)
     if not isinstance(data, dict) or "__error__" in data:
         return out
+    # Claude Code 가 세션 CWD 표기를 그대로 키로 쌓아, 같은 폴더가 드라이브문자 대소문자/
+    # 구분자만 다른 여러 키로 남는다(d:/x, D:/x, D:\x). 먼저 나온 표기만 살려 한 행으로 낸다.
+    seen = set()
     for path in (data.get("projects") or {}):
+        key = os.path.normcase(os.path.normpath(path))
+        if key in seen:
+            continue
+        seen.add(key)
         cdir = os.path.join(path, ".claude")
         out.append({
             "path": path,
