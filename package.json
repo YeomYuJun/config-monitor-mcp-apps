@@ -5,12 +5,14 @@
   "description": "Claude 설정관리 monitor — MCP App (카드 + 파일 diff history) + 로컬 watcher 하이브리드",
   "scripts": {
     "build": "vite build",
+    "test": "python -m pytest tests -q",
+    "typecheck": "tsc --noEmit",
     "serve": "npx tsx src/server.ts",
     "serve:stdio": "npx tsx src/server-stdio.ts"
   },
   "dependencies": {
-    "@modelcontextprotocol/ext-apps": "latest",
-    "@modelcontextprotocol/sdk": "latest",
+    "@modelcontextprotocol/ext-apps": "^1.7.4",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "cors": "^2.8.5",
     "express": "^4.19.0",
     "zod": "^3.22.0"

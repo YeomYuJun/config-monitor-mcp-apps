@@ -20,8 +20,9 @@ const CAT_SEC = "Marketplace";                 // 접힘 상태 키(collapsed/se
 const catOffsets: Record<string, number> = {};
 
 export async function renderCatalog(host: HTMLElement): Promise<void> {
-  setCatSecEl(await buildCatalog());
-  host.appendChild(catSecEl);
+  const sec = await buildCatalog();
+  setCatSecEl(sec);
+  host.appendChild(sec);
 }
 
 // 페이지 이동/검색은 카탈로그 섹션만 제자리에서 갈아끼운다. 전체 refresh 를 부르면 설정·Library 까지

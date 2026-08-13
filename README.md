@@ -2,7 +2,7 @@
 
 > See, edit, and roll back your Claude configuration — global and per-project — from a single screen.
 
-<img src="/assets/img/fullscreen.png" width="640" alt="config-monitor dashboard">
+<img src="assets/img/fullscreen.png" width="640" alt="config-monitor dashboard">
 
 ## About This Project
 
@@ -36,7 +36,7 @@ Sources can be local folders, remote git repos, or plugin marketplaces. Remote o
 - [Notes](#notes)
 
 ## Simple Usage
-<img src="/assets/img/simple-usage.png" width="440" alt="config-monitor dashboard">
+<img src="assets/img/simple-usage.png" width="440" alt="config-monitor dashboard">
 
 Just send a simple message like `Show config-monitor` in Claude Desktop and the dashboard opens right up.
 Cowork supports both inline and fullscreen; Code supports inline only (following the Desktop spec).
@@ -100,7 +100,7 @@ npm run build
 
 ### Header
 
-<img src="/assets/img/header.png" width="640" alt="Header controls">
+<img src="assets/img/header.png" width="640" alt="Header controls">
 
 The toolbar runs the global actions: **watcher** (a resident file watcher that auto-snapshots on change), **snapshot** (capture the current state once), and **refresh** (re-read tracking, config, and library).
 
@@ -108,7 +108,7 @@ The toolbar runs the global actions: **watcher** (a resident file watcher that a
 
 ### Tracked Files
 
-<img src="/assets/img/tracked-files.png" width="560" alt="Tracked files panel">
+<img src="assets/img/tracked-files.png" width="560" alt="Tracked files panel">
 
 The list of config files under snapshot watch, each showing a status badge (`new` / `modified` / `deleted` / `same`), a scope badge, and its path. Three global files (`~/.claude.json`, `~/.claude/settings.json`, and the desktop config) are tracked automatically when present.
 
@@ -116,7 +116,7 @@ The list of config files under snapshot watch, each showing a status badge (`new
 
 ### Config
 
-<img src="/assets/img/settings-section.png" width="560" alt="Config panel">
+<img src="assets/img/settings-section.png" width="560" alt="Config panel">
 
 Cards for each category — MCP Servers, Claude Code (`.claude.json`), Permissions, Hooks, Skills, Agents, Scheduled Tasks, and Desktop Skills. Items are grouped by source (global expanded, per-project collapsed), with a `global N · project M` summary where projects contribute.
 
@@ -130,7 +130,7 @@ A project card carries its own target path, so removing a project skill or agent
 
 ### Library
 
-<img src="/assets/img/library-section.png" width="600" alt="Library panel">
+<img src="assets/img/library-section.png" width="600" alt="Library panel">
 
 A library is any directory shaped like `.claude` (with `agents/`, `commands/`, and/or `skills/`). This panel installs its items into a real config, with a status badge per item: `not installed`, `installed`, `changed` (the library was updated and can be synced), or `conflict` — compared by **content hash**, not by name.
 
@@ -196,7 +196,7 @@ Registering a marketplace also reads the ones Claude Code already knows about an
 
 ### History / Diff
 
-<img src="/assets/img/right-pannel.png" width="440" alt="History and diff panel">
+<img src="assets/img/right-pannel.png" width="440" alt="History and diff panel">
 
 Opens when you click a tracked-file row. It shows the snapshot timeline (time, message, hash), the diff between two selected versions, and the current file contents (read-only).
 
@@ -209,7 +209,7 @@ Opens when you click a tracked-file row. It shows the snapshot timeline (time, m
 - Removal is a move to `.trash`, not a real delete — it can be recovered.
 - Untracking only removes an entry from the watch list; the file is left in place.
 
-<img src="/assets/img/fullscreen.png" width="720" alt="Fullscreen dashboard">
+<img src="assets/img/fullscreen.png" width="720" alt="Fullscreen dashboard">
 
 ## What It Reads
 
