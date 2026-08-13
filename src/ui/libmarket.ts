@@ -38,8 +38,9 @@ export function openMarketAdd(url: string): void {
     err.className = "modalerr";
     err.hidden = true;
     const submit = () => {
+      // 빈 입력도 형식 오류로 흘려보낸다. 조용히 return 하면 버튼이 아무 반응도 없어
+      // 요청이 나갔다 실패한 건지 안 나간 건지 화면이 말하지 않는다(Library 쪽과 같은 응답).
       const v = input.value.trim();
-      if (!v) return;
       if (!looksLikeMarketSource(v)) {
         err.textContent = t("catBadUrl");
         err.hidden = false;

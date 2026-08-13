@@ -234,6 +234,21 @@ def _safe_config_dir(d, sub):
         out(False, f"설정 디렉토리가 유효하지 않음(<...>/.claude/{sub} 형태만 허용): '{d}'")
     return n
 
+SETTINGS_NAMES = ("settings.json", "settings.local.json")
+
+def _safe_settings_path(p):
+    """--settings 검증: <...>/.claude/settings[.local].json 형태만 허용.
+    _safe_config_dir 이 디렉토리 인자에 거는 제약을 파일 인자에도 건다 - 이쪽만 비어 있으면
+    save_atomic 의 makedirs 가 임의 경로에 트리를 만들며 JSON 을 쓴다(도구 파라미터로 노출된
+    값이다). 실제 대상은 전역(~/.claude)과 프로젝트(<root>/.claude) 둘뿐이라 호출부는 그대로.
+    Claude 가 읽는 이름은 settings.json / settings.local.json 두 개다(claude_config._settings_in)."""
+    n = os.path.normpath(p)
+    nc = os.path.normcase
+    if nc(os.path.basename(n)) not in tuple(nc(x) for x in SETTINGS_NAMES) or \
+       nc(os.path.basename(os.path.dirname(n))) != nc(".claude"):
+        out(False, f"settings 경로가 유효하지 않음(<...>/.claude/settings[.local].json 형태만 허용): '{p}'")
+    return n
+
 def main():
     ap = argparse.ArgumentParser(prog="config_edit")
     ap.add_argument("--settings", default=DEFAULT_SETTINGS)
@@ -264,7 +279,8 @@ def main():
 
     a = ap.parse_args()
 
-    # skills/agents 디렉토리 인자는 쓰이기 전에 형태 검증(_safe_config_dir 주석 참고).
+    # 경로 인자는 쓰이기 전에 형태 검증(_safe_settings_path / _safe_config_dir 주석 참고).
+    a.settings = _safe_settings_path(a.settings)
     if a.op in ("skill-scaffold", "skill-remove"):
         a.skills_dir = _safe_config_dir(a.skills_dir, "skills")
     elif a.op in ("agent-scaffold", "agent-remove"):

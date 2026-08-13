@@ -21,8 +21,39 @@ registerAll(server, __dirname);
 // REST 용 도구 맵 (MCP 와 동일 핸들러)
 const toolMap = Object.fromEntries(buildTools(__dirname).map((d) => [d.name, d.run]));
 
+// 루프백 바인딩은 네트워크만 막고 **브라우저 오리진은 못 막는다** - 같은 PC 에서 열린 아무
+// 페이지나 fetch 로 여기 닿을 수 있다. /api/tool/:name 은 편집 도구(mcp-add · hook-add · restore)를
+// 그대로 노출하므로 두 겹을 건다.
+//   Host(전역): DNS 리바인딩 방어. evil.example 이 127.0.0.1 로 풀리면 브라우저는 대시보드를
+//     **그 오리진으로** 받아 이후 Origin 검사까지 같은-오리진으로 통과시킨다. 그래서 도구
+//     라우트가 아니라 '/' 를 포함한 전 라우트에 건다 - 대시보드를 내주는 순간이 발판이다.
+//   Origin(전역): 다른 오리진 페이지의 CSRF. no-cors POST 는 응답을 못 읽어도 핸들러는
+//     실행되므로 CORS 설정만으로는 부족하다 - 실제로 막는 건 이 게이트다. 주소창 이동은
+//     Origin 을 보내지 않으므로 대시보드를 직접 여는 길은 그대로 열려 있다.
+// Origin 부재는 브라우저가 아니다(curl · type:http MCP 커넥터) - 통과시킨다. 반대로 문자열
+// "null"(sandboxed iframe · file://)은 값이 있는 것이므로 거부한다.
+const loopbackHosts = (p: number) => {
+  const names = ["127.0.0.1", "localhost", "[::1]"];
+  const withPort = names.map((n) => `${n}:${p}`);
+  return p === 80 ? [...withPort, ...names] : withPort;   // 80 이면 브라우저가 포트를 생략한다
+};
+const ALLOWED_HOSTS = new Set(loopbackHosts(PORT));
+const ALLOWED_ORIGINS = new Set(loopbackHosts(PORT).map((h) => `http://${h}`));
+
 const app = express();
-app.use(cors());
+app.use((req, res, next) => {
+  if (!ALLOWED_HOSTS.has(String(req.headers.host || "").toLowerCase())) {
+    return res.status(403).json({ error: "forbidden host" });
+  }
+  // 프리플라이트(OPTIONS)까지 여기서 함께 끊는다. cors() 에 맡기면 ACAO 없는 200 이 나가는데,
+  // 브라우저는 그것도 차단하지만 재현 스크립트에는 통과처럼 보인다.
+  const o = req.headers.origin;
+  if (o !== undefined && !ALLOWED_ORIGINS.has(String(o).toLowerCase())) {
+    return res.status(403).json({ error: "forbidden origin" });
+  }
+  next();
+});
+app.use(cors({ origin: (o, cb) => cb(null, !!o && ALLOWED_ORIGINS.has(o.toLowerCase())) }));
 app.use(express.json({ limit: "20mb" }));
 
 // 라이브 대시보드: 빌드된 단일파일에 standalone 플래그를 주입해 서빙.
@@ -63,9 +94,9 @@ app.post("/mcp", async (req, res) => {
   await transport.handleRequest(req, res, req.body);
 });
 
-// 루프백 전용 바인딩: /api/tool/:name 은 인증 없이 편집 도구를 그대로 노출하고 cors() 도 전 오리진
-// 허용이다. 이 서버는 로컬 설정 파일을 읽고 쓰는 용도라 원격 사용 자체가 대상이 아니므로,
-// 0.0.0.0(기본값)으로 열어 같은 네트워크의 다른 기기에 노출될 이유가 없다.
+// 루프백 전용 바인딩: 이 서버는 로컬 설정 파일을 읽고 쓰는 용도라 원격 사용 자체가 대상이
+// 아니므로, 0.0.0.0(기본값)으로 열어 같은 네트워크의 다른 기기에 노출될 이유가 없다.
+// 브라우저 오리진은 이걸로 못 막는다 - 그건 위의 Host/Origin 게이트가 맡는다.
 app.listen(PORT, "127.0.0.1", () => {
   console.error(`[config-monitor] HTTP at http://127.0.0.1:${PORT}/ (dashboard) · /mcp · /api/tool/:name`);
 });

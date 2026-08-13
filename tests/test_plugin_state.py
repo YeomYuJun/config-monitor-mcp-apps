@@ -312,8 +312,8 @@ class ToggleOp(unittest.TestCase):
 
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="plugin_toggle_test_")
-        self.g = os.path.join(self.tmp, "settings.json")
-        self.p = os.path.join(self.tmp, "proj", "settings.json")
+        self.g = os.path.join(self.tmp, ".claude", "settings.json")
+        self.p = os.path.join(self.tmp, "proj", ".claude", "settings.json")
         wjson(self.g, {"permissions": {"allow": ["Read(**)"]},
                        "enabledPlugins": {"notion@official": True}})
         wjson(self.p, {"enabledPlugins": {"notion@official": True}})
@@ -350,7 +350,7 @@ class ToggleOp(unittest.TestCase):
 
     def test_cli_backs_up_before_writing(self):
         run(EDIT, "--settings", self.g, "--no-snapshot", "plugin-toggle", "notion@official", "off")
-        self.assertTrue([f for f in os.listdir(self.tmp) if f.endswith(".bak")])
+        self.assertTrue([f for f in os.listdir(os.path.dirname(self.g)) if f.endswith(".bak")])
 
 
 class ClaudeCliDelegation(unittest.TestCase):

@@ -10,7 +10,7 @@ test_smoke.py - cas.py / claude_config.py / config_edit.py 스모크 테스트.
   - claude_config dump 가 cp949 콘솔에서 UnicodeEncodeError 로 죽지 않는다.
   - cas watcher-status 가 PS 의 BOM + tz-aware heartbeat 를 견딘다.
 """
-import json, os, subprocess, sys, tempfile, unittest
+import json, os, subprocess, sys, tempfile, time, unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(os.path.dirname(HERE), "src")
@@ -47,6 +47,36 @@ class CasRoundTrip(unittest.TestCase):
 
     def cas(self, *args):
         return run(CAS, "--store", self.store, *args)
+
+    def _lock_path(self):
+        return os.path.join(self.store, "snapshot.lock")
+
+    def test_snapshot_refuses_while_another_holds_the_lock(self):
+        # 편집(config_edit)과 watcher 는 항상 겹쳐 돈다. 겹친 쪽이 index/parent 를 같이 읽으면
+        # 이력 체인이 갈라지므로, 락을 못 잡으면 스냅샷을 만들지 않고 물러나야 한다.
+        self.cas("init")
+        self.cas("track", self.target)
+        with open(self._lock_path(), "w", encoding="utf-8") as f:
+            f.write('{"pid": 1}')
+        rc, out, err = run(CAS, "--store", self.store, "snapshot", "-m", "blocked",
+                           env={"CLAUDE_CAS_LOCK_WAIT": "0.3"})
+        self.assertEqual(rc, 1, out)
+        self.assertIn("진행 중", out)
+        self.assertEqual(os.listdir(os.path.join(self.store, "snapshots")), [])
+
+    def test_stale_lock_is_broken(self):
+        # 죽은 프로세스가 남긴 락에 영구히 막히면 안 된다. 판정은 pid 가 아니라 나이로 한다.
+        self.cas("init")
+        self.cas("track", self.target)
+        lock = self._lock_path()
+        with open(lock, "w", encoding="utf-8") as f:
+            f.write('{"pid": 1}')
+        old = time.time() - 3600            # LOCK_STALE_SEC(60s) 를 넉넉히 넘긴 나이
+        os.utime(lock, (old, old))
+        rc, out, err = run(CAS, "--store", self.store, "snapshot", "-m", "after stale",
+                           env={"CLAUDE_CAS_LOCK_WAIT": "0.3"})
+        self.assertEqual(rc, 0, err)
+        self.assertFalse(os.path.exists(lock))
 
     def test_full_flow(self):
         rc, out, err = self.cas("init")
@@ -212,7 +242,9 @@ class CasRoundTrip(unittest.TestCase):
 class ConfigEdit(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="edit_test_")
-        self.settings = os.path.join(self.tmp, "settings.json")
+        # 실제 형태(<root>/.claude/settings.json)로 픽스처를 잡는다 - config_edit 이 이 형태만 받는다.
+        self.settings = os.path.join(self.tmp, ".claude", "settings.json")
+        os.makedirs(os.path.dirname(self.settings), exist_ok=True)
         with open(self.settings, "w", encoding="utf-8") as f:
             json.dump({"permissions": {"allow": ["Bash(ls)"]}}, f)
 
@@ -337,6 +369,25 @@ class ConfigEdit(unittest.TestCase):
         self.assertEqual(rc, 0, err)
         self.assertFalse(json.loads(out)["changed"])
 
+    def test_settings_outside_claude_dir_is_rejected(self):
+        # --settings 는 도구 파라미터로 노출돼 있다. 검증이 없으면 save_atomic 의 makedirs 가
+        # 임의 경로에 트리를 만들며 JSON 을 쓴다 - 파일이 생기지 않았다는 것까지 확인한다.
+        bad = os.path.join(self.tmp, "not-a-claude-dir", "deep", "arbitrary.json")
+        rc, out, err = run(EDIT, "--settings", bad, "--no-snapshot",
+                           "perm-add", "allow", "Bash(rm -rf /)")
+        self.assertEqual(rc, 1, out)
+        self.assertFalse(json.loads(out)["ok"])
+        self.assertFalse(os.path.exists(os.path.dirname(bad)))
+
+    def test_settings_local_json_in_claude_dir_is_accepted(self):
+        # 거부 규칙이 실제 대상까지 막지 않는지: Claude 가 읽는 두 이름 중 나머지 하나.
+        local = os.path.join(self.tmp, ".claude", "settings.local.json")
+        rc, out, err = run(EDIT, "--settings", local, "--no-snapshot",
+                           "perm-add", "allow", "Bash(git*)")
+        self.assertEqual(rc, 0, err)
+        with open(local, encoding="utf-8") as f:
+            self.assertIn("Bash(git*)", json.load(f)["permissions"]["allow"])
+
 
 class ConfigEditExtended(unittest.TestCase):
     """mcpServers / skills / agents 확장 ops. 실사용자 파일 대신 temp 경로로 격리."""
@@ -458,7 +509,7 @@ class LibraryToggle(unittest.TestCase):
         self.tmp = tempfile.mkdtemp(prefix="lib_test_")
         self.store = os.path.join(self.tmp, "store")
         self.lib = os.path.join(self.tmp, "kit", ".claude")
-        self.target = os.path.join(self.tmp, "live")
+        self.target = os.path.join(self.tmp, ".claude")
         # 라이브러리 구성: agent 1, skill 1, command 1
         os.makedirs(os.path.join(self.lib, "agents"))
         os.makedirs(os.path.join(self.lib, "skills", "s1"))
@@ -489,6 +540,17 @@ class LibraryToggle(unittest.TestCase):
                 for it in arr:
                     items[f"{cat}/{it['name']}"] = it
         return items
+
+    def test_install_target_outside_claude_root_is_rejected(self):
+        # targetDir 은 '.claude 루트'가 계약이다(도구 설명 · UI 후보 목록 모두). cmd_install 의
+        # 부모 존재 검사만으로는 존재하는 아무 디렉토리나 통과해 임의 위치에 파일이 심긴다.
+        outside = os.path.join(self.tmp, "not-claude")
+        os.makedirs(outside)
+        rc, out, err = run(LIB, "--store", self.store, "--target", outside, "--no-snapshot",
+                           "install", "agents", "a1", "--lib", self.lib)
+        self.assertEqual(rc, 1, out)
+        self.assertFalse(json.loads(out)["ok"])
+        self.assertEqual(os.listdir(outside), [])
 
     def test_scan_install_modify_sync_uninstall(self):
         # 1) 초기 스캔: 전부 미설치, kit 참조 휴리스틱 동작

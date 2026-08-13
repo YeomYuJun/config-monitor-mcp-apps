@@ -29,7 +29,7 @@ for _s in (sys.stdout, sys.stderr):
         pass
 
 from config_edit import (backup, snapshot_before, trash, out, load, save_atomic,
-                         op_mcp_add, op_mcp_remove)  # 동일 안전 규율 재사용
+                         op_mcp_add, op_mcp_remove, _safe_settings_path)  # 동일 안전 규율 재사용
 import lib_store
 import marketplace
 import remote_fetch
@@ -1091,8 +1091,21 @@ def _resolve_origin_root(store, origin):
     return (None, origin)
 
 
+def _safe_target_dir(d):
+    """--target 검증: .claude 루트만 허용(도구 파라미터 targetDir 의 계약 그대로).
+    install 은 <target>/<category>/<name> 에 라이브러리 내용을 쓰는데, cmd_install 의 부모 존재
+    검사(phantom 방지)는 '존재하는 아무 디렉토리'를 다 통과시킨다 - 그 경로로 임의 위치에
+    파일을 심을 수 있다. UI 도 basename 이 .claude 인 후보만 대상 목록에 올린다(tracked.ts)."""
+    n = os.path.normpath(d)
+    if os.path.normcase(os.path.basename(n)) != os.path.normcase(".claude"):
+        out(False, f"설치 대상이 유효하지 않음(<...>/.claude 형태만 허용): '{d}'")
+    return n
+
+
 def _settings_path(a):
-    return a.settings or os.path.join(a.target, "settings.json")
+    # --settings 와 --target 은 둘 다 도구 파라미터로 노출돼 있고 여기서 합류한다. 검증을
+    # 합류 지점에 두어야 --target 이 '--settings 를 다른 이름으로 넘기는 통로'가 되지 않는다.
+    return _safe_settings_path(a.settings or os.path.join(a.target, "settings.json"))
 
 
 def cmd_hooks_install(a):
@@ -1376,6 +1389,7 @@ def main():
     p.set_defaults(func=cmd_mcp_uninstall)
 
     a = ap.parse_args()
+    a.target = _safe_target_dir(a.target)
     a.func(a)
 
 

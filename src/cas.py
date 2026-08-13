@@ -14,7 +14,7 @@ git 과 다른 점:
   3) index 에 없는 경로 = 신규, 워킹트리에 없는데 index 에 있으면 = 삭제.
 """
 from __future__ import annotations
-import argparse, json, os, re, sys, zlib, hashlib, glob as globmod, difflib
+import argparse, contextlib, json, os, re, sys, time, zlib, hashlib, glob as globmod, difflib
 from datetime import datetime
 
 # Windows 콘솔 기본 인코딩(cp949)에서 한글/em-dash 출력 시 UnicodeEncodeError 방지.
@@ -220,6 +220,10 @@ def _norm_targets(paths_):
 
 def cmd_track(args):
     p = store_paths(args.store)
+    with _snapshot_lock(p):                 # 스냅샷과 같은 config/index 를 고쳐 쓴다
+        _track_locked(p, args)
+
+def _track_locked(p, args):
     config = load_json(p["config"], {"version": 1, "tracked": []})
     added, already, not_found = [], [], []
     for path in args.paths:
@@ -244,6 +248,10 @@ def cmd_track(args):
 
 def cmd_untrack(args):
     p = store_paths(args.store)
+    with _snapshot_lock(p):                 # 스냅샷과 같은 config/index 를 고쳐 쓴다
+        _untrack_locked(p, args)
+
+def _untrack_locked(p, args):
     config = load_json(p["config"], {"version": 1, "tracked": []})
     before = len(config["tracked"])
     targets = _norm_targets(args.paths)
@@ -298,8 +306,54 @@ def cmd_status(args):
     if sum(len(result[k]) for k in ("new", "modified", "deleted")) == 0:
         print("변경 없음 (clean).")
 
+# 스냅샷은 index.json 을 read-modify-write 하고 parent 를 snaps[-1] 로 고른다. 편집(config_edit)과
+# watcher 가 이걸 동시에 도는 건 예외가 아니라 정상 흐름이다 - 편집 -> 파일 변경 -> watcher 감지가
+# 항상 겹친다. os.replace 는 쓰기만 원자적이라 시퀀스 전체는 못 막고, 두 프로세스가 같은 parent 를
+# 읽으면 이력 체인이 갈라진다. 파일 내용은 content-addressed 라 안전하지만 이력이 어긋나는 건
+# 이 도구가 파는 것 자체가 깨지는 일이다.
+# 대기 상한은 config_edit.snapshot_before 의 subprocess timeout(30s)보다 충분히 짧아야 한다 -
+# 거기서는 모든 예외가 삼켜지므로, 오래 기다리면 스냅샷이 조용히 생략된 채 편집만 진행된다.
+LOCK_WAIT_SEC = float(os.environ.get("CLAUDE_CAS_LOCK_WAIT", "8"))
+LOCK_STALE_SEC = 60.0
+
+@contextlib.contextmanager
+def _snapshot_lock(p):
+    os.makedirs(p["store"], exist_ok=True)          # init 전에도 잠글 수 있어야 한다
+    lock = os.path.join(p["store"], "snapshot.lock")
+    deadline = time.monotonic() + LOCK_WAIT_SEC
+    fd = None
+    while True:
+        try:
+            fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            break
+        except FileExistsError:
+            # 죽은 프로세스가 남긴 락은 **나이로만** 판정한다(pid 재사용을 신뢰하지 않는다).
+            try:
+                if time.time() - os.path.getmtime(lock) > LOCK_STALE_SEC:
+                    os.unlink(lock)
+                    continue
+            except OSError:
+                pass                                 # 그 사이 남이 풀었다 - 다음 루프에서 재시도
+            if time.monotonic() > deadline:
+                raise TimeoutError(f"다른 스냅샷이 진행 중입니다({LOCK_WAIT_SEC:.0f}s 대기): {lock}")
+            time.sleep(0.05)
+    try:
+        os.write(fd, json.dumps({"pid": os.getpid(), "at": datetime.now().isoformat()}).encode())
+        os.close(fd)
+        fd = None
+        yield
+    finally:
+        if fd is not None:
+            os.close(fd)
+        with contextlib.suppress(OSError):
+            os.unlink(lock)
+
 def _take_snapshot(p, message, force=False):
     """스냅샷 코어. 새 스냅샷 id 를 반환(변경 없고 force 아니면 None). cmd_snapshot/cmd_restore 공용."""
+    with _snapshot_lock(p):
+        return _take_snapshot_locked(p, message, force)
+
+def _take_snapshot_locked(p, message, force=False):
     config = load_config(p)
     index = load_json(p["index"], {})
     result, new_index = scan(p, config, index, rehash=True)
@@ -322,7 +376,10 @@ def _take_snapshot(p, message, force=False):
 
 def cmd_snapshot(args):
     p = store_paths(args.store)
-    ts, result = _take_snapshot(p, args.message, args.force)
+    try:
+        ts, result = _take_snapshot(p, args.message, args.force)
+    except TimeoutError as e:
+        print(f"스냅샷 생략: {e}"); sys.exit(1)
     if ts is None:
         print("변경 없음 — 스냅샷 생략 (--force 로 강제)")
         return
@@ -337,7 +394,12 @@ def cmd_restore(args):
     # 복원 전 현재 상태를 스냅샷으로 보존(복원도 되돌릴 수 있게).
     pre_snapshot = None
     if not args.no_snapshot:
-        pre_snapshot, _ = _take_snapshot(p, f"before restore of {os.path.basename(target)}")
+        # 되돌릴 지점을 못 만들면 복원을 하지 않는다 - 조용히 진행하면 롤백 불가 상태가 된다.
+        try:
+            pre_snapshot, _ = _take_snapshot(p, f"before restore of {os.path.basename(target)}")
+        except TimeoutError as e:
+            print(json.dumps({"ok": False, "message": f"복원 전 스냅샷 실패: {e}"}, ensure_ascii=False))
+            sys.exit(1)
     blob = _content_at(p, sid, target)
     if blob is None:
         print(json.dumps({"ok": False, "message": f"스냅샷 {sid} 에 '{target}' 내용 없음(추적 안 됨/삭제됨)"},

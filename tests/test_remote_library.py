@@ -303,7 +303,7 @@ class ScanRecords(unittest.TestCase):
         self.tmp = tempfile.mkdtemp(prefix="scanrec_test_")
         self.store = os.path.join(self.tmp, "store")
         self.lib = os.path.join(self.tmp, "kit", ".claude")
-        self.target = os.path.join(self.tmp, "live")
+        self.target = os.path.join(self.tmp, ".claude")
         os.makedirs(os.path.join(self.lib, "agents"))
         with open(os.path.join(self.lib, "agents", "a1.md"), "w", encoding="utf-8") as f:
             f.write("agent body\n")
@@ -404,7 +404,7 @@ class ScanEnumerationErrors(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="scanerr_test_")
         self.store = os.path.join(self.tmp, "store")
-        self.target = os.path.join(self.tmp, "live")
+        self.target = os.path.join(self.tmp, ".claude")
         self.lib = os.path.join(self.tmp, "kit", ".claude")
         os.makedirs(os.path.join(self.lib, "skills", "s1"))
         with open(os.path.join(self.lib, "skills", "s1", "SKILL.md"), "w", encoding="utf-8") as f:
@@ -506,7 +506,7 @@ class ConflictStatus(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="conflict_test_")
         self.store = os.path.join(self.tmp, "store")
-        self.target = os.path.join(self.tmp, "live")
+        self.target = os.path.join(self.tmp, ".claude")
         os.makedirs(self.target)
         self.libA = self._mkkit("kitA", "from A\n")
         self.libB = self._mkkit("kitB", "from B\n")
@@ -588,7 +588,7 @@ class RemoteAdd(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="remoteadd_test_")
         self.store = os.path.join(self.tmp, "store")
-        self.target = os.path.join(self.tmp, "live")
+        self.target = os.path.join(self.tmp, ".claude")
         self.origin = os.path.join(self.tmp, "origin")
         os.makedirs(os.path.join(self.origin, "Skills", "s1"))
         os.makedirs(os.path.join(self.origin, "Agents"))
@@ -941,7 +941,7 @@ class MarketAdd(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="market_test_")
         self.store = os.path.join(self.tmp, "store")
-        self.target = os.path.join(self.tmp, "live")
+        self.target = os.path.join(self.tmp, ".claude")
         self.origin = os.path.join(self.tmp, "mk")
         os.makedirs(os.path.join(self.origin, ".claude-plugin"))
         # 번들 플러그인 1개(str-path) + 외부 1개(url)
@@ -1706,7 +1706,7 @@ class HooksInstall(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="hooksinst_test_")
         self.store = os.path.join(self.tmp, "store")
-        self.target = os.path.join(self.tmp, "live")
+        self.target = os.path.join(self.tmp, ".claude")
         os.makedirs(self.target)
         self.settings = os.path.join(self.target, "settings.json")
         with open(self.settings, "w", encoding="utf-8") as f:
@@ -2072,7 +2072,7 @@ class HooksUninstallStructural(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="hooksuninst_test_")
         self.store = os.path.join(self.tmp, "store")
-        self.target = os.path.join(self.tmp, "live")
+        self.target = os.path.join(self.tmp, ".claude")
         os.makedirs(self.target)
         self.settings = os.path.join(self.target, "settings.json")
         # settings.json 에 사용자 자신의 Stop hook 을 미리 심는다 - 플러그인 것과 같은
@@ -2167,7 +2167,7 @@ class ScanHooksMcpFlags(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="scanflags_test_")
         self.store = os.path.join(self.tmp, "store")
-        self.target = os.path.join(self.tmp, "live")
+        self.target = os.path.join(self.tmp, ".claude")
         run(CAS, "--store", self.store, "init")
 
         self.lib_both = os.path.join(self.tmp, "plugin-both")
@@ -2451,7 +2451,7 @@ class MarketSourceForms(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="mksrc_test_")
         self.store = os.path.join(self.tmp, "store")
-        self.target = os.path.join(self.tmp, "live")
+        self.target = os.path.join(self.tmp, ".claude")
         self.local = os.path.join(self.tmp, "localmk")
         os.makedirs(os.path.join(self.local, ".claude-plugin"))
         with open(os.path.join(self.local, ".claude-plugin", "marketplace.json"),
