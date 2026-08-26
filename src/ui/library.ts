@@ -257,7 +257,19 @@ function renderCategory(cat: string, items: any[], title: string, hint: string):
   });
 }
 
-// hooks/MCP 카테고리: 라이브러리(플러그인 루트) 단위 행. 항목 복사가 아니라 설정 파일 병합이라
+// hooks/MCP 유닛 = 라이브러리 루트 자체(플러그인 루트가 곧 라이브러리) + 그 하위 도구 디렉토리(units).
+// 유닛은 부모의 칩(등록 해제 버튼)을 갖지 않으므로 행으로만 펼치고 라이브러리 목록에는 섞지 않는다.
+function unitRows(libs: any[], kind: "hooks" | "mcp"): any[] {
+  const flag = kind === "hooks" ? "has_hooks" : "has_mcp";
+  const out: any[] = [];
+  for (const l of libs) {
+    if (l[flag]) out.push(l);
+    for (const u of l.units || []) if (u[flag]) out.push({ ...u, source: l.source, parent_origin: l.origin });
+  }
+  return out;
+}
+
+// hooks/MCP 카테고리: 유닛(플러그인 루트) 단위 행. 항목 복사가 아니라 설정 파일 병합이라
 // 체크박스 일괄 설치에 섞지 않는다 - 매 세션 실행되는 코드라 한 건씩 확인받아야 한다.
 function renderUnitCategory(kind: "hooks" | "mcp", libs: any[], title: string, hint: string): HTMLElement {
   const installed = libs.filter((l) => (kind === "hooks" ? l.hooks_installed : l.mcp_installed)).length;
@@ -393,14 +405,14 @@ function mkUnitRow(l: any, kind: "hooks" | "mcp"): HTMLElement {
   row.className = "libskill librow";
   const nm = document.createElement("span");
   nm.className = "sknm";
-  nm.textContent = originShort(l.origin);
+  nm.textContent = l.name || originShort(l.origin);
   nm.title = l.lib;
   const bd = document.createElement("span");
   bd.className = "badge libstat" + (installed ? " ok" : "");
   bd.textContent = installed ? t("libInstalled") : t("libNotInstalled");
   const detail = kind === "hooks" ? (l.hooks_events || []) : (l.mcp_servers || []);
   if (installed && detail.length) bd.title = detail.join(", ");
-  row.append(nm, mkSrcTag(l.origin, l.lib), bd, mkUnitActions(l, kind, installed));
+  row.append(nm, mkSrcTag(l.parent_origin || l.origin, l.lib), bd, mkUnitActions(l, kind, installed));
   return row;
 }
 
@@ -447,10 +459,8 @@ function renderLibrary(host: HTMLElement, res: any): void {
     body.appendChild(renderCategory("agents", byCat.agents, "Agents", "agents/*.md"));
     body.appendChild(renderCategory("commands", byCat.commands, "Commands", "commands/*.md"));
     body.appendChild(renderCategory("skills", byCat.skills, "Skills", "skills/<name>/SKILL.md"));
-    body.appendChild(renderUnitCategory("hooks", libs.filter((l: any) => l.has_hooks),
-                                        "Hooks", t("unitHooksHint")));
-    body.appendChild(renderUnitCategory("mcp", libs.filter((l: any) => l.has_mcp),
-                                        "MCP", t("unitMcpHint")));
+    body.appendChild(renderUnitCategory("hooks", unitRows(libs, "hooks"), "Hooks", t("unitHooksHint")));
+    body.appendChild(renderUnitCategory("mcp", unitRows(libs, "mcp"), "MCP", t("unitMcpHint")));
   }
   // 다중 라이브러리 경로 관리(전체 폭): 등록된 경로 목록(제거 가능) + 신규 경로 등록 입력행.
   // env(CLAUDE_CONFIG_LIBRARIES) 지정 경로는 대시보드에서 제거 불가 -> env 태그만 표시.

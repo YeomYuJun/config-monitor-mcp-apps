@@ -265,6 +265,38 @@ def _status_ex(cfg, target_root, category, leaf, src, tgt, kind, origin):
     return _status(src, tgt, kind), owner
 
 
+def _unit_flags(cfg, target, root, origin):
+    """hooks/mcp 보유·설치 플래그. 라이브러리 루트 행과 하위 유닛 행이 같은 규칙을 쓴다.
+
+    hooks/mcp 설치 버튼이 이 플래그에 매달린다(cmd_plugin_fetch 응답에만 있었다 - Task 22
+    UI 는 scan 행을 쓰므로 여기 없으면 버튼이 안 뜬다). root 가 없어도 os.path.exists 는
+    예외 없이 False 를 준다 - os.walk 가 아니라 exists 2회뿐이라 실패할 여지도 없다.
+    설치 여부는 원장(타깃 기준)에서 읽는다. 원장 키는 플러그인 **이름**이라 서로 다른
+    마켓의 동명 플러그인이 한 칸을 공유한다 - origin 이 일치할 때만 "설치됨"으로 본다
+    (남의 설치를 내 행의 배지로 표시하고 제거 버튼까지 띄우는 오작동 방지)."""
+    uname = _unit_name(origin)
+    hrec = lib_store.ledger_get(cfg, target, "hooks", uname) or {}
+    mrec = lib_store.ledger_get(cfg, target, "mcp", uname) or {}
+    h_own = hrec.get("origin") == origin
+    m_own = mrec.get("origin") == origin
+    return {"has_hooks": os.path.exists(os.path.join(root, plugin_units.HOOKS_REL)),
+            "has_mcp": plugin_units.has_mcp(root),   # .mcp.json + plugin.json 인라인 둘 다
+            "hooks_installed": h_own, "mcp_installed": m_own,
+            "hooks_events": hrec.get("events", []) if h_own else [],
+            "mcp_servers": mrec.get("servers", []) if m_own else []}
+
+
+def _unit_rows(cfg, target, lib):
+    """라이브러리 하위 도구 디렉토리(hooks/hooks.json 또는 MCP 선언 보유) 행. origin 은
+    local:<그 경로> 라 hooks/mcp-install 이 그대로 치환 루트로 쓴다(_resolve_origin_root)."""
+    rows = []
+    for root in plugin_units.find_units(lib):
+        origin = _origin_local(root)
+        rows.append({"lib": root, "name": os.path.basename(root), "origin": origin,
+                     **_unit_flags(cfg, target, root, origin)})
+    return rows
+
+
 def cmd_scan(a):
     try:
         recs = _recs_for(a, register_new=True)
@@ -278,29 +310,12 @@ def cmd_scan(a):
     result = []
     for rec in recs:
         lib, src, origin, cmap = rec["lib"], rec["source"], rec["origin"], rec["map"]
-        # hooks/mcp 설치 버튼이 이 행에 매달린다(cmd_plugin_fetch 응답에만 있었다 - Task 22
-        # UI 는 scan 행을 쓰므로 여기 없으면 버튼이 안 뜬다). lib 가 없어도(경로 없음 분기로
-        # 빠지기 전) os.path.exists 는 예외 없이 False 를 준다 - os.walk 가 아니라 exists 2회뿐이라
-        # 카테고리 나열과 달리 실패할 여지도, 느려질 여지도 없다.
-        has_hooks = os.path.exists(os.path.join(lib, plugin_units.HOOKS_REL))
-        has_mcp = plugin_units.has_mcp(lib)   # .mcp.json + plugin.json 인라인 둘 다(위 주석 참고)
-        # 설치 여부는 원장(타깃 기준)에서 읽는다. 원장 키는 플러그인 **이름**이라 서로 다른
-        # 마켓의 동명 플러그인이 한 칸을 공유한다 - origin 이 일치할 때만 "설치됨"으로 본다
-        # (남의 설치를 내 행의 배지로 표시하고 제거 버튼까지 띄우는 오작동 방지).
-        uname = _unit_name(origin)
-        hrec = lib_store.ledger_get(cfg, a.target, "hooks", uname) or {}
-        mrec = lib_store.ledger_get(cfg, a.target, "mcp", uname) or {}
-        h_own = hrec.get("origin") == origin
-        m_own = mrec.get("origin") == origin
-        row = {"lib": lib, "source": src, "origin": origin, "has_hooks": has_hooks, "has_mcp": has_mcp,
-               "marketplace": _is_marketplace(lib),
-               "hooks_installed": h_own, "mcp_installed": m_own,
-               "hooks_events": hrec.get("events", []) if h_own else [],
-               "mcp_servers": mrec.get("servers", []) if m_own else [],
-               **meta.get(origin, {})}
+        row = {"lib": lib, "source": src, "origin": origin, "marketplace": _is_marketplace(lib),
+               **_unit_flags(cfg, a.target, lib, origin), **meta.get(origin, {})}
         if not os.path.isdir(lib):
-            result.append({**row, "error": "경로 없음", "categories": {}})
+            result.append({**row, "error": "경로 없음", "categories": {}, "units": []})
             continue
+        row["units"] = _unit_rows(cfg, a.target, lib)
         cats = {}
         enum_errors = []
         for category in CATEGORIES:

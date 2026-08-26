@@ -440,7 +440,7 @@ export function buildTools(scriptDir: string): ToolDef[] {
       name: "library_scan",
       meta: {
         title: "Scan Personal Library",
-        description: "라이브러리(로컬 등록분 + env + 원격/마켓 캐시)의 agents/skills/commands 를 열거하고 라이브 설정과 해시 비교해 4상태(not_installed/installed/modified/conflict) 반환. 각 행에 source(env|registered|remote|market)·origin·고정 sha·fetched_at, 각 항목에 origin 과 conflict 시 owner 를 붙인다. **네트워크를 타지 않는다**(오프라인 동작 보장). lib 지정 시 신규 등록 후 스캔",
+        description: "라이브러리(로컬 등록분 + env + 원격/마켓 캐시)의 agents/skills/commands 를 열거하고 라이브 설정과 해시 비교해 4상태(not_installed/installed/modified/conflict) 반환. 각 행에 source(env|registered|remote|market)·origin·고정 sha·fetched_at, 각 항목에 origin 과 conflict 시 owner 를 붙인다. 각 행의 units 에는 라이브러리 하위(깊이 2)에서 hooks/hooks.json·.mcp.json 을 가진 도구 디렉토리가 자체 origin(local:<경로>)과 함께 실린다 - hooks/mcp-install 에 그 origin 을 그대로 쓴다. **네트워크를 타지 않는다**(오프라인 동작 보장). lib 지정 시 신규 등록 후 스캔",
         inputSchema: z.object({
           lib: z.string().optional().describe("라이브러리 루트 경로(.claude 구조 디렉토리). 최초 1회 등록용"),
           targetDir: z.string().optional().describe("설치/비교 대상 .claude 루트(기본 ~/.claude). 프로젝트-로컬 스캔 시 지정"),

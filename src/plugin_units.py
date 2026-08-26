@@ -78,6 +78,38 @@ def has_mcp(plugin_root: str) -> bool:
         return False
 
 
+UNIT_SKIP = ("node_modules", "__pycache__")
+
+
+def is_unit(root: str) -> bool:
+    return os.path.exists(os.path.join(root, HOOKS_REL)) or has_mcp(root)
+
+
+def find_units(lib: str, depth: int = 2) -> list:
+    """lib 아래 깊이 depth 까지에서 hooks/hooks.json 또는 MCP 선언을 가진 디렉토리.
+
+    라이브러리 하나가 도구 여러 개를 나란히 담는 구조(Hooks/<name>, servers/<name>)를 위한
+    것이라 lib 자체는 제외하고(루트는 호출부가 따로 본다) 유닛 안으로는 더 내려가지 않는다.
+    나열 실패는 그 가지만 포기한다 - 목록 전체가 비는 것보다 한 가지가 빠지는 쪽이 낫다."""
+    found = []
+
+    def walk(d, level):
+        try:
+            entries = sorted(os.scandir(d), key=lambda e: e.name)
+        except OSError:
+            return
+        for e in entries:
+            if e.name.startswith(".") or e.name in UNIT_SKIP or not e.is_dir(follow_symlinks=False):
+                continue
+            if is_unit(e.path):
+                found.append(e.path)
+            elif level < depth:
+                walk(e.path, level + 1)
+
+    walk(lib, 1)
+    return found
+
+
 def hook_commands(hooks_cfg) -> list:
     """파싱된 구조에서 모든 command 문자열을 뽑는다(정규식 금지).
 
@@ -97,36 +129,48 @@ def _norm(p):
     return os.path.normcase(os.path.normpath(p))
 
 
-def entry_refs_root(entry, root: str) -> bool:
-    """이 hook 엔트리가 root 아래를 가리키는가.
+def hook_refs_root(hook, root: str) -> bool:
+    """이 hook 하나가 root 아래를 가리키는가.
 
     **문자열 매칭을 쓰지 않는다.** config_edit.op_hook_remove 는
     `needle not in json.dumps(h, ensure_ascii=False)` 로 직렬화 결과에 매칭하는데,
     JSON 이 \\ 를 \\\\ 로 이스케이프하므로 raw Windows 경로 needle 은 영원히 0건이 된다.
     조용히 실패해서 재설치마다 엔트리가 중복 누적된다(findings.md §8 실측).
 
-    대신 파싱된 구조의 command 를 직접 읽고 정규화 경로로 비교한다.
-    entry 가 None 이면 아무것도 가리키지 않는다(False) - 크래시 대신 no-op."""
+    대신 파싱된 구조의 command 를 직접 읽고 정규화 경로로 비교한다."""
+    c = hook.get("command") if isinstance(hook, dict) else None
+    if not isinstance(c, str):
+        return False
+    # 명령은 따옴표/인자와 섞여 있다. 정규화 후 접두 비교로 판정한다.
+    return _norm(root) in _norm(c)
+
+
+def entry_refs_root(entry, root: str) -> bool:
+    """엔트리의 hook 중 하나라도 root 를 가리키는가. entry 가 None 이면 False - 크래시 대신 no-op."""
     if not entry:
         return False
-    want = _norm(root)
-    for h in (entry.get("hooks") or []):
-        c = h.get("command")
-        if not isinstance(c, str):
-            continue
-        # 명령은 따옴표/인자와 섞여 있다. 정규화 후 접두 비교로 판정한다.
-        if want in _norm(c):
-            return True
-    return False
+    return any(hook_refs_root(h, root) for h in (entry.get("hooks") or []))
 
 
 def hooks_remove(settings: dict, root: str):
-    """settings 에서 root 를 가리키는 hook 엔트리를 전부 제거. (settings, 제거수)."""
+    """settings 에서 root 를 가리키는 hook 을 전부 제거. (settings, 제거한 hook 수).
+
+    엔트리가 아니라 **hook 단위**로 지운다. 한 엔트리(같은 matcher)에 다른 도구의 hook 이
+    나란히 들어 있을 수 있어서(실측: PostToolUse Edit|Write 한 엔트리에 comment-linter 와
+    convention-enforcer), 엔트리째 지우면 남의 hook 이 딸려 나간다. hook 이 하나도 안 남은
+    엔트리만 떨어진다."""
     hooks = settings.get("hooks") or {}
     removed = 0
     for event in list(hooks):
-        keep = [e for e in hooks[event] if not entry_refs_root(e, root)]
-        removed += len(hooks[event]) - len(keep)
+        keep = []
+        for e in hooks[event]:
+            hs = (e.get("hooks") or []) if isinstance(e, dict) else []
+            left = [h for h in hs if not hook_refs_root(h, root)]
+            removed += len(hs) - len(left)
+            if len(left) == len(hs):
+                keep.append(e)
+            elif left:
+                keep.append({**e, "hooks": left})
         if keep:
             hooks[event] = keep
         else:
@@ -139,7 +183,7 @@ def hooks_remove(settings: dict, root: str):
 
 
 def hooks_merge(settings: dict, hooks_cfg, new_root: str, old_root=None):
-    """hooks.json 을 matcher·timeout 그대로 병합. (settings, 제거수, 추가수).
+    """hooks.json 을 matcher·timeout 그대로 병합. (settings, 제거 hook 수, 추가 hook 수).
 
     hooks_cfg 가 None 이면(플러그인에 hooks.json 자체가 없는 흔한 경우 - load_hooks_json 이
     돌려주는 값) 아무것도 하지 않는다.
@@ -177,9 +221,9 @@ def hooks_merge(settings: dict, hooks_cfg, new_root: str, old_root=None):
             continue                                  # 빈 배열은 빈 키를 만들지 않는다
         existing = hooks.get(event, [])
         keep = [e for e in existing if e not in entries]   # identity 기반 제거
-        removed += len(existing) - len(keep)
+        removed += sum(len(e.get("hooks") or []) for e in existing if e in entries)
         hooks[event] = keep + entries
-        added += len(entries)
+        added += sum(len(e.get("hooks") or []) for e in entries)
     if hooks:
         settings["hooks"] = hooks
     else:

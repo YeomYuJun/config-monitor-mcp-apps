@@ -174,6 +174,8 @@ Each marketplace header also carries the Claude Code side of the same registrati
 
 Plugins can also carry hooks and MCP servers. These aren't copied into `~/.claude` like skills are: some plugins reference files that sit *beside* their `hooks/` folder, so the whole plugin root stays in the cache and the config points at it. That makes the cache load-bearing, which is why unregistering a source is refused while installed hooks still reference it — the dashboard tells you what's holding it rather than breaking your config.
 
+A local library can hold several such tools side by side. Any subdirectory up to two levels down that carries `hooks/hooks.json` or `.mcp.json` (for example `Hooks/<name>/` or `servers/<name>/`) is listed as its own unit, installed and removed independently, with `${CLAUDE_PLUGIN_ROOT}` resolved to that directory — the same declaration files a plugin would ship, without turning the library into a marketplace.
+
 Because installing a hook means arbitrary code runs every session, the confirmation step shows the **exact commands** that will be written, with the cache path already substituted in. Interpreters that won't actually run are flagged — on Windows, `python3` commonly resolves to a Microsoft Store alias stub that is found on `PATH` but fails on execution. That's shown as a warning, never a block.
 
 MCP servers can target Claude Code or **Claude Desktop**. Desktop has no plugin marketplace of its own, so this is currently the only way to get a plugin's MCP server into it.

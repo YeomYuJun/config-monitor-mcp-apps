@@ -1654,6 +1654,30 @@ class HooksMerge(Substitution):
         s, again = plugin_units.hooks_remove(s, self.root)
         self.assertEqual(again, 0)
 
+    def test_remove_keeps_other_tools_hooks_in_a_shared_entry(self):
+        # 실측: PostToolUse Edit|Write 한 엔트리에 두 도구의 hook 이 나란히 있다. 엔트리째
+        # 지우면 남의 hook 이 딸려 나간다 - 내 hook 만 빠지고 엔트리와 matcher 는 남아야 한다.
+        import plugin_units
+        mine = {"type": "command", "command": 'node "' + self.root + '/index.js"'}
+        theirs = {"type": "command", "command": 'node "D:/elsewhere/comment-linter/index.js"'}
+        s = {"hooks": {"PostToolUse": [{"matcher": "Edit|Write", "hooks": [theirs, mine]}]}}
+        s, removed = plugin_units.hooks_remove(s, self.root)
+        self.assertEqual(removed, 1)
+        self.assertEqual(s["hooks"]["PostToolUse"], [{"matcher": "Edit|Write", "hooks": [theirs]}])
+
+    def test_merge_into_a_shared_entry_replaces_only_its_own_hook(self):
+        import plugin_units
+        theirs = {"type": "command", "command": 'node "D:/elsewhere/comment-linter/index.js"'}
+        old = {"type": "command", "command": 'python3 "' + self.root + '/hooks/post.py"', "timeout": 10}
+        s = {"hooks": {"PostToolUse": [{"matcher": "Edit|Write", "hooks": [theirs, old]}]}}
+        cfg = plugin_units.load_hooks_json(self.root)
+        s, removed, added = plugin_units.hooks_merge(s, cfg, self.root, self.root)
+        self.assertEqual((removed, added), (1, 2))
+        post = s["hooks"]["PostToolUse"]
+        self.assertEqual(post[0], {"matcher": "Edit|Write", "hooks": [theirs]})
+        self.assertEqual(len(post), 2)
+        self.assertIn(self.root, post[1]["hooks"][0]["command"])
+
 
 class InterpreterCheck(unittest.TestCase):
     """인터프리터 사전 점검: 없음 / WindowsApps 스텁 / 정상. 차단이 아니라 경고다."""
@@ -2214,6 +2238,58 @@ class ScanHooksMcpFlags(unittest.TestCase):
         self.assertEqual(row.get("error"), "경로 없음")
         self.assertFalse(row["has_hooks"])
         self.assertFalse(row["has_mcp"])
+        self.assertEqual(row["units"], [])
+
+    def test_sub_units_are_listed_and_install_by_their_own_origin(self):
+        # 라이브러리 하나가 도구 여러 개를 나란히 담는 구조(Hooks/<name>, servers/<name>). 루트에
+        # 매니페스트가 없어도 하위 유닛이 각자 행으로 나와야 설치 버튼이 뜨고, 유닛 origin 으로
+        # 설치하면 치환 루트가 라이브러리가 아니라 그 유닛 디렉토리여야 한다.
+        lib = os.path.join(self.tmp, "tools")
+        alpha = os.path.join(lib, "Hooks", "alpha")
+        os.makedirs(os.path.join(alpha, "hooks"))
+        with open(os.path.join(alpha, "hooks", "hooks.json"), "w", encoding="utf-8") as f:
+            json.dump({"hooks": {"Stop": [{"hooks": [{"type": "command",
+                       "command": 'node "${CLAUDE_PLUGIN_ROOT}/index.js"'}]}]}}, f)
+        beta = os.path.join(lib, "servers", "beta")
+        os.makedirs(beta)
+        with open(os.path.join(beta, ".mcp.json"), "w", encoding="utf-8") as f:
+            json.dump({"mcpServers": {"beta": {"command": "python",
+                                               "args": ["${CLAUDE_PLUGIN_ROOT}/s.py"]}}}, f)
+        os.makedirs(os.path.join(lib, "Hooks", "bare"))                        # 매니페스트 없음
+        deep = os.path.join(lib, "deep", "x", "gamma", "hooks")                # 깊이 3 - 안 본다
+        os.makedirs(deep)
+        with open(os.path.join(deep, "hooks.json"), "w", encoding="utf-8") as f:
+            json.dump({"hooks": {}}, f)
+        os.makedirs(self.target)
+        with open(os.path.join(self.target, "settings.json"), "w", encoding="utf-8") as f:
+            json.dump({}, f)
+        import lib_store
+        cfg = lib_store.load_cfg(self.store)
+        cfg["libraries"].append(lib)
+        lib_store.save_cfg(self.store, cfg)
+
+        row = self._rows()[lib]
+        self.assertFalse(row["has_hooks"])
+        self.assertFalse(row["has_mcp"])
+        units = {u["name"]: u for u in row["units"]}
+        self.assertEqual(sorted(units), ["alpha", "beta"])
+        self.assertTrue(units["alpha"]["has_hooks"])
+        self.assertFalse(units["alpha"]["has_mcp"])
+        self.assertTrue(units["beta"]["has_mcp"])
+        self.assertFalse(units["beta"]["has_hooks"])
+        self.assertTrue(units["alpha"]["origin"].startswith("local:"))
+
+        rc, out, err = self.libcmd("hooks-install", "--origin", units["alpha"]["origin"], "--dry-run")
+        self.assertEqual(rc, 0, err)
+        dry = json.loads(out)
+        self.assertTrue(dry["ok"], dry)
+        self.assertIn(os.path.normcase(alpha), os.path.normcase(dry["commands"][0]))
+        rc, out, err = self.libcmd("hooks-install", "--origin", units["alpha"]["origin"])
+        self.assertEqual(rc, 0, err)
+        self.assertTrue(json.loads(out)["ok"], out)
+        unit = {u["name"]: u for u in self._rows()[lib]["units"]}["alpha"]
+        self.assertTrue(unit["hooks_installed"])
+        self.assertEqual(unit["hooks_events"], ["Stop"])
 
 
 class ClassifySource(unittest.TestCase):
