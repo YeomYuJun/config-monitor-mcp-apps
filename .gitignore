@@ -30,3 +30,8 @@ trash/
 # packaging
 pack-source.ps1
 
+
+# local session state (state-injector hook) / working notes
+.state/
+marketplace-info/
+marketplace-info.zip
