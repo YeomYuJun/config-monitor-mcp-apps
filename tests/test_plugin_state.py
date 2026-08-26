@@ -18,7 +18,7 @@ SRC = os.path.join(os.path.dirname(HERE), "src")
 EDIT = os.path.join(SRC, "config_edit.py")
 sys.path.insert(0, SRC)
 sys.path.insert(0, HERE)
-from test_smoke import run       # noqa: E402
+from test_smoke import run, LIB  # noqa: E402
 
 import plugin_state              # noqa: E402
 import plugin_units              # noqa: E402
@@ -224,6 +224,20 @@ class MarketDiscovery(Fixture):
     def test_source_without_url_is_not_a_candidate(self):
         self._markets({"local": {"source": {"source": "path", "path": "/x"}}})
         self.assertEqual(plugin_state.import_candidates(self.pdir, []), [])
+
+    def test_unusable_reason_names_the_actual_kind(self):
+        # URL 이 없는 종류는 로컬 경로만이 아니다(npm · settings · seeded). 사유를 한 종류로
+        # 못박으면 나머지에 거짓말이 된다 - kind 를 그대로 싣는지 본다.
+        self._markets({"pkg": {"source": {"source": "npm", "package": "some-pkg"}},
+                       "dir": {"source": {"source": "directory", "path": "/x/y"}}})
+        store = os.path.join(self.tmp, "store")
+        rc, out, err = run(LIB, "--store", store, "market-discover", "--plugins-dir", self.pdir)
+        self.assertEqual(rc, 0, err)
+        by = {r["name"]: r for r in json.loads(out)["unusable"]}
+        self.assertIn("npm", by["pkg"]["reason"])
+        self.assertNotIn("로컬 경로", by["pkg"]["reason"])
+        self.assertIn("directory", by["dir"]["reason"])
+        self.assertIn("/x/y", by["dir"]["reason"])       # 어느 디렉토리인지까지 말한다
 
 
 class CardScopeTagging(Fixture):

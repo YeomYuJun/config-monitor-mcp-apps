@@ -42,6 +42,9 @@ _LOCAL_PREFIXES = ("./", "../", ".\\", "..\\")
 _DRIVE_ABS_RE = re.compile(r"^[A-Za-z]:[\\/]")   # os.path.isabs 는 OS 마다 답이 달라 판정이 흔들린다
 _JSON_SCHEMES = ("http://", "https://")          # JSON 본문은 http(s) 로만 받는다
 _GENERIC_JSON_STEMS = ("marketplace", "index")   # 파일명이 이거면 id 로 쓸 정보가 없다
+# 축약에 붙는 ref: owner/repo#branch · owner/repo@tag (Claude Code 의 Add Marketplace 와 같은 형식).
+# 떼어내지 않으면 '#'/'@' 가 세그먼트 검증을 통과해 URL 뒤에 붙고 clone 단계에서야 깨진다.
+_SHORTHAND_REF_RE = re.compile(r"^([^#@]+)[#@](.+)$")
 
 
 class ManifestError(Exception):
@@ -220,12 +223,12 @@ def _local_source(p):
     real = os.path.realpath(p)
     if not os.path.isdir(real):
         raise ManifestError(f"로컬 마켓 경로가 디렉토리가 아닙니다: {p!r}")
-    return {"kind": "local", "url": None, "path": real,
+    return {"kind": "local", "url": None, "path": real, "ref": None,
             "id": _safe_id(os.path.basename(real.rstrip("\\/")))}
 
 
 def classify_source(src: str) -> dict:
-    """마켓 소스 문자열을 {"kind": "git"|"json"|"local", "url", "path", "id"} 로 판별.
+    """마켓 소스 문자열을 {"kind": "git"|"json"|"local", "url", "path", "ref", "id"} 로 판별.
 
     id 는 **제안값**이다 - 최종 id 는 library 가 --id 와 중복 검사를 거쳐 정한다.
 
@@ -236,7 +239,7 @@ def classify_source(src: str) -> dict:
     판정 순서가 곧 규칙이다:
       1) 명시적 로컬 표기(./ ../ 절대경로 드라이브)  - 축약보다 먼저 본다
       2) 허용 스킴 URL / scp 스타일
-      3) owner/repo 축약
+      3) owner/repo 축약 - 뒤에 #ref / @ref 가 붙으면 떼어 ref 로 돌려준다
       4) 마지막에만 '존재하는 디렉토리'로 본다 - 이 검사를 3)보다 앞에 두면 cwd 아래에
          우연히 owner/repo 디렉토리가 있는 사람에게만 축약이 로컬로 바뀐다(cwd 의존)."""
     if not isinstance(src, str) or not src.strip():
@@ -259,15 +262,19 @@ def classify_source(src: str) -> dict:
             # ssh/git/file 로 온 .json 은 등록해봤자 영원히 못 가져온다 - 여기서 끊는다.
             if not low.startswith(_JSON_SCHEMES):
                 raise ManifestError(f"marketplace.json 은 http/https 로만 받습니다: {s!r}")
-            return {"kind": "json", "url": s, "path": None, "id": _id_for_json(s)}
-        return {"kind": "git", "url": s, "path": None, "id": _id_for_git(s)}
+            return {"kind": "json", "url": s, "path": None, "ref": None, "id": _id_for_json(s)}
+        return {"kind": "git", "url": s, "path": None, "ref": None, "id": _id_for_git(s)}
 
-    if s.count("/") == 1:
-        owner, repo = s.split("/")
+    base, ref = s, None
+    m = _SHORTHAND_REF_RE.match(s)
+    if m:
+        base, ref = m.group(1), _validate_ref(m.group(2), "마켓 소스 ref")
+    if base.count("/") == 1:
+        owner, repo = base.split("/")
         safe_segment(owner, "마켓 소스")
         safe_segment(repo, "마켓 소스")
         return {"kind": "git", "url": f"https://github.com/{owner}/{repo}.git",
-                "path": None, "id": _safe_id(repo)}
+                "path": None, "id": _safe_id(repo), "ref": ref}
 
     if os.path.isdir(s):
         return _local_source(s)

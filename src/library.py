@@ -721,7 +721,10 @@ def cmd_market_add(a):
     cache = repo
     try:
         if kind == "git":
-            sha = remote_fetch.materialize(repo, url, ref=a.ref or None, sparse=[".claude-plugin"])
+            # 축약에 붙여 온 ref(owner/repo#branch)를 명시적 --ref 보다 우선한다 - 사용자가
+            # 방금 소스 문자열에 적은 쪽이 더 구체적인 의사표시다.
+            sha = remote_fetch.materialize(repo, url, ref=cs.get("ref") or a.ref or None,
+                                           sparse=[".claude-plugin"])
         elif kind == "json":
             sha = remote_fetch.fetch_manifest_json(repo, url)
         else:
@@ -788,11 +791,13 @@ def cmd_market_discover(a):
     new, both, unusable = [], [], []
     for name, m in sorted(plugin_state.read_markets(pdir).items()):
         row = {"name": name, "kind": m["kind"], "repo": m["repo"], "url": m["url"],
-               "claude_updated": m["updated"]}
+               "path": m["path"], "claude_updated": m["updated"]}
         if not m["url"]:
-            # 로컬 경로로 등록된 마켓(source=path 등)은 URL 이 없어 가져올 수 없다.
-            # 조용히 빼면 "왜 N개가 아니지"가 되므로 이유와 함께 돌려준다.
-            unusable.append({**row, "reason": "URL 이 없는 소스(로컬 경로 등록)"})
+            # 조용히 빼면 "왜 N개가 아니지"가 되므로 이유와 함께 돌려준다. 사유를 한 종류로
+            # 못박지 않는다 - URL 이 없는 종류는 file/directory(로컬 경로) 말고도 npm ·
+            # settings · seeded 가 있어서, 하나로 적으면 나머지에 거짓말이 된다.
+            unusable.append({**row, "reason": f"가져올 URL 이 없는 소스: {m['kind'] or '알 수 없음'}"
+                                              + (f" ({m['path']})" if m["path"] else "")})
             continue
         got = mine.get(plugin_state.norm_url(m["url"]))
         if got:

@@ -882,6 +882,24 @@ class DesktopPathResolve(unittest.TestCase):
 
 
 class ClaudeConfigDump(unittest.TestCase):
+    def test_report_does_not_let_a_card_value_close_the_script_tag(self):
+        # Report 는 상태 JSON 을 <script> 안에 굽는다. json.dumps 는 '<' 를 이스케이프하지
+        # 않으므로 description 안의 "</script>" 가 태그를 닫고 뒤가 HTML 로 파싱됐다 -
+        # 그 값은 마켓/플러그인/claude.ai 에서 온 원격 저작물이다.
+        if SRC not in sys.path:
+            sys.path.insert(0, SRC)
+        import claude_config
+        payload = "</script><img src=x onerror=alert(1)>"
+        html = claude_config.make_html({
+            "generated": "t", "sources": {},
+            "sections": [{"title": "S", "source": "f", "cards": [
+                {"name": "evil", "badge": "", "ok": False, "kv": [["desc", payload]]}]}],
+        })
+        self.assertNotIn("</script><img", html)
+        self.assertIn("\\u003c/script\\u003e", html)
+        # 스크립트 블록은 템플릿이 닫는 그 하나뿐이어야 한다.
+        self.assertEqual(html.count("</script>"), 1)
+
     def test_dump_no_unicode_crash(self):
         # 핵심 회귀 가드: PYTHONUTF8/IOENCODING 없이도(=스크립트 내 reconfigure) 죽지 않아야.
         env = {k: v for k, v in os.environ.items() if k not in ("PYTHONUTF8", "PYTHONIOENCODING")}

@@ -25,9 +25,11 @@ Claude Code 원장에는 "12개 중 3개를 설치했음"을 담을 필드가 **
 - **enable / disable**: `claude plugin enable|disable` 이 있지만 쓰지 않는다. 그 조작은
   settings.json 의 enabledPlugins 한 키를 뒤집는 게 전부라서, config_edit.op_plugin_toggle 로
   직접 쓰면 스냅샷 + .bak + 원자적 쓰기 + 롤백이 공짜로 붙고 claude 가 PATH 에 없어도 된다.
-- **auto-update / favorites / mark-for-update**: TUI 에만 있고 CLI 서브커맨드가 없다.
-  `~/.claude` 전체를 훑어도 저장 흔적이 없어(settings.json 의 autoUpdatesChannel 은 Claude Code
-  자체 업데이터다) 저장 키를 추측할 수밖에 없다. 추측으로 남의 설정 파일에 키를 만들지 않는다.
+- **auto-update / favorites / mark-for-update**: 셋 다 CLI 서브커맨드가 없다(`claude plugin
+  marketplace` 는 add/list/remove/update 뿐). favorites/mark-for-update 는 저장 흔적도 없어 키를
+  추측할 수밖에 없고, 추측으로 남의 설정 파일에 키를 만들지 않는다. auto-update 는 저장 위치가
+  있지만(known_marketplaces.json 의 autoUpdate ↔ settings 의 extraKnownMarketplaces[].autoUpdate)
+  claude 가 그 둘을 자기 규칙으로 동기화하므로 사이에 끼어드는 건 별도 판단이 필요하다.
 
 출력은 항상 JSON 한 줄({ok, message, ...}) - MCP 서버가 그대로 파싱한다.
 """

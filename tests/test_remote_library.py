@@ -2251,6 +2251,20 @@ class ClassifySource(unittest.TestCase):
         self.assertEqual(library._norm_url(short["url"]), library._norm_url(full["url"]))
         self.assertEqual(short["id"], full["id"])
 
+    def test_shorthand_ref_suffix_is_split_off_not_glued_into_the_url(self):
+        # Claude Code 의 Add Marketplace 는 owner/repo#branch · owner/repo@tag 를 받는다.
+        # 떼어내지 않으면 '#'/'@' 가 세그먼트 검증을 통과해 URL 뒤에 붙고(.../repo#main.git)
+        # clone 단계에서야 깨진다 - 거부도 아니고 동작도 아닌 최악의 조합이었다.
+        for src, ref in (("anthropics/claude-code#main", "main"),
+                         ("anthropics/claude-code@v1.0.0", "v1.0.0"),
+                         ("anthropics/claude-code#feature/x", "feature/x")):
+            with self.subTest(src=src):
+                r = self.cs(src)
+                self.assertEqual(r["url"], "https://github.com/anthropics/claude-code.git")
+                self.assertEqual(r["ref"], ref)
+                self.assertEqual(r["id"], "claude-code")
+        self.assertIsNone(self.cs("anthropics/claude-code")["ref"])
+
     def test_scp_style_stays_git_and_is_not_rewritten(self):
         r = self.cs("git@github.com:owner/repo.git")
         self.assertEqual(r["kind"], "git")

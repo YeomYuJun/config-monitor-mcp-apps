@@ -741,9 +741,13 @@ STATE.sections.forEach(sec=>{
 """
 
 def make_html(state):
+    # JSON 을 <script> 안에 굽는다: '<' 를 그대로 두면 값 속의 "</script>" 가 태그를 닫고
+    # 그 뒤가 HTML 로 파싱된다. description 은 마켓·플러그인·claude.ai 에서 온 원격 저작물이다.
+    data = (json.dumps(state, ensure_ascii=False)
+            .replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026"))
     return (HTML_TEMPLATE
             .replace("__GENERATED__", html.escape(state["generated"]))
-            .replace("__DATA__", json.dumps(state, ensure_ascii=False)))
+            .replace("__DATA__", data))
 
 def list_projects(found):
     """~/.claude.json 의 projects 맵을 {path, name, claude_dir, has_claude} 리스트로.

@@ -78,10 +78,13 @@ def read_installed(pdir: str) -> dict:
 
 
 def read_markets(pdir: str) -> dict:
-    """known_marketplaces.json -> {name: {kind, repo, url, location, updated}}.
+    """known_marketplaces.json -> {name: {kind, repo, url, path, location, updated}}.
 
-    source 는 {"source": "github", "repo": "o/r"} 또는 {"source": "git", "url": ...} 형태.
-    import 제안(§마켓 import)이 URL 을 필요로 하므로 github 은 여기서 URL 로 펴 준다."""
+    kind 는 Claude Code 의 source 종류다(실측: url · github · git · npm · file · directory ·
+    skills-dir · settings · seeded · unsupported). import 제안(§마켓 import)이 URL 을
+    필요로 하므로 github 은 여기서 URL 로 펴 주고, 나머지는 있는 그대로 넘긴다 -
+    URL 이 없는 이유가 종류마다 다르므로(로컬 경로 / npm 패키지 / settings 선언) 호출부가
+    kind 와 path 를 보고 사유를 말할 수 있어야 한다."""
     out = {}
     for name, rec in (_load(os.path.join(pdir, MARKETS_REL)) or {}).items():
         if not isinstance(name, str) or not isinstance(rec, dict):
@@ -94,6 +97,7 @@ def read_markets(pdir: str) -> dict:
             "kind": kind,
             "repo": repo,
             "url": url,
+            "path": src.get("path") or "",
             "location": rec.get("installLocation") or "",
             "updated": rec.get("lastUpdated") or "",
         }
