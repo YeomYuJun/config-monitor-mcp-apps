@@ -99,6 +99,10 @@ export function renderConfig(sections: any[]): void {
     if (!byGroup.has(g)) byGroup.set(g, []);
     byGroup.get(g)!.push(sec);
   }
+  // 숨긴 섹션이 있으면 그 사실을 드러낸다. 줄이는 건 기본값이어도 되지만 침묵은 안 된다
+  // (출처 토글이 기본 '표시'인 것과 같은 근거) - 여기가 다시 켜러 가는 입구다.
+  const hiddenCount = sections.filter((sec: any) => !sectionShown(sec)).length;
+  if (hiddenCount) w.appendChild(buildHiddenNotice(hiddenCount));
   for (const gid of GROUP_ORDER) {
     const secs = byGroup.get(gid);
     if (!secs || !secs.length) continue;
@@ -108,6 +112,17 @@ export function renderConfig(sections: any[]): void {
     if (open) for (const sec of secs) renderConfigSection(w, sec);
   }
   syncSectionPicker(sections);
+}
+
+// 숨긴 섹션 수 + 표시 설정 열기. 팝오버 개폐는 엔트리(wireSettings)가 쥐고 있으므로
+// 그 버튼을 눌러 준다 - 개폐 로직을 두 곳에 두지 않는다.
+function buildHiddenNotice(n: number): HTMLElement {
+  const row = document.createElement("button");
+  row.className = "hidnotice";
+  row.title = t("hiddenSecsTip");
+  row.innerHTML = `<span>${esc(t("hiddenSecs"))}</span><span class="hidcount">${n}</span>`;
+  row.addEventListener("click", () => document.getElementById("settings")?.click());
+  return row;
 }
 
 // 기능 그룹 밴드. 클릭하면 그 그룹을 통째로 접고, 접힘 상태는 스토어에 남는다.
