@@ -20,6 +20,7 @@ CLI:
 """
 from __future__ import annotations
 import argparse, json, os, glob as globmod, html, re, sys
+from dataclasses import dataclass
 
 # Windows 콘솔 기본 인코딩(cp949)에서 한글/em-dash 출력 시 UnicodeEncodeError 방지.
 for _s in (sys.stdout, sys.stderr):
@@ -124,6 +125,68 @@ def _short(v, n=160):
     return s if len(s) <= n else s[:n] + "…"
 
 DESC_KEYS = {"desc", "description", "설명", "summary"}
+
+GROUPS = [
+    ("instructions", "지시 · 규칙"),
+    ("extensions",   "확장"),
+    ("connect",      "연결 (MCP)"),
+    ("exec",         "실행 · 권한"),
+    ("memory",       "기억"),
+    ("env",          "환경"),
+]
+
+
+@dataclass(frozen=True)
+class Sec:
+    """섹션 하나의 정체성. id 는 개수·언어와 무관한 안정 키 - 저장되는 표시 설정의 키가 된다.
+    load 가 None 이면 카드마다 다르다는 뜻(rules/output-styles/project-memory)."""
+    id: str
+    title: str
+    group: str
+    scopes: tuple = ()
+    load: str = None
+    note: str = ""
+
+
+def _sec(*a, **kw):
+    s = Sec(*a, **kw)
+    return s.id, s
+
+
+SECTIONS = dict([
+    _sec("mcp-desktop", "MCP Servers (desktop)", "connect", ("desktop",), "never"),
+    _sec("claude-json", "Claude Code (.claude.json)", "connect", ("user",), "never",
+         "앱 상태 · 전역 MCP · trust"),
+    _sec("mcp-project", "MCP Servers (project)", "connect", ("project",), "lazy", "연결/스키마"),
+    _sec("perm", "Permissions", "exec", ("user", "project"), "never", "런타임 판정"),
+    _sec("hooks", "Hooks", "exec", ("user", "project"), "never", "런타임 실행"),
+    _sec("skills", "Skills (code)", "extensions", ("user", "project"), "eager",
+         "name+description 만 · 본문 LAZY"),
+    _sec("agents", "Agents", "extensions", ("user", "project"), "eager",
+         "description 만 · 본문 LAZY"),
+    _sec("commands", "Commands", "extensions", ("user", "project"), "lazy", "본문은 호출 시"),
+    _sec("plugins", "Plugins", "extensions", ("user",), "never",
+         "관리 단위 · 항목은 각 섹션에 합류"),
+    _sec("scheduled", "Scheduled Tasks", "env", ("desktop",)),
+    _sec("desktop-skills", "Desktop Skills", "connect", ("desktop",)),
+])
+
+
+def _section(sid, cards, source=None):
+    """레지스트리 항목 + 카드 -> 섹션 dict. 제목의 ' · N' 은 여기서만 붙인다."""
+    s = SECTIONS[sid]
+    d = {"id": s.id, "title": f"{s.title} · {len(cards)}", "group": s.group,
+         "source": source, "cards": cards}
+    if s.load:
+        d["load"] = s.load
+    if s.note:
+        d["note"] = s.note
+    return d
+
+
+def _recount(sec):
+    sec["title"] = f"{SECTIONS[sec['id']].title} · {len(sec['cards'])}"
+
 
 def card(name, kv, badge=None, ok=False, edit=None, scope=None, project=None, source=None,
          plugin=None, builtin=False):
@@ -346,14 +409,9 @@ def _agent_cards(ad, scope=None, project=None):
 def _append_project_cards(sections, projects):
     """추적 중인 프로젝트 .claude 디렉토리들의 permissions/hooks/skills/agents 를 스캔해
     해당 전역 섹션 뒤에 프로젝트 항목으로 append(전역 카드는 불변). title 개수도 재계산."""
-    by_prefix = {}
-    for sec in sections:
-        for pfx in ("Permissions", "Hooks", "Skills (code)", "Agents", "Commands",
-                    "MCP Servers (project)"):
-            if sec["title"].startswith(pfx):
-                by_prefix[pfx] = sec
-    def add_to(pfx, cards):
-        sec = by_prefix.get(pfx)
+    by_id = {sec["id"]: sec for sec in sections}
+    def add_to(sid, cards):
+        sec = by_id.get(sid)
         if sec is not None and cards:
             sec["cards"].extend(cards)
     for cdir in projects:
@@ -361,15 +419,15 @@ def _append_project_cards(sections, projects):
             continue
         root = os.path.dirname(cdir.rstrip("/\\"))   # <root>/.claude -> <root> (칩 라벨 = 마지막 세그먼트)
         for cs in _dir_settings(cdir):
-            add_to("Permissions", _perm_cards(cs, "project", root))
-            add_to("Hooks", _hook_cards(cs, "project", root))
-        add_to("Skills (code)", _skill_cards(os.path.join(cdir, "skills"), "project", root))
-        add_to("Agents", _agent_cards(os.path.join(cdir, "agents"), "project", root))
-        add_to("Commands", _command_cards(os.path.join(cdir, "commands"), "project", root))
-        add_to("MCP Servers (project)", _mcp_json_cards(root, "project", root))
-    for pfx, sec in by_prefix.items():
-        base = sec["title"].split(" · ")[0]
-        sec["title"] = f"{base} · {len(sec['cards'])}"
+            add_to("perm", _perm_cards(cs, "project", root))
+            add_to("hooks", _hook_cards(cs, "project", root))
+        add_to("skills", _skill_cards(os.path.join(cdir, "skills"), "project", root))
+        add_to("agents", _agent_cards(os.path.join(cdir, "agents"), "project", root))
+        add_to("commands", _command_cards(os.path.join(cdir, "commands"), "project", root))
+        add_to("mcp-project", _mcp_json_cards(root, "project", root))
+    for sec in sections:
+        if sec["id"] in SECTIONS:
+            _recount(sec)
 
 
 # --- 플러그인(~/.claude/plugins) --------------------------------------------
@@ -379,9 +437,8 @@ def _append_project_cards(sections, projects):
 # 편집(제거) op 도 붙이지 않는다: 플러그인 항목을 끄는 단위는 항목이 아니라 플러그인이고,
 # 그 토글은 Plugins 섹션 카드에 있다.
 
-# 플러그인 항목이 합류할 기존 섹션. 키는 섹션 title 의 접두사.
-PLUGIN_MERGE_SECTIONS = ("Skills (code)", "Agents", "Commands", "Hooks",
-                         "Claude Code (.claude.json)")
+# 플러그인 항목이 합류할 기존 섹션 id.
+PLUGIN_MERGE_IDS = ("skills", "agents", "commands", "hooks", "claude-json")
 _STATE_BADGE = {"ok": "plugin", "disabled": "disabled", "stale": "stale", "missing": "missing"}
 
 
@@ -459,37 +516,37 @@ def _plugin_mcp_kv(cfg):
 
 
 def _plugin_item_cards(r, scope=None, project=None):
-    """state == ok 인 플러그인 하나가 기존 섹션에 낼 카드들 -> {섹션 접두사: [card]}.
+    """state == ok 인 플러그인 하나가 기존 섹션에 낼 카드들 -> {섹션 id: [card]}.
 
     scope/project 는 그 플러그인을 켠 파일에서 온다(_plugin_scope). 안 붙이면 프로젝트에서만
     켠 플러그인의 스킬 수십 개가 전역 항목으로 잡혀, 그 프로젝트 칩을 눌렀을 때 오히려 사라진다."""
     pid, ns, items = r["id"], r["ns"], r["items"]
-    out = {pfx: [] for pfx in PLUGIN_MERGE_SECTIONS}
+    out = {sid: [] for sid in PLUGIN_MERGE_IDS}
     tag = {"plugin": pid, "scope": scope, "project": project}
 
     for it in items["skills"]:
         meta = read_frontmatter(it["path"])
-        out["Skills (code)"].append(card(f'{ns}:{it["name"]}', [
+        out["skills"].append(card(f'{ns}:{it["name"]}', [
             ("desc", meta.get("description", "-")), ("from", pid), ("path", it["path"]),
         ], badge="plugin", ok=True, **tag))
 
     for it in items["agents"]:
         meta = read_frontmatter(it["path"])
         # 에이전트는 frontmatter name 이 실제 호출 이름이다(_agent_cards 와 같은 기준).
-        out["Agents"].append(card(f'{ns}:{meta.get("name") or it["name"]}', [
+        out["agents"].append(card(f'{ns}:{meta.get("name") or it["name"]}', [
             ("desc", meta.get("description", "-")), ("tools", meta.get("tools", "-")),
             ("from", pid), ("path", it["path"]),
         ], badge="plugin", ok=True, **tag))
 
     for it in items["commands"]:
         meta = read_frontmatter(it["path"])
-        out["Commands"].append(card(f'{ns}:{it["name"]}', [
+        out["commands"].append(card(f'{ns}:{it["name"]}', [
             ("desc", meta.get("description", "-")), ("from", pid), ("path", it["path"]),
         ], badge="plugin", ok=True, **tag))
 
     hooks_src = os.path.join(r["root"], "hooks", "hooks.json")
     for h in items["hooks"]:
-        out["Hooks"].append(card(h["event"], [
+        out["hooks"].append(card(h["event"], [
             ("matchers", h["matchers"]),
             ("commands", " ; ".join(h["commands"]) or "-"),
             ("from", pid), ("path", hooks_src),
@@ -498,7 +555,7 @@ def _plugin_item_cards(r, scope=None, project=None):
     # 플러그인 MCP 는 .claude.json 에 기록되지 않고 Claude Code 가 세션에 직접 주입한다.
     # 그래도 "Code 에서 실제로 붙는 MCP 서버"라는 점에서 이 섹션이 가장 가깝다.
     for m in items["mcp"]:
-        out["Claude Code (.claude.json)"].append(card(
+        out["claude-json"].append(card(
             f'{ns}:{m["name"]}', _plugin_mcp_kv(m["cfg"]) + [("from", pid)],
             badge="plugin mcp", ok=True, **tag))
     return out
@@ -510,25 +567,19 @@ def _append_plugin_cards(sections, plugins, global_settings=()):
     disabled / stale / missing 은 합류시키지 않는다 - 지금 적용되고 있지 않기 때문이다.
     (설치됨 ≠ 적용됨. 실측: chrome-devtools-mcp 는 설치돼 있고 enabled=false 다.)"""
     gset = {norm_path(p) for p in (global_settings or []) if p}
-    by_prefix = {}
-    for sec in sections:
-        for pfx in PLUGIN_MERGE_SECTIONS:
-            if sec["title"].startswith(pfx):
-                by_prefix[pfx] = sec
+    by_id = {sec["id"]: sec for sec in sections}
     touched = set()
     for r in plugins:
         if r["state"] != "ok":
             continue
         scope, proj = _plugin_scope(r, gset)
-        for pfx, cards in _plugin_item_cards(r, scope, proj).items():
-            sec = by_prefix.get(pfx)
+        for sid, cards in _plugin_item_cards(r, scope, proj).items():
+            sec = by_id.get(sid)
             if sec is not None and cards:
                 sec["cards"].extend(cards)
-                touched.add(pfx)
-    for pfx in touched:
-        sec = by_prefix[pfx]
-        base = sec["title"].split(" · ")[0]
-        sec["title"] = f"{base} · {len(sec['cards'])}"
+                touched.add(sid)
+    for sid in touched:
+        _recount(by_id[sid])
 
 
 def parse(found, project_dirs=None):
@@ -556,7 +607,7 @@ def parse(found, project_dirs=None):
         if "__error__" not in dd:
             cards.append(card("＋ 새 MCP 서버", [("형식", 'name {"command":"npx","args":[...]}')],
                               badge="add", edit={"kind": "mcp-add", "scope": "desktop"}))
-    add({"title": f"MCP Servers (desktop) · {len(cards)}", "source": dc, "cards": cards})
+    add(_section("mcp-desktop", cards, dc))
 
     # 2) Claude Code 전역 (.claude.json, 관심 키만)
     cards = []
@@ -592,12 +643,12 @@ def parse(found, project_dirs=None):
                     ("mcpServers", ", ".join((pj.get("mcpServers") or {}).keys()) or "-"),
                     ("trust", pj.get("hasTrustDialogAccepted", "-")),
                 ], badge="project"))
-    add({"title": f"Claude Code (.claude.json) · {len(cards)}", "source": cj, "cards": cards})
+    add(_section("claude-json", cards, cj))
 
     # 2-1) MCP Servers (project): <root>/.mcp.json. 프로젝트를 지정했을 때만 의미가 있다
     #      (전역 .mcp.json 개념은 없음 - 전역 MCP 는 .claude.json). 카드는 _append_project_cards 가 채운다.
     if project_dirs:
-        add({"title": "MCP Servers (project) · 0", "source": None, "cards": []})
+        add(_section("mcp-project", [], None))
 
     # 3) Permissions + 4) Hooks (settings.json + settings.local.json 을 각각 출처로)
     chain = _settings_chain(found.get("code_settings"))
@@ -606,23 +657,23 @@ def parse(found, project_dirs=None):
         perm_cards += _perm_cards(f)
         hook_cards += _hook_cards(f)
     src = _source_label(chain)
-    add({"title": f"Permissions · {len(perm_cards)}", "source": src, "cards": perm_cards})
-    add({"title": f"Hooks · {len(hook_cards)}", "source": src, "cards": hook_cards})
+    add(_section("perm", perm_cards, src))
+    add(_section("hooks", hook_cards, src))
 
     # 5) Code Skills
     sd = found.get("skills_dir")
     skill_cards = _skill_cards(sd)
-    add({"title": f"Skills (code) · {len(skill_cards)}", "source": sd, "cards": skill_cards})
+    add(_section("skills", skill_cards, sd))
 
     # 6) Agents
     ad = found.get("agents_dir")
     agent_cards = _agent_cards(ad)
-    add({"title": f"Agents · {len(agent_cards)}", "source": ad, "cards": agent_cards})
+    add(_section("agents", agent_cards, ad))
 
     # 6-1) Commands (슬래시 커맨드). 라이브러리는 commands 설치를 지원하는데 조회가 없었다.
     cmd_dir = found.get("commands_dir")
     cmd_cards = _command_cards(cmd_dir)
-    add({"title": f"Commands · {len(cmd_cards)}", "source": cmd_dir, "cards": cmd_cards})
+    add(_section("commands", cmd_cards, cmd_dir))
 
     # 6-2) Plugins (~/.claude/plugins). 여기가 사각지대였다 - 플러그인이 주는
     #      스킬/에이전트/커맨드/hooks/MCP 는 ~/.claude/skills 가 아니라 플러그인 캐시에 있어서
@@ -635,7 +686,7 @@ def parse(found, project_dirs=None):
             psettings += _dir_settings(cdir)
     plugins = plugin_state.read_plugins(pdir, psettings)
     pcards = _plugin_section_cards(plugins, found.get("code_settings"), chain)
-    add({"title": f"Plugins · {len(pcards)}", "source": pdir, "cards": pcards})
+    add(_section("plugins", pcards, pdir))
 
     # 7) Scheduled tasks
     cards = []
@@ -651,7 +702,7 @@ def parse(found, project_dirs=None):
                     ("schedule", meta.get("cron") or meta.get("schedule") or meta.get("fireAt", "-")),
                     ("path", full),
                 ], badge="scheduled", ok=True))
-    add({"title": f"Scheduled Tasks · {len(cards)}", "source": schd, "cards": cards})
+    add(_section("scheduled", cards, schd))
 
     # 8) Desktop Skills (서버관리: 모든 manifest 머지 + creatorType 구분)
     cards = []
@@ -681,7 +732,9 @@ def parse(found, project_dirs=None):
         ], badge=("user" if ct == "user" else "anthropic"), ok=(ct == "user"),
            builtin=(ct != "user")))
     src = (f"{mans[0]}  (+{len(mans)-1} more)" if mans and len(mans) > 1 else (mans[0] if mans else None))
-    add({"title": f"Desktop Skills · user {n_user} / anthropic {len(items)-n_user}", "source": src, "cards": cards})
+    d = _section("desktop-skills", cards, src)
+    d["note"] = f"user {n_user} / anthropic {len(items) - n_user}"
+    add(d)
 
     # 플러그인 항목을 먼저 합류시킨 뒤 프로젝트 항목을 얹는다. 양쪽 다 자기 접두사의
     # title 개수를 재계산하므로 순서가 개수를 어긋나게 만들지 않는다.
