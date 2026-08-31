@@ -43,8 +43,8 @@ Cowork supports both inline and fullscreen; Code supports inline only (following
 
 ## Features
 
-- **The whole config surface** — beyond MCP/hooks/skills/agents: `CLAUDE.md` and `CLAUDE.local.md`, `rules/`, `output-styles/`, `workflows/`, `keybindings.json`, `themes/`, `.worktreeinclude`, agent memory, and per-project `memory/`.
-- **Context load class** — every section and card is badged `EAGER` / `LAZY` / `NEVER`, so you can see what actually costs you context at session start. A rule with `paths:` frontmatter is LAZY and one without it is EAGER; only the selected output style is EAGER.
+- **The whole config surface, not just to look at** — beyond MCP/hooks/skills/agents: `CLAUDE.md` and `CLAUDE.local.md`, `rules/`, `output-styles/`, `workflows/`, `keybindings.json`, `themes/`, `.worktreeinclude`, agent memory, and per-project `memory/`. Rules, output styles, and workflows can be scaffolded, removed, and installed from a library like any other item.
+- **Context load class, and a switch for it** — every section and card is badged `EAGER` / `LAZY` / `NEVER`, so you can see what actually costs you context at session start. A rule with `paths:` frontmatter is LAZY and one without it is EAGER; only the selected output style is EAGER — and you can **activate a different one from its card**, which is the one control that changes what loads next session.
 - **Grouped, filterable sections** — the ~20 sections are banded into six functional groups (instructions, extensions, connections, execution, memory, environment), with a preset (*all* / *commonly used* / *choose*) and a hide-empty switch, both saved to the store.
 - **One view across sources** — Claude Code, Claude Desktop, and each tracked project side by side, with scope badges (`global` / `project`).
 - **Snapshots & diffs** — track any config file, browse its snapshot timeline, compare two versions, and restore an earlier one.
@@ -238,7 +238,7 @@ The dashboard does not dump whole files — it extracts only the fields it needs
 | Skills (code) | `~/.claude/skills/` | immediate subfolders; `SKILL.md` `description` |
 | Agents | `~/.claude/agents/` | frontmatter `name`, `description`, `tools` |
 | Commands | `~/.claude/commands/` | frontmatter `description` (subfolders are namespaces) |
-| Plugins | `~/.claude/plugins/{installed_plugins,known_marketplaces}.json` + each plugin's `.claude-plugin/plugin.json` | per-plugin market, version, install path, enabled state, and the components it contributes |
+| Plugins | `~/.claude/plugins/{installed_plugins,known_marketplaces}.json` + each plugin's `.claude-plugin/plugin.json` | per-plugin market, version, install path, enabled state, and the components it contributes — skills, agents, commands, hooks, MCP servers, and (if a plugin ever ships them) rules, output styles, and workflows, each merged into its own section with a `plugin` badge |
 | Plugin inventory | `~/.claude/plugins/plugin-catalog-cache.json` | pre-install component list, projected token cost, install count, homepage (official marketplace only) |
 | CLAUDE.md | `~/.claude/CLAUDE.md` | file size and path (contents are not parsed) |
 | Rules | `~/.claude/rules/**/*.md` | frontmatter `description`; presence of `paths:` decides EAGER vs LAZY |
@@ -259,14 +259,16 @@ When a project is tracked, the Permissions / Hooks / Skills / Agents / Commands 
 <summary>Known limits</summary>
 
 - `settings.json` and `settings.local.json` are **both** read, but shown as separate cards (not merged), each labeled with its source.
-- `skills` is read one level deep; `agents` and `commands` recurse into subfolders (nested items are view-only, global and project alike, because the remove operation takes a single-segment name).
-- **Commands** and a project's **`.mcp.json`** are shown but read-only at every scope — no remove operation exists for them yet.
+- `skills` is read one level deep; `agents` and `commands` recurse into subfolders.
 - The `＋ new skill` / `＋ new agent` scaffold cards are global-only; to add one to a project, install it from the Library panel.
 - Remote sources are never fetched automatically — registration persists, but updates are always an explicit refresh.
 - Keep `CLAUDE_SNAPSHOT_STORE` short. Marketplace plugins nest a few levels deep inside it, and Windows still caps most paths at 260 characters; a deep store can leave a plugin fetched but unreadable. That case is reported rather than silently counted as zero items.
 - Project cards are capped at 20.
-- The new surfaces (Rules, Output Styles, Workflows, Keybindings, Themes, memory, `.worktreeinclude`) are **view-only** — no edit operation exists for them.
-- `CLAUDE.md`, `keybindings.json`, and theme files are listed by size and path; their contents are not parsed.
+- **Rules**, **Output Styles**, and **Workflows** are editable: scaffold, remove (to `.trash`), and library install/sync. Output styles additionally offer **activate / deactivate**, which writes `outputStyle` into `settings.json`.
+- Project **memory topics** can be removed (to `.trash`). `MEMORY.md` itself cannot — it is the index, and deleting it cuts the path to every topic it links.
+- **Keybindings**, **Themes**, **CLAUDE.md**, and **`.worktreeinclude`** stay view-only, listed by size and path. A keymap, a color table, and a prose document are an editor's job, not a card's.
+- **Commands** and a project's **`.mcp.json`** remain view-only at every scope, as before.
+- Nested items (in subfolders) are view-only everywhere, because the remove operation takes a single-segment name.
 - A project's active output style is resolved from that project's own settings, so a style set only globally is not reflected in the project cards' badges.
 - The **Library** and **Marketplace** panels are not part of the section picker and are always shown.
 - Long values are truncated — descriptions at 600 chars, everything else at 160.
