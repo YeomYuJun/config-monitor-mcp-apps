@@ -104,6 +104,16 @@ function buildOriginToggles(): HTMLElement {
   return row;
 }
 
+// 적재등급 배지. 섹션은 등급이 균일할 때만(load), 카드는 섹션이 카드별 판정일 때 자기 등급을 든다.
+const LOAD_LBL: Record<string, string> = { eager: "loadEager", lazy: "loadLazy", never: "loadNever" };
+const LOAD_TIP: Record<string, string> = { eager: "loadEagerTip", lazy: "loadLazyTip", never: "loadNeverTip" };
+function loadBadge(v: string, note?: string): string {
+  const lbl = LOAD_LBL[v];
+  if (!lbl) return "";
+  const tip = t(LOAD_TIP[v]);
+  return `<span class="loadbadge ${esc(v)}" title="${esc(note ? `${tip} · ${note}` : tip)}">${esc(t(lbl))}</span>`;
+}
+
 const isAddCard = (c: any): boolean => !!(c.edit && String(c.edit.kind || "").endsWith("-add"));
 
 // 이름 충돌로 실제 적용되지 않는 카드에 붙일 배지. 어느 쪽이 가려지는지는 섹션마다 다르므로
@@ -130,7 +140,7 @@ function renderConfigCard(c: any, shadowOf: ((c: any) => Shadow | null) | null):
   const badgeTip = c.plugin ? (plgTip[c.badge] || "") : "";
   card.innerHTML =
     `<div class="cname"><span class="nm">${esc(c.name)}</span>` +
-    `<span class="cbadges">${shadowBadge}` +
+    `<span class="cbadges">${shadowBadge}${loadBadge(c.load)}` +
     (c.badge ? `<span class="badge ${badgeCls}"${badgeTip ? ` title="${esc(badgeTip)}"` : ""}>${esc(c.badge)}</span>` : "") +
     `</span></div>` +
     (c.kv || [])
@@ -189,7 +199,8 @@ function renderConfigSection(host: HTMLElement, sec: any): void {
   head.innerHTML =
     `<div class="secrow"><span class="chev2">▾</span>` +
     `<span class="sectitle">${esc(sec.title)}</span>` +
-    `<span class="seccount">${visible.length}</span>${summary}</div>` + srcHtml;
+    `<span class="seccount">${visible.length}</span>` +
+    loadBadge(sec.load, sec.note) + `${summary}</div>` + srcHtml;
   head.addEventListener("click", () => {
     if (collapsed.has(sec.id)) collapsed.delete(sec.id); else collapsed.add(sec.id);
     secEl.classList.toggle("collapsed");

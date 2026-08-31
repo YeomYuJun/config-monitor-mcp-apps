@@ -203,6 +203,11 @@
   .cname{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
   .cname .nm{font-weight:600;font-size:13px;word-break:break-all}
   .badge{font-size:10px;font-weight:600;padding:2px 7px;border-radius:4px;white-space:nowrap;background:#E6E8EC;color:var(--mut)}
+  .loadbadge{font-size:9px;padding:1px 6px;border-radius:20px;letter-spacing:.04em;
+    border:1px solid transparent;white-space:nowrap}
+  .loadbadge.eager{background:rgba(220,120,40,.14);color:#d2762a;border-color:rgba(220,120,40,.3)}
+  .loadbadge.lazy{background:rgba(90,130,220,.13);color:#6f93dd;border-color:rgba(90,130,220,.28)}
+  .loadbadge.never{background:rgba(130,140,160,.12);color:#8b93a1;border-color:rgba(130,140,160,.25)}
   .badge.ok{background:var(--okbg);color:var(--ok)}
   .badge.warn{background:var(--warnbg);color:var(--warn)}
   .badge.err{background:var(--delbg);color:var(--del)}
