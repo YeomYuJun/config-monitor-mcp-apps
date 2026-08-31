@@ -49,6 +49,40 @@ HOME = os.path.expanduser("~")
 DEFAULT_SETTINGS = os.path.join(HOME, ".claude", "settings.json")
 DEFAULT_SKILLS = os.path.join(HOME, ".claude", "skills")
 DEFAULT_AGENTS = os.path.join(HOME, ".claude", "agents")
+
+# 단일 파일 항목(하위 디렉토리, 확장자). skills 는 디렉토리형이라 여기 없다 - 이쪽은 파일 하나가
+# 항목 하나라서 scaffold/remove 한 쌍이 세 종류를 다 덮는다.
+ITEM_KINDS = {
+    "rule":         ("rules", ".md"),
+    "output-style": ("output-styles", ".md"),
+    "workflow":     ("workflows", ".js"),
+}
+
+
+def item_stub(kind, name, desc, paths=""):
+    """workflow 는 meta 블록이 없으면 실행되지 않으므로 스텁도 그 형태를 지켜야 한다.
+    rule 의 paths: 는 적재 등급을 EAGER 에서 LAZY 로 바꾼다(빈 값이면 넣지 않는다)."""
+    if kind == "workflow":
+        return (f"export const meta = {{\n"
+                f"  name: '{name}',\n"
+                f"  description: '{desc}',\n"
+                f"  phases: [{{ title: 'Work' }}],\n"
+                f"}}\n\nphase('Work')\n")
+    fm = [f"name: {name}", f"description: {desc}"]
+    if kind == "rule" and paths:
+        fm.append(f"paths:\n  - {paths}")
+    return "---\n" + "\n".join(fm) + f"\n---\n\n# {name}\n\n작성 중.\n"
+
+
+def _safe_memory_dir(d):
+    """--memory-dir 검증: <...>/projects/<encoded>/memory 형태만 허용.
+    메모리는 .claude/<sub> 형태가 아니라 _safe_config_dir 을 못 쓴다. 가드 없이 두면
+    도구 파라미터로 들어온 임의 경로가 trash() 까지 도달한다."""
+    n = os.path.normpath(d)
+    nc = os.path.normcase
+    if nc(os.path.basename(n)) != nc("memory") or        nc(os.path.basename(os.path.dirname(os.path.dirname(n)))) != nc("projects"):
+        out(False, f"메모리 디렉토리가 유효하지 않음(<...>/projects/<name>/memory 형태만 허용): '{d}'")
+    return n
 DEFAULT_CLAUDE_JSON = os.path.join(HOME, ".claude.json")
 # Win32(%APPDATA%\Claude) vs MSIX/Store(...\Packages\Claude_*\LocalCache\Roaming\Claude)
 # 를 프로브해 실제 파일을 대상으로 삼는다. --desktop-config 로 명시 오버라이드 가능.
@@ -254,6 +288,8 @@ def main():
     ap.add_argument("--settings", default=DEFAULT_SETTINGS)
     ap.add_argument("--skills-dir", default=DEFAULT_SKILLS)
     ap.add_argument("--agents-dir", default=DEFAULT_AGENTS)
+    ap.add_argument("--items-dir", default=None, help="item-* 대상 디렉토리(<...>/.claude/<sub>). 미지정 시 전역")
+    ap.add_argument("--memory-dir", default=None, help="memory-remove 대상(<...>/projects/<name>/memory)")
     ap.add_argument("--claude-json", default=DEFAULT_CLAUDE_JSON)
     ap.add_argument("--desktop-config", default=DEFAULT_DESKTOP_CONFIG)
     ap.add_argument("--store", default=os.environ.get("CLAUDE_SNAPSHOT_STORE"))
@@ -271,6 +307,12 @@ def main():
     p.add_argument("--tools", default=""); p.add_argument("--model", default="")
     p.add_argument("--content", default=None, help="에이전트 md 전체 내용(frontmatter 포함). 지정 시 desc/tools/model 무시")
     p = sub.add_parser("agent-remove");   p.add_argument("name")
+    p = sub.add_parser("item-scaffold"); p.add_argument("kind", choices=list(ITEM_KINDS)); p.add_argument("name")
+    p.add_argument("--desc", default="TODO"); p.add_argument("--paths", default="", help="rule 전용: 지정하면 LAZY 가 된다")
+    p.add_argument("--content", default=None, help="파일 전체 내용. 지정 시 스텁 대신 그대로 기록")
+    p = sub.add_parser("item-remove");   p.add_argument("kind", choices=list(ITEM_KINDS)); p.add_argument("name")
+    p = sub.add_parser("memory-remove"); p.add_argument("name")
+    p = sub.add_parser("outputstyle-set"); p.add_argument("name", help="빈 문자열이면 선택 해제")
     p = sub.add_parser("plugin-toggle"); p.add_argument("id"); p.add_argument("state", choices=["on", "off"])
     p = sub.add_parser("mcp-add");    p.add_argument("name"); p.add_argument("--json", dest="server_json", required=True)
     p.add_argument("--scope", choices=["user", "desktop"], default="user")
@@ -285,6 +327,58 @@ def main():
         a.skills_dir = _safe_config_dir(a.skills_dir, "skills")
     elif a.op in ("agent-scaffold", "agent-remove"):
         a.agents_dir = _safe_config_dir(a.agents_dir, "agents")
+    elif a.op in ("item-scaffold", "item-remove"):
+        sub_dir, _ext = ITEM_KINDS[a.kind]
+        a.items_dir = _safe_config_dir(a.items_dir or os.path.join(HOME, ".claude", sub_dir), sub_dir)
+    elif a.op == "memory-remove":
+        if not a.memory_dir:
+            out(False, "memory-remove 는 --memory-dir 이 필요합니다")
+        a.memory_dir = _safe_memory_dir(a.memory_dir)
+
+    # ── 단일 파일 항목 ops (rules / output-styles / workflows) ──
+    if a.op == "item-scaffold":
+        name = _safe_name(a.name)
+        _sub, ext = ITEM_KINDS[a.kind]
+        f_path = os.path.join(a.items_dir, name + ext)
+        if os.path.exists(f_path):
+            out(False, f"이미 존재: {f_path}")
+        if not a.no_snapshot:
+            snapshot_before(a.store)
+        os.makedirs(a.items_dir, exist_ok=True)
+        body = a.content if a.content else item_stub(a.kind, name, a.desc, a.paths)
+        with open(f_path, "w", encoding="utf-8", newline="\n") as f:
+            f.write(body)
+        out(True, f"{a.kind} {'설치' if a.content else '스캐폴드 생성'}: {f_path}", path=f_path)
+
+    if a.op == "item-remove":
+        name = _safe_name(a.name)
+        _sub, ext = ITEM_KINDS[a.kind]
+        f_path = os.path.join(a.items_dir, name + ext)
+        if not os.path.exists(f_path):
+            out(False, f"{a.kind} 없음: {f_path}")
+        if not a.no_snapshot:
+            snapshot_before(a.store)
+        out(True, f"{a.kind} 제거됨(.trash 이동): {name}", trashed=trash(f_path))
+
+    if a.op == "memory-remove":
+        name = _safe_name(a.name)
+        f_path = os.path.join(a.memory_dir, name + ".md")
+        if not os.path.exists(f_path):
+            out(False, f"메모리 없음: {f_path}")
+        if not a.no_snapshot:
+            snapshot_before(a.store)
+        out(True, f"메모리 제거됨(.trash 이동): {name}", trashed=trash(f_path))
+
+    if a.op == "outputstyle-set":
+        # 파일을 만드는 게 아니라 '무엇이 EAGER 인가'를 바꾸는 유일한 스위치다.
+        def _mut(d):
+            cur = d.get("outputStyle")
+            if a.name:
+                d["outputStyle"] = a.name
+                return d, f"output style 활성화: {a.name}", cur != a.name
+            d.pop("outputStyle", None)
+            return d, "output style 선택 해제", cur is not None
+        edit_json_file(a.settings, _mut, a.no_snapshot, a.store)
 
     # ── 파일/디렉토리 기반 ops (skills / agents) ──
     if a.op == "skill-scaffold":
