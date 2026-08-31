@@ -203,6 +203,13 @@
   .cname{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
   .cname .nm{font-weight:600;font-size:13px;word-break:break-all}
   .badge{font-size:10px;font-weight:600;padding:2px 7px;border-radius:4px;white-space:nowrap;background:#E6E8EC;color:var(--mut)}
+  .grpband{display:flex;align-items:center;gap:8px;margin:18px 0 2px;cursor:pointer;user-select:none}
+  .grpband .grplbl{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+  .grpband .grpcount{font-size:10px;color:var(--mut);background:#222733;padding:1px 7px;border-radius:20px}
+  .grpband.collapsed .chev2{transform:rotate(-90deg)}
+  .sp-sections{max-height:230px;overflow-y:auto;border-top:1px solid var(--line);margin-top:8px;padding-top:8px}
+  .sp-sections .spg{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);margin:8px 0 3px}
+  .sp-sections .spsec{display:flex;align-items:center;gap:7px;font-size:12px;padding:2px 0;cursor:pointer}
   .loadbadge{font-size:9px;padding:1px 6px;border-radius:20px;letter-spacing:.04em;
     border:1px solid transparent;white-space:nowrap}
   .loadbadge.eager{background:rgba(220,120,40,.14);color:#d2762a;border-color:rgba(220,120,40,.3)}
@@ -618,6 +625,16 @@
               <input type="checkbox" id="opt-src" checked></div>
             <div class="sp-row"><span class="sp-lbl" data-i18n="descLines">설명 줄 수</span>
               <input type="range" id="opt-lines" min="2" max="10" value="4"><span class="sp-val" id="opt-lines-val">4</span></div>
+            <div class="sp-row"><span class="sp-lbl" data-i18n="secShow">섹션 표시</span>
+              <select id="opt-preset">
+                <option value="present" data-i18n="presetPresent">있는 것만</option>
+                <option value="common" data-i18n="presetCommon">주로 쓰는 것</option>
+                <option value="all" data-i18n="presetAll">전체</option>
+                <option value="custom" data-i18n="presetCustom">직접 선택</option>
+              </select></div>
+            <div class="sp-row"><span class="sp-lbl" data-i18n="hideEmpty">빈 섹션 숨기기</span>
+              <input type="checkbox" id="opt-hide-empty" checked></div>
+            <div id="opt-sections" class="sp-sections" hidden></div>
           </div>
         </span>
         <button id="lang-toggle" title="Switch to English">

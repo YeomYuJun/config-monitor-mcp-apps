@@ -19,7 +19,7 @@ import {
   catSecEl, setCatSecEl,
 } from "./ui/state";
 import { valClass, basename, dirname, ABS_PATH_RE, safeSegment, looksLikePermRule, originShort, mkSrcTag } from "./ui/helpers";
-import { renderConfig } from "./ui/config";
+import { renderConfig, applySectionPrefs, wireSectionPrefs } from "./ui/config";
 import { selectFile, renderHistory, renderDiffFor, applyDetailState } from "./ui/detail";
 import { renderCatalog } from "./ui/market";
 import { openMarketAdd, openLibAdd } from "./ui/libmarket";
@@ -47,6 +47,10 @@ async function refresh(): Promise<void> {
   } catch (e) {
     showErr("tracked", t("trackedStatus"), e);
   }
+  try {
+    const pf = jparse(await callTool("get_prefs"));
+    if (pf && pf.ok !== false) applySectionPrefs(pf.ui);
+  } catch (e) { console.error("[config-monitor] prefs", e); }
   try {
     // libProjectTargets(추적 프로젝트 .claude 경로들)는 앞선 renderTracked 에서 채워짐 -> 프로젝트 스코프 설정 포함.
     const cfg = jparse(await callTool("get_config", { projects: libProjectTargets }));
@@ -196,6 +200,7 @@ function wireSettings(): void {
     document.documentElement.style.setProperty("--desc-lines", lines.value);
     $("opt-lines-val").textContent = lines.value + t("linesSuffix");
   });
+  wireSectionPrefs();
 }
 wireSettings();
 

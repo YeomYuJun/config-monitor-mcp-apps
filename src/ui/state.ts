@@ -66,6 +66,19 @@ export const srcOpen: Record<string, boolean> = {};  // 출처 그룹 접힘 상
 export const catOpen = new Set<string>();     // 펼친 마켓 id(기본 접힘 - 마켓 하나가 278개다)
 export let catSecEl: HTMLElement | null = null; // 제자리 교체용 현재 카탈로그 섹션 노드(refresh 가 무효화한다)
 export let lastConfigSections: any[] = [];           // 스코프 칩/그룹 즉시 재렌더용 최신 섹션 캐시
+// 섹션 표시 설정. 스토어(store/config.json 의 ui 블록)가 정본이고 여기는 그 사본이다.
+// preset 은 '섹션 집합'을 정하고 hideEmpty 는 독립 스위치다(프리셋이 기본값만 넣어준다).
+export interface SectionPrefs {
+  preset: "present" | "common" | "all" | "custom";
+  hidden: string[];          // custom 에서만 의미
+  hideEmpty: boolean;
+  groupsCollapsed: string[];
+}
+export let sectionPrefs: SectionPrefs =
+  { preset: "present", hidden: [], hideEmpty: true, groupsCollapsed: [] };
+export const setSectionPrefs = (v: SectionPrefs): void => { sectionPrefs = v; };
+// '주로 쓰는 것' 이 포함하는 그룹. 나머지(connect/memory/env)는 한 번 맞춰두면 잘 안 건드린다.
+export const COMMON_GROUPS = ["instructions", "extensions", "exec"];
 
 export const setSelectedPath       = (v: string): void => { selectedPath = v; };
 export const setCurrentRevs        = (v: any[]): void => { currentRevs = v; };

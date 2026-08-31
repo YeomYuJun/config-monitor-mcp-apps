@@ -8,10 +8,48 @@ import {
   collapsed, ccPlugins, secIds, collapsedInit, showPlugin, showBuiltin, refreshApp,
   scopeFilter, srcOpen, lastConfigSections, setKnownProjects, setCollapsedInit,
   setShowPlugin, setShowBuiltin, setScopeFilter, setLastConfigSections,
+  sectionPrefs, setSectionPrefs, COMMON_GROUPS, SectionPrefs,
 } from "./state";
 
 // 섹션 표시 이름(제목에서 ' · <개수>' 를 뗀 앞부분). 개수가 바뀌어도 정렬이 흔들리지 않게.
 const secName = (title: string) => String(title).split(" · ")[0];
+
+// Python 의 GROUPS 와 같은 순서. 라벨만 UI 가 현지화한다(섹션 제목은 영어로 둔다).
+const GROUP_ORDER = ["instructions", "extensions", "connect", "exec", "memory", "env"];
+const GROUP_LABEL: Record<string, string> = {
+  instructions: "grpInstructions", extensions: "grpExtensions", connect: "grpConnect",
+  exec: "grpExec", memory: "grpMemory", env: "grpEnv",
+};
+
+// 이 섹션의 카드 중 현재 필터(스코프/출처)를 통과하는 것들.
+function visibleCards(sec: any): any[] {
+  const cards = sec.cards || [];
+  // Plugins 섹션은 플러그인 **관리** 화면이라 출처 토글의 대상이 아니다. 여기까지 숨기면
+  // 다시 켤 자리가 사라지고, 무엇을 껐는지도 확인할 수 없게 된다.
+  const isPluginSec = sec.id === "plugins";
+  const inScope = (c: any) =>
+    scopeFilter === "all" ? true
+      : scopeFilter === "global" ? c.scope !== "project"
+        : (c.scope === "project" && c.project === scopeFilter);
+  return cards.filter((c: any) =>
+    (showPlugin || !c.plugin || isPluginSec) && (showBuiltin || !c.builtin) && inScope(c));
+}
+
+// 프리셋이 이 섹션을 대상에 넣는가. hideEmpty 와는 다른 축이다.
+function sectionAllowed(sec: any): boolean {
+  const p = sectionPrefs;
+  if (p.preset === "custom") return !p.hidden.includes(sec.id);
+  if (p.preset === "common") return COMMON_GROUPS.includes(sec.group);
+  return true;   // present / all
+}
+
+function sectionShown(sec: any): boolean {
+  if (!sectionAllowed(sec)) return false;
+  if (visibleCards(sec).length) return true;
+  if (sectionPrefs.hideEmpty) return false;
+  // 필터 모드에서 결과 0개 섹션은 통째로 스킵. 아무 필터도 안 걸렸으면 항상 렌더.
+  return !(scopeFilter !== "all" || !showPlugin || !showBuiltin);
+}
 
 // 스코프 필터/출처 그룹/재정의 배지 지원. 설정 섹션은 #config 안의 #cfg-scoped 래퍼에 렌더.
 // Library 섹션은 래퍼 밖 #config 에 append 되므로 칩/그룹 즉시 재렌더가 Library 를 지우지 않는다.
@@ -52,9 +90,129 @@ export function renderConfig(sections: any[]): void {
   if (scopeFilter !== "all" && scopeFilter !== "global" && !projSeen.has(scopeFilter)) setScopeFilter("all");
   if (projects.length) w.appendChild(buildScopeChips(projects));
   w.appendChild(buildOriginToggles());   // 스코프 칩과 달리 프로젝트가 없어도 항상 의미가 있다
-  // 표시 순서만 이름 A-Z(원본 배열은 그대로 - lastConfigSections 캐시를 건드리지 않는다).
-  const ordered = [...sections].sort((a, b) => secName(a.title).localeCompare(secName(b.title)));
-  for (const sec of ordered) renderConfigSection(w, sec);
+  // 그룹 밴드로 묶어 그린다 - 섹션이 20개가 되면 A-Z 평면으로는 훑을 수가 없다.
+  // 그룹 안에서만 이름 A-Z(원본 배열은 그대로 - lastConfigSections 캐시를 건드리지 않는다).
+  const byGroup = new Map<string, any[]>();
+  for (const sec of sections) {
+    if (!sectionShown(sec)) continue;
+    const g = String(sec.group || "env");
+    if (!byGroup.has(g)) byGroup.set(g, []);
+    byGroup.get(g)!.push(sec);
+  }
+  for (const gid of GROUP_ORDER) {
+    const secs = byGroup.get(gid);
+    if (!secs || !secs.length) continue;
+    secs.sort((a, b) => secName(a.title).localeCompare(secName(b.title)));
+    const open = !sectionPrefs.groupsCollapsed.includes(gid);
+    w.appendChild(buildGroupBand(gid, secs.length, open));
+    if (open) for (const sec of secs) renderConfigSection(w, sec);
+  }
+  syncSectionPicker(sections);
+}
+
+// 기능 그룹 밴드. 클릭하면 그 그룹을 통째로 접고, 접힘 상태는 스토어에 남는다.
+function buildGroupBand(gid: string, count: number, open: boolean): HTMLElement {
+  const band = document.createElement("div");
+  band.className = "grpband" + (open ? "" : " collapsed");
+  band.innerHTML =
+    `<span class="chev2">▾</span><span class="grplbl">${esc(t(GROUP_LABEL[gid] || gid))}</span>` +
+    `<span class="grpcount">${count}</span><span class="srcline"></span>`;
+  band.addEventListener("click", () => {
+    const next = sectionPrefs.groupsCollapsed.filter((x) => x !== gid);
+    if (open) next.push(gid);
+    setSectionPrefs({ ...sectionPrefs, groupsCollapsed: next });
+    void persistPrefs();
+    renderConfig(lastConfigSections);
+  });
+  return band;
+}
+
+// ----- 섹션 표시 설정(#setpop 안) -----
+// 저장은 스토어로 간다. 실패하면 이유를 띄우고 세션 한정 상태로 남는다 - 저장된 척하지 않는다.
+export async function persistPrefs(): Promise<void> {
+  try {
+    const r = jparse(await callTool("set_prefs", { sections: sectionPrefs }));
+    if (r && r.ok === false) flashToast(t("prefsSaveFail"));
+  } catch { flashToast(t("prefsSaveFail")); }
+}
+
+export function applySectionPrefs(ui: any): void {
+  const s0 = (ui && ui.sections) || {};
+  setSectionPrefs({
+    preset: s0.preset || "present",
+    hidden: Array.isArray(s0.hidden) ? s0.hidden : [],
+    hideEmpty: s0.hideEmpty !== false,
+    groupsCollapsed: Array.isArray(s0.groupsCollapsed) ? s0.groupsCollapsed : [],
+  });
+  syncPrefControls();
+}
+
+function syncPrefControls(): void {
+  const sel = document.getElementById("opt-preset") as HTMLSelectElement | null;
+  if (sel) sel.value = sectionPrefs.preset;
+  const he = document.getElementById("opt-hide-empty") as HTMLInputElement | null;
+  if (he) he.checked = sectionPrefs.hideEmpty;
+  const box = document.getElementById("opt-sections");
+  if (box) box.hidden = sectionPrefs.preset !== "custom";
+}
+
+// 프리셋을 바꾸면 hideEmpty 의 기본값도 같이 옮긴다('전체'는 없는 것까지 보여주는 진단 모드).
+export function wireSectionPrefs(): void {
+  const sel = document.getElementById("opt-preset") as HTMLSelectElement | null;
+  sel?.addEventListener("change", () => {
+    const preset = sel.value as SectionPrefs["preset"];
+    setSectionPrefs({ ...sectionPrefs, preset, hideEmpty: preset !== "all" });
+    syncPrefControls();
+    void persistPrefs();
+    renderConfig(lastConfigSections);
+  });
+  const he = document.getElementById("opt-hide-empty") as HTMLInputElement | null;
+  he?.addEventListener("change", () => {
+    setSectionPrefs({ ...sectionPrefs, hideEmpty: he.checked });
+    void persistPrefs();
+    renderConfig(lastConfigSections);
+  });
+}
+
+// '직접 선택' 체크박스 목록. 그룹 순으로 그리고, 끈 섹션만 hidden 에 남긴다.
+function syncSectionPicker(sections: any[]): void {
+  const box = document.getElementById("opt-sections");
+  if (!box) return;
+  box.hidden = sectionPrefs.preset !== "custom";
+  if (box.hidden) return;
+  box.innerHTML = "";
+  const byGroup = new Map<string, any[]>();
+  for (const sec of sections) {
+    const g = String(sec.group || "env");
+    if (!byGroup.has(g)) byGroup.set(g, []);
+    byGroup.get(g)!.push(sec);
+  }
+  for (const gid of GROUP_ORDER) {
+    const secs = byGroup.get(gid);
+    if (!secs || !secs.length) continue;
+    const head = document.createElement("div");
+    head.className = "spg";
+    head.textContent = t(GROUP_LABEL[gid] || gid);
+    box.appendChild(head);
+    for (const sec of secs) {
+      const row = document.createElement("label");
+      row.className = "spsec";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = !sectionPrefs.hidden.includes(sec.id);
+      cb.addEventListener("change", () => {
+        const next = sectionPrefs.hidden.filter((x) => x !== sec.id);
+        if (!cb.checked) next.push(sec.id);
+        setSectionPrefs({ ...sectionPrefs, hidden: next });
+        void persistPrefs();
+        renderConfig(lastConfigSections);
+      });
+      const tx = document.createElement("span");
+      tx.textContent = `${secName(sec.title)} (${(sec.cards || []).length})`;
+      row.append(cb, tx);
+      box.appendChild(row);
+    }
+  }
 }
 
 // 스코프 필터 칩: 전체 / 전역 / 프로젝트별. 클릭 시 캐시 섹션으로 즉시 재렌더(서버 왕복 없음).
@@ -169,19 +327,7 @@ function buildSrcGroupHeader(key: string, isGlobal: boolean, pathTxt: string, co
 function renderConfigSection(host: HTMLElement, sec: any): void {
   const cards = sec.cards || [];
   const hasProject = cards.some((c: any) => c.scope === "project");
-  // Plugins 섹션은 플러그인 **관리** 화면이라 출처 토글의 대상이 아니다. 여기까지 숨기면
-  // 다시 켤 자리가 사라지고, 무엇을 껐는지도 확인할 수 없게 된다.
-  const isPluginSec = sec.id === "plugins";
-  const inScope = (c: any) =>
-    scopeFilter === "all" ? true
-      : scopeFilter === "global" ? c.scope !== "project"
-        : (c.scope === "project" && c.project === scopeFilter);
-  const visible = cards.filter((c: any) =>
-    (showPlugin || !c.plugin || isPluginSec) && (showBuiltin || !c.builtin) && inScope(c));
-  // 필터 모드에서 결과 0개 섹션은 통째로 스킵. 아무 필터도 안 걸렸으면 항상 렌더.
-  const filtering = scopeFilter !== "all" || !showPlugin || !showBuiltin;
-  if (filtering && !visible.length) return;
-
+  const visible = visibleCards(sec);
   secIds.add(sec.id);
   const secEl = document.createElement("div");
   secEl.className = "sec" + (collapsed.has(sec.id) ? " collapsed" : "");
