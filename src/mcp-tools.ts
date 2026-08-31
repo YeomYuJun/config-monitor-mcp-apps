@@ -438,6 +438,74 @@ export function buildTools(scriptDir: string): ToolDef[] {
       },
     },
     {
+      name: "config_item_add",
+      meta: {
+        title: "Scaffold Rule / Output Style / Workflow",
+        description: "단일 파일 항목(rule/output-style/workflow) 스텁 생성. rule 에 paths 를 주면 적재가 EAGER 대신 LAZY 가 됨",
+        inputSchema: z.object({
+          itemKind: z.enum(["rule", "output-style", "workflow"]),
+          name: z.string().describe("단일 세그먼트 이름(경로 구분자 불가)"),
+          desc: z.string().optional(),
+          paths: z.string().optional().describe("rule 전용. 지정하면 매칭 파일을 읽을 때만 적재(LAZY)"),
+          dir: z.string().optional().describe("프로젝트 대상 디렉토리(<...>/.claude/<sub>). 미지정 시 전역"),
+        }), annotations: WRITE,
+      },
+      run: async (a: { itemKind: string; name: string; desc?: string; paths?: string; dir?: string }) => {
+        const args = ["item-scaffold", a.itemKind, a.name];
+        if (a.desc) args.push("--desc", a.desc);
+        if (a.paths) args.push("--paths", a.paths);
+        if (a.dir) args.unshift("--items-dir", a.dir);
+        return jsonResult(await runPy("config_edit.py", args));
+      },
+    },
+    {
+      name: "config_item_remove",
+      meta: {
+        title: "Remove Rule / Output Style / Workflow",
+        description: "단일 파일 항목을 .trash 로 이동(복구 가능). dir 지정 시 그 프로젝트에서만 제거",
+        inputSchema: z.object({
+          itemKind: z.enum(["rule", "output-style", "workflow"]),
+          name: z.string(),
+          dir: z.string().optional().describe("프로젝트 대상 디렉토리. 미지정 시 전역"),
+        }), annotations: EDIT,
+      },
+      run: async (a: { itemKind: string; name: string; dir?: string }) => {
+        const args = ["item-remove", a.itemKind, a.name];
+        if (a.dir) args.unshift("--items-dir", a.dir);
+        return jsonResult(await runPy("config_edit.py", args));
+      },
+    },
+    {
+      name: "config_outputstyle_set",
+      meta: {
+        title: "Activate Output Style",
+        description: "settings 의 outputStyle 을 지정(빈 이름이면 해제). 어떤 스타일이 세션 시작에 적재될지를 바꾸는 스위치",
+        inputSchema: z.object({
+          name: z.string().describe("활성화할 스타일 이름. 빈 문자열이면 선택 해제"),
+          settings: z.string().optional().describe("프로젝트 settings.json 경로. 미지정 시 전역"),
+        }), annotations: WRITE,
+      },
+      run: async (a: { name: string; settings?: string }) => {
+        const args = ["outputstyle-set", a.name];
+        if (a.settings) args.unshift("--settings", a.settings);
+        return jsonResult(await runPy("config_edit.py", args));
+      },
+    },
+    {
+      name: "config_memory_remove",
+      meta: {
+        title: "Remove Memory Topic",
+        description: "프로젝트 메모리 토픽 파일을 .trash 로 이동(복구 가능). MEMORY.md 색인은 대상이 아님",
+        inputSchema: z.object({
+          name: z.string().describe("토픽 이름(확장자 제외)"),
+          memoryDir: z.string().describe("<...>/projects/<name>/memory 경로"),
+        }), annotations: EDIT,
+      },
+      run: async (a: { name: string; memoryDir: string }) =>
+        jsonResult(await runPy("config_edit.py",
+          ["--memory-dir", a.memoryDir, "memory-remove", a.name])),
+    },
+    {
       name: "config_mcp_add",
       meta: {
         title: "Add/Update MCP Server",

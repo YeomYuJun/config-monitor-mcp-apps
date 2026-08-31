@@ -442,8 +442,9 @@ function renderConfigSection(host: HTMLElement, sec: any): void {
 // removal uses inline confirm (window.confirm may be blocked in iframe sandbox).
 function buildEditUI(edit: any): HTMLElement {
   if (edit.kind === "plugin") return buildPluginToggleUI(edit);
-  if (["mcp", "skill", "agent"].includes(edit.kind)) return buildRemoveUI(edit);
-  if (["mcp-add", "skill-add", "agent-add"].includes(edit.kind)) return buildAddUI(edit);
+  if (edit.kind === "item" && edit.itemKind === "output-style") return buildStyleUI(edit);
+  if (["mcp", "skill", "agent", "item", "memory"].includes(edit.kind)) return buildRemoveUI(edit);
+  if (["mcp-add", "skill-add", "agent-add", "item-add"].includes(edit.kind)) return buildAddUI(edit);
   const isPerm = edit.kind === "perm";
   const tgt = edit.settings ? { settings: edit.settings } : {};   // 프로젝트 카드면 그 프로젝트 settings 파일 대상
   const doRemove = (it: string) =>
@@ -656,12 +657,50 @@ function mkPluginCliBtn(label: string, tip: string, tool: string, args: any,
 }
 
 // 카드 단위 제거(mcp/skill/agent): 제거 버튼 -> 인라인 확인 -> 해당 remove 도구 호출.
+// output style 카드. 제거만 있으면 반쪽이다 - 어느 스타일이 세션 시작에 적재될지를
+// 바꾸는 스위치가 여기 말고는 없다. 활성 카드에는 해제를, 나머지에는 활성화를 준다.
+function buildStyleUI(edit: any): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "edit";
+  const notice = mkNotice();
+  const btn = document.createElement("button");
+  btn.className = "addbtn" + (edit.active ? " on" : "");
+  btn.textContent = edit.active ? t("styleDeactivate") : t("styleActivate");
+  btn.title = edit.active ? t("styleDeactivateTip") : t("styleActivateTip");
+  btn.addEventListener("click", async () => {
+    setPending(btn);
+    try {
+      const res = jparse(await callTool("config_outputstyle_set", {
+        name: edit.active ? "" : edit.name,
+        ...(edit.settings ? { settings: edit.settings } : {}),
+      }));
+      if (res && (res.ok === false || res.changed === false)) {
+        clearPending(btn, t("failed"));
+        notice.show(res.message || t("failed"), res.ok === false ? "err" : "warn");
+        return;
+      }
+      flashToast((edit.active ? t("styleDeactivate") : t("styleActivate")) + " · " + edit.name);
+      await refreshApp?.();
+    } catch (e) { notice.show(String(e)); clearPending(btn, t("failed")); }
+  });
+  const row = document.createElement("div");
+  row.className = "adder";
+  row.append(btn);
+  wrap.append(row, buildRemoveUI(edit), notice.el);
+  return wrap;
+}
+
 function buildRemoveUI(edit: any): HTMLElement {
   // edit.dir = 프로젝트-로컬 항목의 skills/agents 디렉토리. 전역 카드는 미부여 -> 도구 기본값(~/.claude).
   const doRemove = () => {
     if (edit.kind === "mcp") return callTool("config_mcp_remove", { name: edit.name, scope: edit.scope });
     if (edit.kind === "skill")
       return callTool("config_skill_remove", { name: edit.name, ...(edit.dir ? { skillsDir: edit.dir } : {}) });
+    if (edit.kind === "item")
+      return callTool("config_item_remove",
+        { itemKind: edit.itemKind, name: edit.name, ...(edit.dir ? { dir: edit.dir } : {}) });
+    if (edit.kind === "memory")
+      return callTool("config_memory_remove", { name: edit.name, memoryDir: edit.memoryDir });
     return callTool("config_agent_remove", { name: edit.name, ...(edit.dir ? { agentsDir: edit.dir } : {}) });
   };
   const wrap = document.createElement("div");
@@ -745,6 +784,9 @@ function buildAddUI(edit: any): HTMLElement {
         res = jparse(await callTool("config_mcp_add", { name, serverJson: rest, scope: edit.scope }));
       } else if (edit.kind === "skill-add") {
         res = jparse(await callTool("skill_scaffold", { name, desc: rest || undefined }));
+      } else if (edit.kind === "item-add") {
+        res = jparse(await callTool("config_item_add",
+          { itemKind: edit.itemKind, name, desc: rest || undefined }));
       } else {
         res = jparse(await callTool("config_agent_add", { name, desc: rest || undefined }));
       }
