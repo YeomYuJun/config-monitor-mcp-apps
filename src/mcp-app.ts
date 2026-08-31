@@ -12,7 +12,7 @@ import {
   selectedPath, setSelectedPath, currentRevs, setCurrentRevs, fromRev, setFromRev, toRev, setToRev,
   detailOpen, setDetailOpen, collapsed, ccPlugins, ccMarkets, ccCatalog, setCcCatalog,
   knownProjects, setKnownProjects, cmMarketUrls, cmMarketsNoUrl, OFFICIAL_MARKET_URL, normUrl,
-  secTitles, collapsedInit, setCollapsedInit, showPlugin, setShowPlugin, showBuiltin, setShowBuiltin,
+  secIds, collapsedInit, setCollapsedInit, showPlugin, setShowPlugin, showBuiltin, setShowBuiltin,
   libGroupOpen, ROOT_GROUP_KEY, libChecked, libOpen, libProjectTargets, setLibProjectTargets,
   libTarget, setLibTarget, libSelBarUpdate, setLibSelBarUpdate, scopeFilter, setScopeFilter,
   srcOpen, lastConfigSections, setLastConfigSections, refreshApp, setRefreshApp, catOpen,
@@ -232,7 +232,7 @@ applyLang(); // 초기 1회: 정적 라벨을 저장된 lang(기본 ko)으로 �
 // ----- wiring -----
 $("collapse-all").addEventListener("click", () => {
   // 접기 가능(data-col) 섹션만 — 라이브러리 등록 UI 같은 헤더 토글 없는 블럭은 제외
-  secTitles.forEach((t) => collapsed.add(t));
+  secIds.forEach((id) => collapsed.add(id));
   document.querySelectorAll("#config .sec[data-col]").forEach((el) => el.classList.add("collapsed"));
 });
 $("refresh").addEventListener("click", () => { refresh(); flashToast(t("toastRefreshed")); });

@@ -6,7 +6,7 @@ import { callTool, jparse } from "./bridge";
 import { $, esc, setPending, clearPending, openModal, openReasonModal, flashToast } from "./widgets";
 import {
   collapsed, ccPlugins, ccMarkets, ccCatalog, knownProjects, cmMarketUrls, cmMarketsNoUrl,
-  normUrl, secTitles, refreshApp, catOpen, catSecEl, setCcCatalog, setCatSecEl,
+  normUrl, secIds, refreshApp, catOpen, catSecEl, setCcCatalog, setCatSecEl,
 } from "./state";
 import { openMarketAdd } from "./libmarket";
 
@@ -14,7 +14,7 @@ import { openMarketAdd } from "./libmarket";
 // renderLibrary 로 그리지 않는다 - 매 새로고침마다 전 항목을 eager 렌더하므로 278행이 들어오면 못 쓴다.
 let catQuery = "", catCategory = "";
 const CAT_PAGE = 40;
-const CAT_SEC = "Marketplace";                 // 접힘 상태 키(collapsed/secTitles 공용). t() 와 무관 - 언어를 바꿔도 접힘이 유지된다.
+const CAT_SEC = "marketplace";                 // 접힘 상태 키(collapsed/secIds 공용). t() 와 무관 - 언어를 바꿔도 접힘이 유지된다.
 // 페이징은 마켓별로 따로 센다. 합친 목록 하나를 넘기면 A 마켓 끝 페이지에서 B 마켓이 이어붙어
 // "7페이지부터 다른 마켓이 나오는" 목록이 된다 - 마켓은 서로 다른 출처지 한 목록의 뒷부분이 아니다.
 const catOffsets: Record<string, number> = {};
@@ -78,7 +78,7 @@ async function buildCatalog(): Promise<HTMLElement> {
   const sec = document.createElement("section");
   sec.className = "sec" + (collapsed.has(CAT_SEC) ? " collapsed" : "");
   sec.dataset.col = "1";                        // "전부 접기"(#config .sec[data-col]) 대상에 포함
-  secTitles.add(CAT_SEC);
+  secIds.add(CAT_SEC);
   const head = document.createElement("div");
   head.className = "sechead";
   head.innerHTML =

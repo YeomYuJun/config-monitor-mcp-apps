@@ -5,7 +5,7 @@ import { callTool, jparse } from "./bridge";
 import { $, esc, setPending, clearPending, mkNotice, openReasonModal, flashToast } from "./widgets";
 import { valClass, basename, safeSegment, looksLikePermRule } from "./helpers";
 import {
-  collapsed, ccPlugins, secTitles, collapsedInit, showPlugin, showBuiltin, refreshApp,
+  collapsed, ccPlugins, secIds, collapsedInit, showPlugin, showBuiltin, refreshApp,
   scopeFilter, srcOpen, lastConfigSections, setKnownProjects, setCollapsedInit,
   setShowPlugin, setShowBuiltin, setScopeFilter, setLastConfigSections,
 } from "./state";
@@ -26,14 +26,14 @@ export function renderConfig(sections: any[]): void {
     wrap = document.createElement("div");
     wrap.id = "cfg-scoped";
     host.appendChild(wrap);
-    secTitles.clear();   // 전체 새로고침 때만 초기화(재렌더 시엔 Library 타이틀 보존)
+    secIds.clear();   // 전체 새로고침 때만 초기화(재렌더 시엔 Library id 보존)
   } else {
     wrap!.innerHTML = "";
   }
   const w = wrap!;
   // 첫 렌더는 전부 접은 상태로 연다 - 8개 분류가 한꺼번에 펼쳐지면 훑을 수가 없다.
   if (!collapsedInit) {
-    for (const sec of sections) collapsed.add(sec.title);
+    for (const sec of sections) collapsed.add(sec.id);
     setCollapsedInit(true);
   }
   // 스캔 결과의 distinct 프로젝트 경로(등장 순), 칩/필터의 유일 원천(카드 project 값과 동일 소스).
@@ -161,7 +161,7 @@ function renderConfigSection(host: HTMLElement, sec: any): void {
   const hasProject = cards.some((c: any) => c.scope === "project");
   // Plugins 섹션은 플러그인 **관리** 화면이라 출처 토글의 대상이 아니다. 여기까지 숨기면
   // 다시 켤 자리가 사라지고, 무엇을 껐는지도 확인할 수 없게 된다.
-  const isPluginSec = String(sec.title || "").startsWith("Plugins");
+  const isPluginSec = sec.id === "plugins";
   const inScope = (c: any) =>
     scopeFilter === "all" ? true
       : scopeFilter === "global" ? c.scope !== "project"
@@ -172,9 +172,9 @@ function renderConfigSection(host: HTMLElement, sec: any): void {
   const filtering = scopeFilter !== "all" || !showPlugin || !showBuiltin;
   if (filtering && !visible.length) return;
 
-  secTitles.add(sec.title);
+  secIds.add(sec.id);
   const secEl = document.createElement("div");
-  secEl.className = "sec" + (collapsed.has(sec.title) ? " collapsed" : "");
+  secEl.className = "sec" + (collapsed.has(sec.id) ? " collapsed" : "");
   secEl.dataset.col = "1";
 
   const gCount = cards.filter((c: any) => c.scope !== "project").length;
@@ -191,7 +191,7 @@ function renderConfigSection(host: HTMLElement, sec: any): void {
     `<span class="sectitle">${esc(sec.title)}</span>` +
     `<span class="seccount">${visible.length}</span>${summary}</div>` + srcHtml;
   head.addEventListener("click", () => {
-    if (collapsed.has(sec.title)) collapsed.delete(sec.title); else collapsed.add(sec.title);
+    if (collapsed.has(sec.id)) collapsed.delete(sec.id); else collapsed.add(sec.id);
     secEl.classList.toggle("collapsed");
   });
   secEl.appendChild(head);
@@ -203,7 +203,7 @@ function renderConfigSection(host: HTMLElement, sec: any): void {
   //   skills : personal(전역)이 project 를 덮어씀 -> 가려지는 쪽은 프로젝트 카드
   // 판정은 필터와 무관하게 전체 카드 기준(전역 필터에서도 배지가 유지되어야 함).
   let shadowOf: ((c: any) => Shadow | null) | null = null;
-  if (hasProject && /^Agents/.test(sec.title)) {
+  if (hasProject && sec.id === "agents") {
     const byName = new Map<string, string[]>();
     for (const c of cards) if (c.scope === "project" && c.project) {
       byName.set(c.name, (byName.get(c.name) || []).concat(c.project));
@@ -217,7 +217,7 @@ function renderConfigSection(host: HTMLElement, sec: any): void {
         tip: t("shadowedTip") + ps.join(" · "),
       };
     };
-  } else if (hasProject && /^Skills/.test(sec.title)) {
+  } else if (hasProject && sec.id === "skills") {
     const globalNames = new Set(cards.filter((c: any) => c.scope !== "project" && !isAddCard(c))
                                      .map((c: any) => c.name));
     shadowOf = (c: any) => {
@@ -237,7 +237,7 @@ function renderConfigSection(host: HTMLElement, sec: any): void {
   for (const c of visible) {
     const isGlobal = c.scope !== "project";
     const label = srcOf(c);
-    const key = `${sec.title}::${isGlobal ? "g" : "p"}::${label}`;
+    const key = `${sec.id}::${isGlobal ? "g" : "p"}::${label}`;
     let i = gidx.get(key);
     if (i === undefined) {
       i = groups.length;
