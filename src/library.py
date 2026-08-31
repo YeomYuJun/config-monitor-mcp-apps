@@ -46,10 +46,15 @@ DEFAULT_CLAUDE_JSON = os.path.join(HOME, ".claude.json")
 DEFAULT_DESKTOP_CONFIG = paths.desktop_config_path()
 
 # 카테고리 -> (라이브러리 하위경로, 항목 종류)
+# 카테고리 -> (하위경로, 항목 종류, 파일 확장자). dir 종류는 확장자를 쓰지 않는다.
+# 표면이 늘면 여기 한 줄만 더한다 - 설치/제거/sync/conflict/원장이 전부 이 표를 탄다.
 CATEGORIES = {
-    "agents":   ("agents", "file"),      # *.md
-    "skills":   ("skills", "dir"),       # <name>/ (SKILL.md 포함)
-    "commands": ("commands", "file"),    # *.md
+    "agents":        ("agents", "file", ".md"),
+    "skills":        ("skills", "dir", ""),          # <name>/ (SKILL.md 포함)
+    "commands":      ("commands", "file", ".md"),
+    "rules":         ("rules", "file", ".md"),
+    "output-styles": ("output-styles", "file", ".md"),
+    "workflows":     ("workflows", "file", ".js"),
 }
 
 # 라이브러리 바깥을 가리키는 상대참조 탐지 휴리스틱: CLAUDE_PROJECT_DIR 또는 형제 디렉토리
@@ -186,7 +191,7 @@ def _iter_items(lib, category, cmap=None):
     relpath 는 base(카테고리 루트) 기준 상대경로 - 그룹 표시·설치 지정에 사용.
     _walk_strict 를 쓰므로 나열 도중 OSError 가 나면(예: 깊은 경로가 Windows 길이 제한을
     넘음) 이 제너레이터가 그대로 raise 한다 - 호출부(cmd_scan)가 카테고리 단위로 잡는다."""
-    sub, kind = CATEGORIES[category]
+    sub, kind, ext = CATEGORIES[category]
     if cmap and cmap.get(category):
         sub = cmap[category]
     base = os.path.join(lib, sub)
@@ -197,8 +202,9 @@ def _iter_items(lib, category, cmap=None):
             if name.startswith("."):
                 continue
             full = os.path.join(base, name)
-            if name.lower().endswith(".md") and os.path.isfile(full):
-                yield name[:-3], full, kind, name[:-3]
+            if name.lower().endswith(ext) and os.path.isfile(full):
+                stem = name[:-len(ext)]
+                yield stem, full, kind, stem
         return
     for root, dirs, names in _walk_strict(base):
         dirs[:] = sorted(d for d in dirs if not d.startswith("."))
@@ -209,8 +215,8 @@ def _iter_items(lib, category, cmap=None):
 
 
 def _target_path(target_root, category, name, kind):
-    sub, _ = CATEGORIES[category]
-    return os.path.join(target_root, sub, name if kind == "dir" else f"{name}.md")
+    sub, _, ext = CATEGORIES[category]
+    return os.path.join(target_root, sub, name if kind == "dir" else f"{name}{ext}")
 
 
 def _status(lib_path, tgt, kind):
@@ -476,7 +482,7 @@ def _resolve_item(a):
     seg_bad = any(p in ("", ".", "..") or ":" in p or p != os.path.basename(p) for p in parts)
     if not parts or os.path.isabs(a.path) or seg_bad:
         out(False, f"경로가 유효하지 않음: '{a.path}'")
-    sub, kind = CATEGORIES[a.category]
+    sub, kind, ext = CATEGORIES[a.category]
     if kind == "file" and len(parts) != 1:
         out(False, f"경로는 단일 이름이어야 함: '{a.path}'")
     leaf = parts[-1]
@@ -490,7 +496,7 @@ def _resolve_item(a):
         cmap = r.get("map") or {}
         src = os.path.join(r["lib"], cmap.get(a.category) or sub, *parts)
         if kind == "file":
-            src += ".md"
+            src += ext
         if os.path.exists(src):
             hits.append((src, kind, _target_path(a.target, a.category, leaf, kind), r["origin"]))
     if not hits:
@@ -543,7 +549,7 @@ def cmd_install(a):
 def cmd_uninstall(a):
     if a.name != os.path.basename(a.name) or a.name in (".", "..") or ":" in a.name or any(c in a.name for c in "\\/"):
         out(False, f"이름이 유효하지 않음: '{a.name}'")
-    sub, kind = CATEGORIES[a.category]
+    _sub, kind, _ext = CATEGORIES[a.category]
     tgt = _target_path(a.target, a.category, a.name, kind)
     if not os.path.exists(tgt):
         out(True, f"이미 없음: {a.category}/{a.name} (no-op)", changed=False)
