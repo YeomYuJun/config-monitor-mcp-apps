@@ -269,7 +269,7 @@ When a project is tracked, the Permissions / Hooks / Skills / Agents / Commands 
 - **Keybindings**, **Themes**, **CLAUDE.md**, and **`.worktreeinclude`** stay view-only, listed by size and path. A keymap, a color table, and a prose document are an editor's job, not a card's.
 - **Commands** and a project's **`.mcp.json`** remain view-only at every scope, as before.
 - Nested items (in subfolders) are view-only everywhere, because the remove operation takes a single-segment name.
-- A project's active output style is resolved from that project's own settings, so a style set only globally is not reflected in the project cards' badges.
+- A project's active output style follows the real cascade — the global `settings.json` chain first, then the project's own, with the project winning. A style set only globally still badges `EAGER` on that project's card.
 - The **Library** and **Marketplace** panels are not part of the section picker and are always shown.
 - Long values are truncated — descriptions at 600 chars, everything else at 160.
 - Only what appears as a card is editable; keys that aren't parsed can't be changed from the dashboard.
