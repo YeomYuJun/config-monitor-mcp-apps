@@ -43,6 +43,9 @@ Cowork supports both inline and fullscreen; Code supports inline only (following
 
 ## Features
 
+- **The whole config surface** — beyond MCP/hooks/skills/agents: `CLAUDE.md` and `CLAUDE.local.md`, `rules/`, `output-styles/`, `workflows/`, `keybindings.json`, `themes/`, `.worktreeinclude`, agent memory, and per-project `memory/`.
+- **Context load class** — every section and card is badged `EAGER` / `LAZY` / `NEVER`, so you can see what actually costs you context at session start. A rule with `paths:` frontmatter is LAZY and one without it is EAGER; only the selected output style is EAGER.
+- **Grouped, filterable sections** — the ~20 sections are banded into six functional groups (instructions, extensions, connections, execution, memory, environment), with presets (*only what exists* / *commonly used* / *all* / *choose*) saved to the store.
 - **One view across sources** — Claude Code, Claude Desktop, and each tracked project side by side, with scope badges (`global` / `project`).
 - **Snapshots & diffs** — track any config file, browse its snapshot timeline, compare two versions, and restore an earlier one.
 - **Direct editing, global or per-project** — add or remove `allow` / `deny` / `ask` permissions, hooks, and MCP servers; scaffold or remove skills and agents. A project-scoped card always edits that project's own `.claude/`, never the global one.
@@ -118,7 +121,11 @@ The list of config files under snapshot watch, each showing a status badge (`new
 
 <img src="assets/img/settings-section.png" width="560" alt="Config panel">
 
-Cards for each category — MCP Servers, Claude Code (`.claude.json`), Permissions, Hooks, Skills, Agents, Scheduled Tasks, and Desktop Skills. Items are grouped by source (global expanded, per-project collapsed), with a `global N · project M` summary where projects contribute.
+Cards for each category, banded into six functional groups — **instructions** (`CLAUDE.md`, Rules, Output Styles), **extensions** (Skills, Agents, Commands, Workflows, Plugins), **connections** (MCP servers, Desktop Skills), **execution** (Permissions, Hooks), **memory** (project memory, agent memory), and **environment** (Keybindings, Themes, `.worktreeinclude`, Scheduled Tasks). Click a band to collapse the whole group. Items inside are grouped by source (global expanded, per-project collapsed), with a `global N · project M` summary where projects contribute.
+
+Each section header carries a **load badge** — `EAGER` (in context at session start), `LAZY` (only when its condition is met), or `NEVER` (runtime only, never in context). Where the class differs per file the badge moves to the card: a rule with `paths:` frontmatter is LAZY and one without it is EAGER; of the output styles only the one named by `outputStyle` is EAGER; `MEMORY.md` is EAGER while its topic files are LAZY.
+
+Most machines have only a handful of these surfaces, so the gear menu's **섹션 표시 / Sections** control decides what is listed: `only what exists` (default), `commonly used`, `all` (shows empty sections too, for diagnosing what is missing), or `choose` for a per-section checkbox list. The choice is saved to the store, so it survives a restart. Whenever sections are hidden, a **Hidden sections N** chip appears above the list and opens that control — the dashboard reduces the list but never does it silently.
 
 **Override badges** mark items that share a name but are *not* actually applied, with a dashed border and an amber tag. Precedence runs opposite ways: for **Agents** the project wins, so the **global** card is badged; for **Skills** the global (personal) config wins, so the **project** card is badged.
 
@@ -231,10 +238,18 @@ The dashboard does not dump whole files — it extracts only the fields it needs
 | Commands | `~/.claude/commands/` | frontmatter `description` (subfolders are namespaces) |
 | Plugins | `~/.claude/plugins/{installed_plugins,known_marketplaces}.json` + each plugin's `.claude-plugin/plugin.json` | per-plugin market, version, install path, enabled state, and the components it contributes |
 | Plugin inventory | `~/.claude/plugins/plugin-catalog-cache.json` | pre-install component list, projected token cost, install count, homepage (official marketplace only) |
+| CLAUDE.md | `~/.claude/CLAUDE.md` | file size and path (contents are not parsed) |
+| Rules | `~/.claude/rules/**/*.md` | frontmatter `description`; presence of `paths:` decides EAGER vs LAZY |
+| Output Styles | `~/.claude/output-styles/**/*.md` | frontmatter `description`; `settings.outputStyle` decides which one is active |
+| Workflows | `~/.claude/workflows/*.js` | file name (becomes `/<name>`), size, path |
+| Keybindings | `~/.claude/keybindings.json` | size and path only (not parsed) |
+| Themes | `~/.claude/themes/*.json` | theme name, size, path |
+| Agent Memory | `~/.claude/agent-memory/**/*.md` | frontmatter `description` |
+| Project Memory | `~/.claude/projects/<encoded>/memory/*.md` | frontmatter `description`; `MEMORY.md` is the EAGER index |
 | Scheduled Tasks | `~/Claude/Scheduled/*/SKILL.md` | `description`, `cron`/`schedule`/`fireAt` |
 | Desktop Skills | `<Desktop>/.../skills-plugin/**/manifest.json` | `description`, `creatorType`, `enabled`, `updatedAt` |
 
-When a project is tracked, the Permissions / Hooks / Skills / Agents / Commands sections also read that project's `.claude/{settings.json,settings.local.json}`, `.claude/skills/`, `.claude/agents/`, and `.claude/commands/` and append them as project items. A project's `.mcp.json` gets its own **MCP Servers (project)** section, since it is committed and affects the whole team.
+When a project is tracked, the Permissions / Hooks / Skills / Agents / Commands / Rules / Output Styles / Workflows / Agent Memory sections also read that project's `.claude/` equivalents and append them as project items. A project additionally contributes its `CLAUDE.md`, `CLAUDE.local.md`, and `.claude/CLAUDE.md` to the **CLAUDE.md** section, its `.worktreeinclude`, and its `~/.claude/projects/<encoded>/memory/` entries. A project's `.mcp.json` gets its own **MCP Servers (project)** section, since it is committed and affects the whole team.
 
 </details>
 
@@ -248,6 +263,10 @@ When a project is tracked, the Permissions / Hooks / Skills / Agents / Commands 
 - Remote sources are never fetched automatically — registration persists, but updates are always an explicit refresh.
 - Keep `CLAUDE_SNAPSHOT_STORE` short. Marketplace plugins nest a few levels deep inside it, and Windows still caps most paths at 260 characters; a deep store can leave a plugin fetched but unreadable. That case is reported rather than silently counted as zero items.
 - Project cards are capped at 20.
+- The new surfaces (Rules, Output Styles, Workflows, Keybindings, Themes, memory, `.worktreeinclude`) are **view-only** — no edit operation exists for them.
+- `CLAUDE.md`, `keybindings.json`, and theme files are listed by size and path; their contents are not parsed.
+- A project's active output style is resolved from that project's own settings, so a style set only globally is not reflected in the project cards' badges.
+- The **Library** and **Marketplace** panels are not part of the section picker and are always shown.
 - Long values are truncated — descriptions at 600 chars, everything else at 160.
 - Only what appears as a card is editable; keys that aren't parsed can't be changed from the dashboard.
 
