@@ -590,7 +590,7 @@ def _agent_cards(ad, scope=None, project=None):
                               badge="add", edit={"kind": "agent-add"}))
     return cards
 
-def _append_project_cards(sections, projects):
+def _append_project_cards(sections, projects, global_chain=()):
     """추적 중인 프로젝트 .claude 디렉토리들의 permissions/hooks/skills/agents 를 스캔해
     해당 전역 섹션 뒤에 프로젝트 항목으로 append(전역 카드는 불변). title 개수도 재계산."""
     by_id = {sec["id"]: sec for sec in sections}
@@ -612,7 +612,10 @@ def _append_project_cards(sections, projects):
         add_to("claude-md", _claude_md_cards(root, "project", root))
         add_to("rules", _rules_cards(os.path.join(cdir, "rules"), "project", root))
         add_to("output-styles", _output_style_cards(
-            os.path.join(cdir, "output-styles"), _active_output_style(_dir_settings(cdir)),
+            os.path.join(cdir, "output-styles"),
+            # 프로젝트는 전역 settings 를 상속한다 - 전역 체인을 앞에 두고 프로젝트가 이긴다.
+            # 프로젝트만 보면 전역에서 켠 스타일이 그 프로젝트에서 NEVER 로 보인다.
+            _active_output_style(list(global_chain) + _dir_settings(cdir)),
             "project", root, settings=os.path.join(cdir, "settings.json")))
         pwd_ = os.path.join(cdir, "workflows")
         add_to("workflows", _glob_cards(pwd_, "*.js", "workflow", "project", root,
@@ -975,7 +978,7 @@ def parse(found, project_dirs=None):
     # title 개수를 재계산하므로 순서가 개수를 어긋나게 만들지 않는다.
     _append_plugin_cards(state["sections"], plugins, chain)
     if project_dirs:
-        _append_project_cards(state["sections"], project_dirs)
+        _append_project_cards(state["sections"], project_dirs, chain)
     return state
 
 HTML_TEMPLATE = """<!DOCTYPE html>

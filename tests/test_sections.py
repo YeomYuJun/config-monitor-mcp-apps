@@ -4,6 +4,7 @@
 레지스트리가 id·그룹·적재등급의 유일한 원천이라, 여기서 깨지면 저장된 표시 설정이
 엉뚱한 섹션에 붙는다.
 """
+import json
 import os
 import sys
 import tempfile
@@ -121,6 +122,46 @@ class TestInstructionSurfaces(unittest.TestCase):
             cards = cc._claude_md_cards(root, "project", root)
             self.assertEqual(len(cards), 3)
             self.assertTrue(all(c["load"] == "eager" for c in cards))
+
+
+class TestProjectOutputStyleInheritsGlobal(unittest.TestCase):
+    """프로젝트는 전역 settings 를 상속한다. 전역에만 outputStyle 이 있으면 그 프로젝트
+    세션도 그 스타일로 도는데, 프로젝트 카드가 전부 NEVER 로 뜨면 배지가 거짓말을 한다."""
+
+    def _build(self, global_style, project_style):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        gdir = os.path.join(self.tmp.name, "home", ".claude")
+        pdir = os.path.join(self.tmp.name, "proj", ".claude")
+        os.makedirs(os.path.join(pdir, "output-styles"))
+        os.makedirs(gdir)
+        for name in ("terse", "verbose"):
+            with open(os.path.join(pdir, "output-styles", name + ".md"), "w", encoding="utf-8") as f:
+                f.write("---\ndescription: x\n---\n")
+        gset = os.path.join(gdir, "settings.json")
+        with open(gset, "w", encoding="utf-8") as f:
+            json.dump({"outputStyle": global_style} if global_style else {}, f)
+        with open(os.path.join(pdir, "settings.json"), "w", encoding="utf-8") as f:
+            json.dump({"outputStyle": project_style} if project_style else {}, f)
+        state = cc.parse(cc.discover([f"code_settings={gset}"]), [pdir])
+        sec = next(s for s in state["sections"] if s["id"] == "output-styles")
+        return {c["name"]: c for c in sec["cards"]
+                if c.get("scope") == "project" and c.get("badge") != "add"}
+
+    def test_global_style_marks_the_project_card_eager(self):
+        by = self._build("terse", None)
+        self.assertEqual(by["terse"]["load"], "eager",
+                         "전역에서 켠 스타일이 프로젝트 카드에서 NEVER 로 보이면 안 된다")
+        self.assertEqual(by["verbose"]["load"], "never")
+
+    def test_project_setting_overrides_global(self):
+        by = self._build("terse", "verbose")
+        self.assertEqual(by["verbose"]["load"], "eager")
+        self.assertEqual(by["terse"]["load"], "never")
+
+    def test_no_style_anywhere_leaves_all_never(self):
+        by = self._build(None, None)
+        self.assertEqual({c["load"] for c in by.values()}, {"never"})
 
 
 class TestEnvSurfaces(unittest.TestCase):
