@@ -396,7 +396,7 @@ def _size_kv(path):
         return []
 
 
-def _md_dir_cards(d, badge, scope=None, project=None, load_of=None):
+def _md_dir_cards(d, badge, scope=None, project=None, load_of=None, edit_of=None):
     """*.md 디렉토리를 재귀 순회해 카드로. rel 은 '/' 구분 · 확장자 제거(_iter_md 와 동일).
     load_of(rel, path, meta) 를 주면 카드마다 적재등급을 따로 정한다."""
     cards = []
@@ -408,18 +408,27 @@ def _md_dir_cards(d, badge, scope=None, project=None, load_of=None):
                  badge=badge, ok=True, scope=scope, project=project)
         if load_of:
             c["load"] = load_of(rel, full, meta)
+        if edit_of:
+            e = edit_of(rel, full, meta)
+            if e:
+                c["edit"] = e
         cards.append(c)
     return cards
 
 
-def _glob_cards(d, pattern, badge, scope=None, project=None):
+def _glob_cards(d, pattern, badge, scope=None, project=None, edit_of=None):
     cards = []
     if not (d and os.path.isdir(d)):
         return cards
     for full in sorted(globmod.glob(os.path.join(d, pattern))):
-        cards.append(card(os.path.splitext(os.path.basename(full))[0],
-                          _size_kv(full) + [("path", full)],
-                          badge=badge, ok=True, scope=scope, project=project))
+        rel = os.path.splitext(os.path.basename(full))[0]
+        c = card(rel, _size_kv(full) + [("path", full)],
+                 badge=badge, ok=True, scope=scope, project=project)
+        if edit_of:
+            e = edit_of(rel, full, {})
+            if e:
+                c["edit"] = e
+        cards.append(c)
     return cards
 
 
@@ -434,10 +443,32 @@ def _file_card(path, badge, scope=None, project=None, load=None):
     return [c]
 
 
+def _item_edit(item_kind, rel, d, scope, extra=None):
+    """중첩 항목(하위 폴더)은 제거 op 가 단일 세그먼트만 받으므로 뷰 전용이다.
+    전역 카드에는 dir 을 붙이지 않는다 - 도구 기본값(~/.claude/<sub>)으로 가게 둔다."""
+    if "/" in rel:
+        return None
+    e = {"kind": "item", "itemKind": item_kind, "name": rel}
+    if scope == "project":
+        e["dir"] = d
+    if extra:
+        e.update(extra)
+    return e
+
+
+def _add_card(item_kind, label):
+    return card(label, [("형식", "name 설명…")], badge="add",
+                edit={"kind": "item-add", "itemKind": item_kind})
+
+
 def _rules_cards(d, scope=None, project=None):
     """paths: frontmatter 가 있으면 매칭 파일을 읽을 때만(LAZY), 없으면 세션 시작에 적재(EAGER)."""
-    return _md_dir_cards(d, "rule", scope, project,
-                         load_of=lambda rel, p, meta: "lazy" if "paths" in meta else "eager")
+    cards = _md_dir_cards(d, "rule", scope, project,
+                          load_of=lambda rel, p, meta: "lazy" if "paths" in meta else "eager",
+                          edit_of=lambda rel, p, meta: _item_edit("rule", rel, d, scope))
+    if scope != "project":
+        cards.append(_add_card("rule", "＋ 새 규칙"))
+    return cards
 
 
 def _active_output_style(chain):
@@ -451,10 +482,21 @@ def _active_output_style(chain):
     return active
 
 
-def _output_style_cards(d, active=None, scope=None, project=None):
-    """선택된 하나만 컨텍스트에 들어간다. 나머지는 파일로만 존재한다."""
-    return _md_dir_cards(d, "output-style", scope, project,
-                         load_of=lambda rel, p, meta: "eager" if rel == active else "never")
+def _output_style_cards(d, active=None, scope=None, project=None, settings=None):
+    """선택된 하나만 컨텍스트에 들어간다. 나머지는 파일로만 존재한다.
+    active 여부를 edit 에 실어 보낸다 - '무엇이 EAGER 인가'를 바꾸는 유일한 스위치라
+    배지로 보여주기만 하고 바꿀 수단이 없으면 반쪽이다."""
+    def _edit(rel, p, meta):
+        extra = {"active": rel == active}
+        if settings:
+            extra["settings"] = settings
+        return _item_edit("output-style", rel, d, scope, extra)
+    cards = _md_dir_cards(d, "output-style", scope, project,
+                          load_of=lambda rel, p, meta: "eager" if rel == active else "never",
+                          edit_of=_edit)
+    if scope != "project":
+        cards.append(_add_card("output-style", "＋ 새 출력 스타일"))
+    return cards
 
 
 CLAUDE_MD_RELS = ("CLAUDE.md", "CLAUDE.local.md", os.path.join(".claude", "CLAUDE.md"))
@@ -476,9 +518,15 @@ def _encode_project_dir(path):
 
 
 def _memory_cards(d, scope=None, project=None):
-    """MEMORY.md 는 세션마다 적재(앞 200줄/25KB), 나머지 토픽은 필요할 때 Read."""
+    """MEMORY.md 는 세션마다 적재(앞 200줄/25KB), 나머지 토픽은 필요할 때 Read.
+    MEMORY.md 에는 제거를 붙이지 않는다 - 색인이라 지우면 나머지 토픽으로 가는 길이 끊긴다."""
+    def _edit(rel, p, meta):
+        if rel == "MEMORY" or "/" in rel:
+            return None
+        return {"kind": "memory", "name": rel, "memoryDir": d}
     return _md_dir_cards(d, "memory", scope, project,
-                         load_of=lambda rel, p, meta: "eager" if rel == "MEMORY" else "lazy")
+                         load_of=lambda rel, p, meta: "eager" if rel == "MEMORY" else "lazy",
+                         edit_of=_edit)
 
 
 def _project_memory_dir(root):
@@ -565,9 +613,11 @@ def _append_project_cards(sections, projects):
         add_to("rules", _rules_cards(os.path.join(cdir, "rules"), "project", root))
         add_to("output-styles", _output_style_cards(
             os.path.join(cdir, "output-styles"), _active_output_style(_dir_settings(cdir)),
-            "project", root))
-        add_to("workflows", _glob_cards(os.path.join(cdir, "workflows"), "*.js",
-                                        "workflow", "project", root))
+            "project", root, settings=os.path.join(cdir, "settings.json")))
+        pwd_ = os.path.join(cdir, "workflows")
+        add_to("workflows", _glob_cards(pwd_, "*.js", "workflow", "project", root,
+                                        edit_of=lambda rel, p, meta:
+                                            _item_edit("workflow", rel, pwd_, "project")))
         add_to("worktreeinclude", _file_card(os.path.join(root, ".worktreeinclude"),
                                              "worktree", "project", root, load="lazy"))
         md = _project_memory_dir(root)
@@ -590,7 +640,8 @@ def _append_project_cards(sections, projects):
 # 그 토글은 Plugins 섹션 카드에 있다.
 
 # 플러그인 항목이 합류할 기존 섹션 id.
-PLUGIN_MERGE_IDS = ("skills", "agents", "commands", "hooks", "claude-json")
+PLUGIN_MERGE_IDS = ("skills", "agents", "commands", "hooks", "claude-json",
+                    "rules", "output-styles", "workflows")
 _STATE_BADGE = {"ok": "plugin", "disabled": "disabled", "stale": "stale", "missing": "missing"}
 
 
@@ -695,6 +746,14 @@ def _plugin_item_cards(r, scope=None, project=None):
         out["commands"].append(card(f'{ns}:{it["name"]}', [
             ("desc", meta.get("description", "-")), ("from", pid), ("path", it["path"]),
         ], badge="plugin", ok=True, **tag))
+
+    # 아직 이런 플러그인은 실측되지 않았다. 나왔을 때 어느 섹션에도 안 잡히는 것을 막는다.
+    for key in ("rules", "output-styles", "workflows"):
+        for it in items.get(key, []):
+            meta = read_frontmatter(it["path"]) if key != "workflows" else {}
+            out[key].append(card(f'{ns}:{it["name"]}', [
+                ("desc", meta.get("description", "-")), ("from", pid), ("path", it["path"]),
+            ], badge="plugin", ok=True, **tag))
 
     hooks_src = os.path.join(r["root"], "hooks", "hooks.json")
     for h in items["hooks"]:
@@ -821,7 +880,10 @@ def parse(found, project_dirs=None):
     add(_section("output-styles", _output_style_cards(osd, _active_output_style(chain)), osd))
 
     wd = found.get("workflows_dir")
-    add(_section("workflows", _glob_cards(wd, "*.js", "workflow"), wd))
+    wf = _glob_cards(wd, "*.js", "workflow",
+                     edit_of=lambda rel, p, meta: _item_edit("workflow", rel, wd, None))
+    wf.append(_add_card("workflow", "＋ 새 워크플로"))
+    add(_section("workflows", wf, wd))
     kb = found.get("keybindings")
     add(_section("keybindings", _file_card(kb, "keybindings", load="never"), kb))
     td = found.get("themes_dir")

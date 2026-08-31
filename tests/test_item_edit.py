@@ -132,12 +132,15 @@ class TestOutputStyleSet(ItemEditCase):
         osd = self.items("output-styles")
         self.scaffold("output-style", "output-styles", "terse")
         self.scaffold("output-style", "output-styles", "verbose")
-        before = {c["name"]: c["load"] for c in
-                  cc._output_style_cards(osd, cc._active_output_style([self.settings]))}
-        self.assertEqual(set(before.values()), {"never"}, "선택 전에는 아무것도 EAGER 가 아니다")
+        def loads():
+            # '＋ 새 …' 스캐폴드 카드는 항목이 아니라 적재 등급이 없다.
+            return {c["name"]: c["load"] for c in
+                    cc._output_style_cards(osd, cc._active_output_style([self.settings]))
+                    if c.get("badge") != "add"}
+
+        self.assertEqual(set(loads().values()), {"never"}, "선택 전에는 아무것도 EAGER 가 아니다")
         run("--settings", self.settings, "--no-snapshot", "outputstyle-set", "terse")
-        after = {c["name"]: c["load"] for c in
-                 cc._output_style_cards(osd, cc._active_output_style([self.settings]))}
+        after = loads()
         self.assertEqual(after["terse"], "eager")
         self.assertEqual(after["verbose"], "never")
 
