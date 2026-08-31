@@ -106,6 +106,34 @@ export function buildTools(scriptDir: string): ToolDef[] {
       },
     },
     {
+      name: "get_prefs",
+      meta: {
+        title: "Get Dashboard Preferences",
+        description: "대시보드 표시 설정(섹션 프리셋/숨김 목록/빈 섹션 처리) JSON. 스토어가 없으면 기본값",
+        inputSchema: z.object({}), annotations: READ,
+      },
+      run: async () => jsonResult(await runPy("prefs.py", ["get", "--store", STORE])),
+    },
+    {
+      name: "set_prefs",
+      meta: {
+        title: "Set Dashboard Preferences",
+        description: "대시보드 표시 설정을 저장. 스토어 미초기화면 ok:false 와 사유를 반환(조용히 성공하지 않음)",
+        inputSchema: z.object({
+          sections: z.object({
+            preset: z.enum(["present", "common", "all", "custom"]).optional(),
+            hidden: z.array(z.string()).optional(),
+            hideEmpty: z.boolean().optional(),
+            groupsCollapsed: z.array(z.string()).optional(),
+          }).describe("덮어쓸 키만 보낸다"),
+        }), annotations: WRITE,
+      },
+      // execFile 은 셸을 거치지 않으므로 JSON 을 argv 한 칸으로 넘겨도 인용 문제가 없다.
+      run: async (a: { sections?: Record<string, unknown> }) =>
+        jsonResult(await runPy("prefs.py",
+          ["set", "--store", STORE, "--json", JSON.stringify({ sections: a.sections || {} })])),
+    },
+    {
       name: "get_tracked",
       meta: {
         title: "Get Tracked File Status",
