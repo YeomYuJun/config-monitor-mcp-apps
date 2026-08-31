@@ -74,5 +74,54 @@ class TestBuilders(unittest.TestCase):
         self.assertEqual(cc._glob_cards(None, "*.js", "workflow"), [])
 
 
+class TestInstructionSurfaces(unittest.TestCase):
+    def test_rules_load_class_splits_on_paths_frontmatter(self):
+        with tempfile.TemporaryDirectory() as rd:
+            with open(os.path.join(rd, "style.md"), "w", encoding="utf-8") as f:
+                f.write("---\ndescription: 전역 규칙\n---\n")
+            with open(os.path.join(rd, "testing.md"), "w", encoding="utf-8") as f:
+                f.write("---\npaths:\n  - tests/**\n---\n")
+            by = {c["name"]: c for c in cc._rules_cards(rd)}
+            self.assertEqual(by["style"]["load"], "eager")
+            self.assertEqual(by["testing"]["load"], "lazy")
+
+    def test_output_style_only_selected_is_eager(self):
+        with tempfile.TemporaryDirectory() as d:
+            for n in ("terse", "verbose"):
+                with open(os.path.join(d, n + ".md"), "w", encoding="utf-8") as f:
+                    f.write("---\ndescription: x\n---\n")
+            by = {c["name"]: c for c in cc._output_style_cards(d, active="terse")}
+            self.assertEqual(by["terse"]["load"], "eager")
+            self.assertEqual(by["verbose"]["load"], "never")
+
+    def test_output_style_with_no_selection_is_all_never(self):
+        """실측: 이 머신의 settings.json 에는 outputStyle 키가 없다. 정상 상태여야 한다."""
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "terse.md"), "w", encoding="utf-8") as f:
+                f.write("---\ndescription: x\n---\n")
+            self.assertEqual(cc._output_style_cards(d, active=None)[0]["load"], "never")
+
+    def test_active_output_style_lets_local_settings_win(self):
+        with tempfile.TemporaryDirectory() as d:
+            base = os.path.join(d, "settings.json")
+            local = os.path.join(d, "settings.local.json")
+            with open(base, "w", encoding="utf-8") as f:
+                f.write('{"outputStyle": "terse"}')
+            with open(local, "w", encoding="utf-8") as f:
+                f.write('{"outputStyle": "verbose"}')
+            self.assertEqual(cc._active_output_style([base, local]), "verbose")
+            self.assertIsNone(cc._active_output_style([]))
+
+    def test_claude_md_cards_cover_all_three_locations(self):
+        with tempfile.TemporaryDirectory() as root:
+            os.makedirs(os.path.join(root, ".claude"))
+            for rel in ("CLAUDE.md", "CLAUDE.local.md", os.path.join(".claude", "CLAUDE.md")):
+                with open(os.path.join(root, rel), "w", encoding="utf-8") as f:
+                    f.write("# hi\n")
+            cards = cc._claude_md_cards(root, "project", root)
+            self.assertEqual(len(cards), 3)
+            self.assertTrue(all(c["load"] == "eager" for c in cards))
+
+
 if __name__ == "__main__":
     unittest.main()

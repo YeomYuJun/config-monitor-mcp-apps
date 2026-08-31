@@ -46,6 +46,9 @@ CANDIDATES = {
     "agents_dir":      [os.path.join(HOME, ".claude", "agents")],
     "commands_dir":    [os.path.join(HOME, ".claude", "commands")],
     "plugins_dir":     [os.path.join(HOME, ".claude", "plugins")],
+    "rules_dir":       [os.path.join(HOME, ".claude", "rules")],
+    "output_styles_dir": [os.path.join(HOME, ".claude", "output-styles")],
+    "user_claude_md":  [os.path.join(HOME, ".claude", "CLAUDE.md")],
     "scheduled_dir":   [os.path.join(HOME, "Claude", "Scheduled")],
     "desktop_config":  [os.path.join(DESKTOP_DIR, "claude_desktop_config.json")],
     "desktop_skill_manifest_glob":
@@ -154,6 +157,12 @@ def _sec(*a, **kw):
 
 
 SECTIONS = dict([
+    _sec("claude-md", "CLAUDE.md", "instructions", ("user", "project"), "eager",
+         "세션마다 전문 적재"),
+    _sec("rules", "Rules", "instructions", ("user", "project"), None,
+         "paths: 있으면 LAZY · 없으면 EAGER"),
+    _sec("output-styles", "Output Styles", "instructions", ("user", "project"), None,
+         "outputStyle 로 선택된 것만 EAGER"),
     _sec("mcp-desktop", "MCP Servers (desktop)", "connect", ("desktop",), "never"),
     _sec("claude-json", "Claude Code (.claude.json)", "connect", ("user",), "never",
          "앱 상태 · 전역 MCP · trust"),
@@ -410,6 +419,41 @@ def _file_card(path, badge, scope=None, project=None, load=None):
     return [c]
 
 
+def _rules_cards(d, scope=None, project=None):
+    """paths: frontmatter 가 있으면 매칭 파일을 읽을 때만(LAZY), 없으면 세션 시작에 적재(EAGER)."""
+    return _md_dir_cards(d, "rule", scope, project,
+                         load_of=lambda rel, p, meta: "lazy" if "paths" in meta else "eager")
+
+
+def _active_output_style(chain):
+    """settings 체인에서 실제로 선택된 output style. local 이 뒤에 오므로 뒤가 이긴다.
+    키가 없으면 None - '선택된 스타일 없음'은 정상 상태다(실측: 이 키가 없는 settings 가 흔하다)."""
+    active = None
+    for cs in chain or []:
+        v = _as_dict(safe_load(cs)).get("outputStyle")
+        if isinstance(v, str) and v:
+            active = v
+    return active
+
+
+def _output_style_cards(d, active=None, scope=None, project=None):
+    """선택된 하나만 컨텍스트에 들어간다. 나머지는 파일로만 존재한다."""
+    return _md_dir_cards(d, "output-style", scope, project,
+                         load_of=lambda rel, p, meta: "eager" if rel == active else "never")
+
+
+CLAUDE_MD_RELS = ("CLAUDE.md", "CLAUDE.local.md", os.path.join(".claude", "CLAUDE.md"))
+
+
+def _claude_md_cards(root, scope=None, project=None):
+    """CLAUDE.md · CLAUDE.local.md · .claude/CLAUDE.md 를 한 섹션의 세 카드로.
+    같은 종류라 섹션을 셋으로 쪼개면 목록만 길어진다."""
+    cards = []
+    for rel in CLAUDE_MD_RELS:
+        cards += _file_card(os.path.join(root, rel), rel, scope, project, load="eager")
+    return cards
+
+
 def _mcp_json_cards(root, scope=None, project=None):
     """<root>/.mcp.json 의 mcpServers. MCP Project 스코프 - 커밋되어 팀 전체에 영향인데
     대시보드에 존재 자체가 없었다. 편집 op 가 없으므로 뷰 전용.
@@ -471,6 +515,11 @@ def _append_project_cards(sections, projects):
         add_to("agents", _agent_cards(os.path.join(cdir, "agents"), "project", root))
         add_to("commands", _command_cards(os.path.join(cdir, "commands"), "project", root))
         add_to("mcp-project", _mcp_json_cards(root, "project", root))
+        add_to("claude-md", _claude_md_cards(root, "project", root))
+        add_to("rules", _rules_cards(os.path.join(cdir, "rules"), "project", root))
+        add_to("output-styles", _output_style_cards(
+            os.path.join(cdir, "output-styles"), _active_output_style(_dir_settings(cdir)),
+            "project", root))
     for sec in sections:
         if sec["id"] in SECTIONS:
             _recount(sec)
@@ -705,6 +754,14 @@ def parse(found, project_dirs=None):
     src = _source_label(chain)
     add(_section("perm", perm_cards, src))
     add(_section("hooks", hook_cards, src))
+
+    # 지시 · 규칙. 전역 CLAUDE.md 는 ~/.claude/CLAUDE.md 하나뿐이다(아티팩트 기준).
+    ucm = found.get("user_claude_md")
+    add(_section("claude-md", _file_card(ucm, "CLAUDE.md", load="eager"), ucm))
+    rd = found.get("rules_dir")
+    add(_section("rules", _rules_cards(rd), rd))
+    osd = found.get("output_styles_dir")
+    add(_section("output-styles", _output_style_cards(osd, _active_output_style(chain)), osd))
 
     # 5) Code Skills
     sd = found.get("skills_dir")
