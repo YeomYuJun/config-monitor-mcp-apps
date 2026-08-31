@@ -45,7 +45,7 @@ Cowork supports both inline and fullscreen; Code supports inline only (following
 
 - **The whole config surface** — beyond MCP/hooks/skills/agents: `CLAUDE.md` and `CLAUDE.local.md`, `rules/`, `output-styles/`, `workflows/`, `keybindings.json`, `themes/`, `.worktreeinclude`, agent memory, and per-project `memory/`.
 - **Context load class** — every section and card is badged `EAGER` / `LAZY` / `NEVER`, so you can see what actually costs you context at session start. A rule with `paths:` frontmatter is LAZY and one without it is EAGER; only the selected output style is EAGER.
-- **Grouped, filterable sections** — the ~20 sections are banded into six functional groups (instructions, extensions, connections, execution, memory, environment), with presets (*only what exists* / *commonly used* / *all* / *choose*) saved to the store.
+- **Grouped, filterable sections** — the ~20 sections are banded into six functional groups (instructions, extensions, connections, execution, memory, environment), with a preset (*all* / *commonly used* / *choose*) and a hide-empty switch, both saved to the store.
 - **One view across sources** — Claude Code, Claude Desktop, and each tracked project side by side, with scope badges (`global` / `project`).
 - **Snapshots & diffs** — track any config file, browse its snapshot timeline, compare two versions, and restore an earlier one.
 - **Direct editing, global or per-project** — add or remove `allow` / `deny` / `ask` permissions, hooks, and MCP servers; scaffold or remove skills and agents. A project-scoped card always edits that project's own `.claude/`, never the global one.
@@ -125,7 +125,9 @@ Cards for each category, banded into six functional groups — **instructions** 
 
 Each section header carries a **load badge** — `EAGER` (in context at session start), `LAZY` (only when its condition is met), or `NEVER` (runtime only, never in context). Where the class differs per file the badge moves to the card: a rule with `paths:` frontmatter is LAZY and one without it is EAGER; of the output styles only the one named by `outputStyle` is EAGER; `MEMORY.md` is EAGER while its topic files are LAZY.
 
-Most machines have only a handful of these surfaces, so the gear menu's **섹션 표시 / Sections** control decides what is listed: `only what exists` (default), `commonly used`, `all` (shows empty sections too, for diagnosing what is missing), or `choose` for a per-section checkbox list. The choice is saved to the store, so it survives a restart. Whenever sections are hidden, a **Hidden sections N** chip appears above the list and opens that control — the dashboard reduces the list but never does it silently.
+Most machines have only a handful of these surfaces, so the gear menu carries two independent controls. **섹션 표시 / Sections** picks *which categories* are candidates — `all` (default), `commonly used` (instructions, extensions, execution), or `choose` for a per-section checkbox list. **빈 섹션 숨기기 / Hide empty sections** (on by default) decides whether candidates with nothing in them still render; turn it off to see every surface Claude supports, including the ones you have none of.
+
+The two are deliberately not folded into one setting: "commonly used, but show me the empty ones so I know what I could add" is a real state, and a single enum that quietly wrote the other axis would let the menu claim one thing while the screen showed another. Both are saved to the store and survive a restart. Whenever sections are hidden, a **Hidden sections N** chip appears above the list and opens the menu — the dashboard reduces the list but never does it silently.
 
 **Override badges** mark items that share a name but are *not* actually applied, with a dashed border and an amber tag. Precedence runs opposite ways: for **Agents** the project wins, so the **global** card is badged; for **Skills** the global (personal) config wins, so the **project** card is badged.
 
