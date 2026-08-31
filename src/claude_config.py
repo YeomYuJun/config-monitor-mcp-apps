@@ -364,6 +364,52 @@ def _command_cards(cd, scope=None, project=None):
             ], badge="command", ok=True, scope=scope, project=project))
     return cards
 
+def _size_kv(path):
+    """적재 비용을 말하려면 크기가 필요하다 - EAGER 표면에서 이게 요점이다."""
+    try:
+        return [("size", f"{os.path.getsize(path):,} B")]
+    except OSError:
+        return []
+
+
+def _md_dir_cards(d, badge, scope=None, project=None, load_of=None):
+    """*.md 디렉토리를 재귀 순회해 카드로. rel 은 '/' 구분 · 확장자 제거(_iter_md 와 동일).
+    load_of(rel, path, meta) 를 주면 카드마다 적재등급을 따로 정한다."""
+    cards = []
+    if not (d and os.path.isdir(d)):
+        return cards
+    for rel, full in _iter_md(d):
+        meta = read_frontmatter(full)
+        c = card(rel, [("desc", meta.get("description", "-"))] + _size_kv(full) + [("path", full)],
+                 badge=badge, ok=True, scope=scope, project=project)
+        if load_of:
+            c["load"] = load_of(rel, full, meta)
+        cards.append(c)
+    return cards
+
+
+def _glob_cards(d, pattern, badge, scope=None, project=None):
+    cards = []
+    if not (d and os.path.isdir(d)):
+        return cards
+    for full in sorted(globmod.glob(os.path.join(d, pattern))):
+        cards.append(card(os.path.splitext(os.path.basename(full))[0],
+                          _size_kv(full) + [("path", full)],
+                          badge=badge, ok=True, scope=scope, project=project))
+    return cards
+
+
+def _file_card(path, badge, scope=None, project=None, load=None):
+    """단일 파일 -> 카드 0개 또는 1개. 없으면 빈 리스트(섹션이 알아서 빈다)."""
+    if not (path and os.path.exists(path)):
+        return []
+    c = card(os.path.basename(path), _size_kv(path) + [("path", path)],
+             badge=badge, ok=True, scope=scope, project=project, source=path)
+    if load:
+        c["load"] = load
+    return [c]
+
+
 def _mcp_json_cards(root, scope=None, project=None):
     """<root>/.mcp.json 의 mcpServers. MCP Project 스코프 - 커밋되어 팀 전체에 영향인데
     대시보드에 존재 자체가 없었다. 편집 op 가 없으므로 뷰 전용.

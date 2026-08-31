@@ -40,5 +40,39 @@ class TestRegistry(unittest.TestCase):
             self.assertIn(expected, titles)
 
 
+class TestBuilders(unittest.TestCase):
+    def test_md_dir_reads_frontmatter_and_nests(self):
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, "sub"))
+            with open(os.path.join(d, "a.md"), "w", encoding="utf-8") as f:
+                f.write("---\ndescription: 첫째\n---\n본문\n")
+            with open(os.path.join(d, "sub", "b.md"), "w", encoding="utf-8") as f:
+                f.write("no frontmatter\n")
+            cards = cc._md_dir_cards(d, "rule")
+            self.assertEqual(sorted(c["name"] for c in cards), ["a", "sub/b"])
+
+    def test_md_dir_load_callback_decides_per_card(self):
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "eager.md"), "w", encoding="utf-8") as f:
+                f.write("---\ndescription: x\n---\n")
+            with open(os.path.join(d, "lazy.md"), "w", encoding="utf-8") as f:
+                f.write("---\npaths:\n  - src/**\n---\n")
+            cards = {c["name"]: c for c in cc._md_dir_cards(
+                d, "rule", load_of=lambda rel, p, meta: "lazy" if "paths" in meta else "eager")}
+            self.assertEqual(cards["eager"]["load"], "eager")
+            self.assertEqual(cards["lazy"]["load"], "lazy")
+
+    def test_glob_cards_and_file_card_skip_missing(self):
+        with tempfile.TemporaryDirectory() as d:
+            open(os.path.join(d, "one.json"), "w").close()
+            self.assertEqual(len(cc._glob_cards(d, "*.json", "theme")), 1)
+            self.assertEqual(cc._file_card(os.path.join(d, "nope.json"), "kb"), [])
+            self.assertEqual(len(cc._file_card(os.path.join(d, "one.json"), "kb")), 1)
+
+    def test_builders_tolerate_missing_directories(self):
+        self.assertEqual(cc._md_dir_cards(os.path.join("nope", "gone"), "rule"), [])
+        self.assertEqual(cc._glob_cards(None, "*.js", "workflow"), [])
+
+
 if __name__ == "__main__":
     unittest.main()
