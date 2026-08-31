@@ -19,7 +19,7 @@ class TestPrefs(unittest.TestCase):
     def test_defaults_when_store_missing(self):
         with tempfile.TemporaryDirectory() as d:
             ui = prefs.load_ui(d)
-            self.assertEqual(ui["sections"]["preset"], "present")
+            self.assertEqual(ui["sections"]["preset"], "all")
             self.assertTrue(ui["sections"]["hideEmpty"])
             self.assertEqual(ui["sections"]["hidden"], [])
 
@@ -63,7 +63,7 @@ class TestPrefs(unittest.TestCase):
                                 "--store", d], capture_output=True, text=True, encoding="utf-8")
             out = json.loads(p.stdout)
             self.assertTrue(out["ok"])
-            self.assertEqual(out["ui"]["sections"]["preset"], "present")
+            self.assertEqual(out["ui"]["sections"]["preset"], "all")
 
     def test_bom_json_is_readable(self):
         """윈도우에서 만들어진 config.json 에는 BOM 이 붙어 온다."""
@@ -71,6 +71,29 @@ class TestPrefs(unittest.TestCase):
             with open(os.path.join(d, "config.json"), "w", encoding="utf-8-sig") as f:
                 json.dump({"version": 1, "ui": {"sections": {"preset": "all"}}}, f)
             self.assertEqual(prefs.load_ui(d)["sections"]["preset"], "all")
+
+    def test_legacy_present_preset_migrates_to_all(self):
+        """0.1 은 preset 에 'present' 를 썼다. all + hideEmpty 와 같은 화면이므로 그리 옮긴다."""
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "config.json"), "w", encoding="utf-8") as f:
+                json.dump({"version": 1, "ui": {"sections": {"preset": "present"}}}, f)
+            self.assertEqual(prefs.load_ui(d)["sections"]["preset"], "all")
+
+    def test_unknown_preset_falls_back_to_all(self):
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "config.json"), "w", encoding="utf-8") as f:
+                json.dump({"version": 1, "ui": {"sections": {"preset": "bogus"}}}, f)
+            self.assertEqual(prefs.load_ui(d)["sections"]["preset"], "all")
+
+    def test_preset_and_hide_empty_stay_independent(self):
+        """한쪽이 다른 쪽을 써주면 preset 은 X 인데 화면은 Y 인 상태가 저장된다."""
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "config.json"), "w", encoding="utf-8") as f:
+                json.dump({"version": 1}, f)
+            ui = prefs.save_ui(d, {"sections": {"preset": "common"}})
+            self.assertTrue(ui["sections"]["hideEmpty"], "preset 변경이 hideEmpty 를 건드리면 안 된다")
+            ui = prefs.save_ui(d, {"sections": {"hideEmpty": False}})
+            self.assertEqual(ui["sections"]["preset"], "common", "hideEmpty 변경이 preset 을 건드리면 안 된다")
 
     def test_unknown_keys_are_ignored(self):
         """UI 가 보낸 오타/구버전 키가 저장소를 오염시키지 않게."""

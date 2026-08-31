@@ -40,7 +40,7 @@ function sectionAllowed(sec: any): boolean {
   const p = sectionPrefs;
   if (p.preset === "custom") return !p.hidden.includes(sec.id);
   if (p.preset === "common") return COMMON_GROUPS.includes(sec.group);
-  return true;   // present / all
+  return true;   // all
 }
 
 function sectionShown(sec: any): boolean {
@@ -154,7 +154,7 @@ export async function persistPrefs(): Promise<void> {
 export function applySectionPrefs(ui: any): void {
   const s0 = (ui && ui.sections) || {};
   setSectionPrefs({
-    preset: s0.preset || "present",
+    preset: s0.preset === "common" || s0.preset === "custom" ? s0.preset : "all",
     hidden: Array.isArray(s0.hidden) ? s0.hidden : [],
     hideEmpty: s0.hideEmpty !== false,
     groupsCollapsed: Array.isArray(s0.groupsCollapsed) ? s0.groupsCollapsed : [],
@@ -171,12 +171,10 @@ function syncPrefControls(): void {
   if (box) box.hidden = sectionPrefs.preset !== "custom";
 }
 
-// 프리셋을 바꾸면 hideEmpty 의 기본값도 같이 옮긴다('전체'는 없는 것까지 보여주는 진단 모드).
 export function wireSectionPrefs(): void {
   const sel = document.getElementById("opt-preset") as HTMLSelectElement | null;
   sel?.addEventListener("change", () => {
-    const preset = sel.value as SectionPrefs["preset"];
-    setSectionPrefs({ ...sectionPrefs, preset, hideEmpty: preset !== "all" });
+    setSectionPrefs({ ...sectionPrefs, preset: sel.value as SectionPrefs["preset"] });
     syncPrefControls();
     void persistPrefs();
     renderConfig(lastConfigSections);

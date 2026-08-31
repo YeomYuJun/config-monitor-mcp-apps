@@ -121,7 +121,7 @@ export function buildTools(scriptDir: string): ToolDef[] {
         description: "대시보드 표시 설정을 저장. 스토어 미초기화면 ok:false 와 사유를 반환(조용히 성공하지 않음)",
         inputSchema: z.object({
           sections: z.object({
-            preset: z.enum(["present", "common", "all", "custom"]).optional(),
+            preset: z.enum(["all", "common", "custom"]).optional(),
             hidden: z.array(z.string()).optional(),
             hideEmpty: z.boolean().optional(),
             groupsCollapsed: z.array(z.string()).optional(),

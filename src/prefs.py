@@ -20,14 +20,24 @@ HOME = os.path.expanduser("~")
 DEFAULT_STORE = os.environ.get("CLAUDE_SNAPSHOT_STORE") or (
     "D:\\.claude-snapshot" if os.name == "nt" else os.path.join(HOME, ".claude-snapshot"))
 
+# preset 은 '어느 범주를 볼까'만 정한다. '빈 섹션을 감출까'(hideEmpty)는 독립 축이라
+# 프리셋 값으로 겸하지 않는다 - 겸하면 preset=X 인데 화면은 Y 인 상태가 저장된다.
+PRESETS = ("all", "common", "custom")
+_LEGACY_PRESET = {"present": "all"}   # 'present' 는 all + hideEmpty 와 같은 화면이었다
+
 DEFAULT_UI = {
     "sections": {
-        "preset": "present",      # present | common | all | custom
+        "preset": "all",          # all | common | custom
         "hidden": [],             # custom 에서만 의미
         "hideEmpty": True,
         "groupsCollapsed": [],
     }
 }
+
+
+def _norm_preset(v):
+    v = _LEGACY_PRESET.get(v, v)
+    return v if v in PRESETS else "all"
 
 
 def load_ui(store):
@@ -42,6 +52,7 @@ def load_ui(store):
         for k, v in (saved.get("sections") or {}).items():
             if k in ui["sections"]:
                 ui["sections"][k] = v
+    ui["sections"]["preset"] = _norm_preset(ui["sections"]["preset"])
     return ui
 
 
@@ -52,6 +63,7 @@ def save_ui(store, patch):
     for k, v in ((patch or {}).get("sections") or {}).items():
         if k in ui["sections"]:
             ui["sections"][k] = v
+    ui["sections"]["preset"] = _norm_preset(ui["sections"]["preset"])
     cfg["ui"] = ui
     lib_store.save_cfg(store, cfg)
     return ui
