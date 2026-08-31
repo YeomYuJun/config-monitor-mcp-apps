@@ -49,6 +49,10 @@ CANDIDATES = {
     "rules_dir":       [os.path.join(HOME, ".claude", "rules")],
     "output_styles_dir": [os.path.join(HOME, ".claude", "output-styles")],
     "user_claude_md":  [os.path.join(HOME, ".claude", "CLAUDE.md")],
+    "workflows_dir":   [os.path.join(HOME, ".claude", "workflows")],
+    "themes_dir":      [os.path.join(HOME, ".claude", "themes")],
+    "keybindings":     [os.path.join(HOME, ".claude", "keybindings.json")],
+    "agent_memory_dir": [os.path.join(HOME, ".claude", "agent-memory")],
     "scheduled_dir":   [os.path.join(HOME, "Claude", "Scheduled")],
     "desktop_config":  [os.path.join(DESKTOP_DIR, "claude_desktop_config.json")],
     "desktop_skill_manifest_glob":
@@ -174,8 +178,19 @@ SECTIONS = dict([
     _sec("agents", "Agents", "extensions", ("user", "project"), "eager",
          "description 만 · 본문 LAZY"),
     _sec("commands", "Commands", "extensions", ("user", "project"), "lazy", "본문은 호출 시"),
+    _sec("workflows", "Workflows", "extensions", ("user", "project"), "lazy",
+         "각 파일이 /<name>"),
     _sec("plugins", "Plugins", "extensions", ("user",), "never",
          "관리 단위 · 항목은 각 섹션에 합류"),
+    _sec("project-memory", "Project Memory", "memory", ("user",), None,
+         "MEMORY.md EAGER(앞 200줄/25KB) · topic LAZY"),
+    _sec("agent-memory", "Agent Memory", "memory", ("user", "project"), "lazy",
+         "서브에이전트 memory"),
+    _sec("keybindings", "Keybindings", "env", ("user",), "never",
+         "시작 시 + 편집 시 hot-reload"),
+    _sec("themes", "Themes", "env", ("user",), "never", "/theme 목록 · hot-reload"),
+    _sec("worktreeinclude", ".worktreeinclude", "env", ("project",), "lazy",
+         "worktree 생성 시 복사 목록"),
     _sec("scheduled", "Scheduled Tasks", "env", ("desktop",)),
     _sec("desktop-skills", "Desktop Skills", "connect", ("desktop",)),
 ])
@@ -454,6 +469,37 @@ def _claude_md_cards(root, scope=None, project=None):
     return cards
 
 
+def _encode_project_dir(path):
+    """<project path> -> ~/.claude/projects/<encoded>. 영숫자가 아닌 문자는 전부 '-'.
+    실측: d:\\config-monitor -> d--config-monitor."""
+    return re.sub(r"[^A-Za-z0-9]", "-", path)
+
+
+def _memory_cards(d, scope=None, project=None):
+    """MEMORY.md 는 세션마다 적재(앞 200줄/25KB), 나머지 토픽은 필요할 때 Read."""
+    return _md_dir_cards(d, "memory", scope, project,
+                         load_of=lambda rel, p, meta: "eager" if rel == "MEMORY" else "lazy")
+
+
+def _project_memory_dir(root):
+    """인코딩으로 먼저 찾고, 없으면 projects/ 목록에서 대소문자 무시 역매칭으로 폴백."""
+    base = os.path.join(HOME, ".claude", "projects")
+    enc = _encode_project_dir(root)
+    d = os.path.join(base, enc, "memory")
+    if os.path.isdir(d):
+        return d
+    want = enc.lower()
+    try:
+        for name in os.listdir(base):
+            if name.lower() == want:
+                cand = os.path.join(base, name, "memory")
+                if os.path.isdir(cand):
+                    return cand
+    except OSError:
+        pass
+    return None
+
+
 def _mcp_json_cards(root, scope=None, project=None):
     """<root>/.mcp.json 의 mcpServers. MCP Project 스코프 - 커밋되어 팀 전체에 영향인데
     대시보드에 존재 자체가 없었다. 편집 op 가 없으므로 뷰 전용.
@@ -520,6 +566,17 @@ def _append_project_cards(sections, projects):
         add_to("output-styles", _output_style_cards(
             os.path.join(cdir, "output-styles"), _active_output_style(_dir_settings(cdir)),
             "project", root))
+        add_to("workflows", _glob_cards(os.path.join(cdir, "workflows"), "*.js",
+                                        "workflow", "project", root))
+        add_to("worktreeinclude", _file_card(os.path.join(root, ".worktreeinclude"),
+                                             "worktree", "project", root, load="lazy"))
+        md = _project_memory_dir(root)
+        if md:
+            add_to("project-memory", _memory_cards(md, "project", root))
+        for sub, badge in (("agent-memory", "agent-memory"),
+                           ("agent-memory-local", "agent-memory-local")):
+            add_to("agent-memory", _md_dir_cards(os.path.join(cdir, sub), badge,
+                                                 "project", root))
     for sec in sections:
         if sec["id"] in SECTIONS:
             _recount(sec)
@@ -762,6 +819,19 @@ def parse(found, project_dirs=None):
     add(_section("rules", _rules_cards(rd), rd))
     osd = found.get("output_styles_dir")
     add(_section("output-styles", _output_style_cards(osd, _active_output_style(chain)), osd))
+
+    wd = found.get("workflows_dir")
+    add(_section("workflows", _glob_cards(wd, "*.js", "workflow"), wd))
+    kb = found.get("keybindings")
+    add(_section("keybindings", _file_card(kb, "keybindings", load="never"), kb))
+    td = found.get("themes_dir")
+    add(_section("themes", _glob_cards(td, "*.json", "theme"), td))
+    amd = found.get("agent_memory_dir")
+    add(_section("agent-memory", _md_dir_cards(amd, "agent-memory"), amd))
+    # 프로젝트별 메모리와 .worktreeinclude 는 프로젝트를 지정했을 때만 채워진다.
+    add(_section("project-memory", [], os.path.join(HOME, ".claude", "projects")))
+    if project_dirs:
+        add(_section("worktreeinclude", [], None))
 
     # 5) Code Skills
     sd = found.get("skills_dir")

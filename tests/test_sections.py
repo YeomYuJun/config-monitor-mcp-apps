@@ -123,5 +123,38 @@ class TestInstructionSurfaces(unittest.TestCase):
             self.assertTrue(all(c["load"] == "eager" for c in cards))
 
 
+class TestEnvSurfaces(unittest.TestCase):
+    def test_workflows_and_themes_are_globbed(self):
+        with tempfile.TemporaryDirectory() as d:
+            open(os.path.join(d, "ship.js"), "w").close()
+            open(os.path.join(d, "notes.txt"), "w").close()
+            self.assertEqual([c["name"] for c in cc._glob_cards(d, "*.js", "workflow")], ["ship"])
+
+    def test_missing_surfaces_yield_empty_sections_not_errors(self):
+        """실측: 이 머신에 rules/themes/workflows 가 아예 없다. 없는 게 정상이어야 한다."""
+        by_id = {s["id"]: s for s in cc.parse(cc.discover())["sections"]}
+        for sid in ("workflows", "keybindings", "themes"):
+            self.assertIn(sid, by_id)
+            self.assertIsInstance(by_id[sid]["cards"], list)
+
+
+class TestMemorySurfaces(unittest.TestCase):
+    def test_project_dir_encoding_matches_observed(self):
+        """실측 기준: 영숫자가 아닌 문자를 전부 '-' 로."""
+        self.assertEqual(cc._encode_project_dir(r"d:\config-monitor"), "d--config-monitor")
+        self.assertEqual(cc._encode_project_dir(r"C:\Users\YEOMYU~1\AppData\Local\Temp"),
+                         "C--Users-YEOMYU-1-AppData-Local-Temp")
+
+    def test_memory_index_is_eager_and_topics_are_lazy(self):
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "MEMORY.md"), "w", encoding="utf-8") as f:
+                f.write("- [t](t.md)\n")
+            with open(os.path.join(d, "t.md"), "w", encoding="utf-8") as f:
+                f.write("---\ndescription: 토픽\n---\n")
+            by = {c["name"]: c for c in cc._memory_cards(d)}
+            self.assertEqual(by["MEMORY"]["load"], "eager")
+            self.assertEqual(by["t"]["load"], "lazy")
+
+
 if __name__ == "__main__":
     unittest.main()
