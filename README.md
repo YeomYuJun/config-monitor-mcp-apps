@@ -10,7 +10,7 @@
 
 As you accumulate skills, MCP servers, hooks, and agents — plus a separate `.claude` folder for each project — those settings scatter across files that live in different locations and follow different rules. It becomes hard to answer simple questions like *what is actually applied right now, and where does it come from?*
 
-Every change is reversible by design. Edits take an automatic snapshot before they run, and overwrites or deletes are backed up first (`.bak` for files, `.trash` for folders), so you can always get the previous state back.
+Every change is reversible by design. Edits are snapshotted automatically — the result of each edit is recorded under the operation's own message, and any outside change found right before an edit is captured as its own rollback point — and overwrites or deletes are backed up first (`.bak` for files, `.trash` for folders), so you can always get the previous state back.
 
 Sources can be local folders, remote git repos, or plugin marketplaces. Remote ones are cached locally and pinned to a commit, so the same snapshot, diff, and rollback machinery applies to them unchanged — and nothing is fetched or updated unless you ask for it.
 
@@ -63,7 +63,7 @@ Cowork supports both inline and fullscreen; Code supports inline only (following
 
 - **Node.js** (LTS) — verify with `node -v`
 - **Python 3.10+** on `PATH` — verify with `python --version`
-- **Windows** with **Claude Desktop** — the widget probes Windows desktop config paths and the file watcher runs on PowerShell.
+- **Windows** with **Claude Desktop** — the widget probes Windows desktop config paths; the file watcher is a Python polling process.
 - **git** on `PATH` — only for remote libraries and marketplaces. Everything else works without it, and the Library panel keeps working offline either way.
 - **`claude` on `PATH`** — only for the actions that install, update, or remove a *whole plugin* or a Claude Code marketplace, which are delegated to the CLI. Viewing plugins, toggling them on and off, and the entire Library side work without it; the delegated buttons report that `claude` was not found instead of failing silently.
 
@@ -216,7 +216,7 @@ Opens when you click a tracked-file row. It shows the snapshot timeline (time, m
 
 ### Safety
 
-- An automatic snapshot is taken before every edit, install, and restore.
+- Every edit, install, and restore is snapshotted automatically: the result is recorded under the operation's own message, so a revision's diff shows exactly the change its label names; un-snapshotted outside changes are captured separately right before the edit.
 - Before an overwrite, files are kept as `.bak` and directories are moved to `.trash`.
 - Removal is a move to `.trash`, not a real delete — it can be recovered.
 - Untracking only removes an entry from the watch list; the file is left in place.

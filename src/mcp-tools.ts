@@ -60,7 +60,7 @@ export function buildTools(scriptDir: string): ToolDef[] {
   // Windows 콘솔 기본 인코딩(cp949)은 한글/em-dash 출력 시 UnicodeEncodeError 로 Python 을 죽인다.
   // 자식 stdout/stderr 를 UTF-8 로 강제(PYTHONUTF8=1, PYTHONIOENCODING=utf-8).
   const PY_ENV = { ...process.env, PYTHONUTF8: "1", PYTHONIOENCODING: "utf-8" };
-  // watcher.ps1 기본값과 동일한 스토어를 가리키도록.
+  // watcher.py 기본값과 동일한 스토어를 가리키도록.
   const STORE = process.env.CLAUDE_SNAPSHOT_STORE ||
     (process.platform === "win32" ? "D:\\.claude-snapshot" : path.join(process.env.HOME || "", ".claude-snapshot"));
   const runPy = async (script: string, args: string[]): Promise<string> => {
@@ -238,7 +238,7 @@ export function buildTools(scriptDir: string): ToolDef[] {
       name: "watcher_status",
       meta: {
         title: "Watcher Status",
-        description: "상주 watcher(FileSystemWatcher 자동 스냅샷)의 실행 여부/heartbeat 조회",
+        description: "상주 watcher(폴링 자동 스냅샷)의 실행 여부/heartbeat 조회",
         inputSchema: z.object({}), annotations: READ,
       },
       run: async () => jsonResult(await runPy("cas.py", ["watcher-status"])),
@@ -247,7 +247,7 @@ export function buildTools(scriptDir: string): ToolDef[] {
       name: "watcher_start",
       meta: {
         title: "Start Watcher",
-        description: "watcher.ps1 을 백그라운드로 기동(추적 디렉토리 변경 시 자동 스냅샷). 이미 실행 중이면 no-op",
+        description: "watcher.py 를 백그라운드로 기동(추적 파일 변경 시 자동 스냅샷). 이미 실행 중이면 no-op",
         inputSchema: z.object({}), annotations: WRITE,
       },
       run: async () => {
@@ -256,12 +256,11 @@ export function buildTools(scriptDir: string): ToolDef[] {
         // 좀비/중복 watcher 정리(상태 신뢰성과 무관하게 단일 인스턴스 보장) 후 새로 기동.
         await killWatchers();
         await fs.rm(path.join(STORE, "watcher.json"), { force: true }).catch(() => {});
-        // Node 가 powershell 을 직접 detached spawn 하면 (1) 인자 백슬래시가 먹혀 -File 경로가 깨지고
-        // (2) detached 자식이 즉사한다. 검증 패턴: 일회성 powershell 이 Start-Process 로 독립 기동.
-        const ps1 = path.join(scriptDir, "watcher.ps1").replace(/\\/g, "/");
+        // Node 가 detached spawn 하면 (1) 인자 백슬래시가 먹혀 경로가 깨지고 (2) detached 자식이
+        // 즉사한다. 검증 패턴: 일회성 powershell 이 Start-Process 로 독립 기동.
+        const wpy = path.join(scriptDir, "watcher.py").replace(/\\/g, "/");
         const storeFwd = STORE.replace(/\\/g, "/");
-        const cmd = "Start-Process powershell -WindowStyle Hidden -ArgumentList @(" +
-          `'-NoProfile','-ExecutionPolicy','Bypass','-File','${ps1}','-Store','${storeFwd}','-Python','${PY}')`;
+        const cmd = `Start-Process '${PY}' -WindowStyle Hidden -ArgumentList @('${wpy}','--store','${storeFwd}')`;
         spawn("powershell.exe", ["-NoProfile", "-Command", cmd], { stdio: "ignore", windowsHide: true, env: PY_ENV });
         // heartbeat 가 쓰일 때까지 폴링(최대 ~5.6s) 후 실제 상태를 반환(허위 ok 방지).
         let st: any = {};
@@ -281,11 +280,11 @@ export function buildTools(scriptDir: string): ToolDef[] {
       name: "watcher_stop",
       meta: {
         title: "Stop Watcher",
-        description: "실행 중인 watcher 프로세스를 모두 종료(watcher.ps1 커맨드라인 매칭). Windows 전용",
+        description: "실행 중인 watcher 프로세스를 모두 종료(watcher.py 커맨드라인 매칭). Windows 전용",
         inputSchema: z.object({}), annotations: WRITE,
       },
       run: async () => {
-        // pid 하나가 아니라 모든 watcher.ps1 을 종료(좀비 누적 정리).
+        // pid 하나가 아니라 모든 watcher 를 종료(좀비 누적 정리).
         await killWatchers();
         await fs.rm(path.join(STORE, "watcher.json"), { force: true }).catch(() => {});
         return jsonResult(JSON.stringify({ ok: true, message: "watcher 종료", changed: true }));
@@ -986,12 +985,16 @@ export function buildTools(scriptDir: string): ToolDef[] {
     },
   ];
 
-  // 실행 중인 watcher.ps1 프로세스를 모두 종료(좀비/중복 정리).
-  // '-File ...watcher.ps1' 로 기동된 실제 watcher 만 대상(이 명령 자신/-Command 류는 제외하고, $PID 도 제외해 자기 종료 방지).
+  // 실행 중인 watcher 프로세스를 모두 종료(좀비/중복 정리).
+  // watcher.py(python) 가 대상. 구버전 watcher.ps1 상주분도 함께 정리한다.
+  // 커맨드라인 매칭만 쓰면 'watcher.py' 를 인자 문자열로 품은 무관한 셸(이 kill 명령 자신을
+  // 감싼 셸 포함)까지 죽는다 - 프로세스 이름(python/py, powershell)을 함께 걸어 실체만 잡는다.
   async function killWatchers(): Promise<void> {
     if (process.platform !== "win32") return;
-    const cmd = "Get-CimInstance Win32_Process -Filter \"Name='powershell.exe'\" | " +
-      "Where-Object { $_.CommandLine -like '*-File*watcher.ps1*' -and $_.ProcessId -ne $PID } | " +
+    const cmd = "Get-CimInstance Win32_Process | Where-Object { " +
+      "((($_.Name -like 'python*') -or ($_.Name -eq 'py.exe')) -and $_.CommandLine -like '*watcher.py*') -or " +
+      "(($_.Name -eq 'powershell.exe') -and $_.CommandLine -like '*-File*watcher.ps1*') } | " +
+      "Where-Object { $_.ProcessId -ne $PID } | " +
       "ForEach-Object { Stop-Process -Id $_.ProcessId -Force }";
     await pexec("powershell.exe", ["-NoProfile", "-Command", cmd]).catch(() => {});
   }

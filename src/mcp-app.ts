@@ -42,8 +42,10 @@ async function refresh(): Promise<void> {
   let trackedCount = 0;
   try {
     const trk = jparseLast(await callTool("get_tracked"));
-    if (trk && trk.ok !== false) trackedCount = renderTracked(trk);
-    else $("tracked").innerHTML = `<div class="empty">${esc(trk?.message || t("emptyTrackedResp"))}</div>`;
+    if (trk && trk.ok !== false) {
+      trackedCount = renderTracked(trk);
+      lastTrk = trk;   // 폴링의 변화 판별 기준점(재렌더 직후 상태)
+    } else $("tracked").innerHTML = `<div class="empty">${esc(trk?.message || t("emptyTrackedResp"))}</div>`;
   } catch (e) {
     showErr("tracked", t("trackedStatus"), e);
   }
@@ -68,6 +70,7 @@ async function refresh(): Promise<void> {
   $("subtitle").textContent = `${t("generatedPrefix")}${trackedCount}${t("generatedMid")}${now}`;
   if (scroller) scroller.scrollTop = scrollTop;
   refreshWatcher();
+  if (pollTimer === undefined) pollTimer = window.setInterval(pollStatus, POLL_MS);
 }
 // 선언 직후 등록한다 - 모듈 최상위라 어떤 이벤트 핸들러보다 먼저 실행된다.
 setRefreshApp(refresh);
@@ -75,47 +78,114 @@ setRefreshApp(refresh);
 // ----- watcher status badge + toggle -----
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function refreshWatcher(): Promise<boolean> {
+let watcherRunning = false;
+
+function renderWatcherState(st: any): void {
   const dot = $("watcher-dot");
   const label = $("watcher-label");
   const btn = $("watcher-toggle") as HTMLButtonElement;
-  let running = false;
+  watcherRunning = !!(st && st.running);
+  dot.className = "wdot" + (watcherRunning ? " on" : "");
+  // 파싱/상태 오류는 '정지'로 뭉개지 않고 명시한다 (침묵 실패가 디버깅을 막았던 회귀 가드).
+  label.textContent = watcherRunning ? t("watcherOn") : (st?.error ? t("watcherErr") : t("watcherOff"));
+  btn.title = watcherRunning
+    ? `pid ${st.pid} · ${(st.dirs || []).length} dirs · ${Math.round(st.age_sec || 0)}s ${t("ago")}`
+    : (st?.error || st?.reason || t("stopped"));
+}
+
+async function refreshWatcher(): Promise<boolean> {
   try {
-    const st = jparse(await callTool("watcher_status"));
-    running = !!(st && st.running);
-    dot.className = "wdot" + (running ? " on" : "");
-    // 파싱/상태 오류는 '정지'로 뭉개지 않고 명시한다 (침묵 실패가 디버깅을 막았던 회귀 가드).
-    label.textContent = running ? t("watcherOn") : (st?.error ? t("watcherErr") : t("watcherOff"));
-    btn.title = running
-      ? `pid ${st.pid} · ${(st.dirs || []).length} dirs · ${Math.round(st.age_sec || 0)}s ${t("ago")}`
-      : (st?.error || st?.reason || t("stopped"));
+    renderWatcherState(jparse(await callTool("watcher_status")));
   } catch (e) {
-    dot.className = "wdot";
-    label.textContent = "watcher ?";
-    btn.title = String(e);
+    watcherRunning = false;
+    $("watcher-dot").className = "wdot";
+    $("watcher-label").textContent = "watcher ?";
+    ($("watcher-toggle") as HTMLButtonElement).title = String(e);
   }
-  btn.onclick = async () => {
-    btn.disabled = true;
-    label.textContent = "…";
-    try {
-      if (running) {
-        await callTool("watcher_stop");
-        flashToast(t("toastWatcherStop"));
-        await refreshWatcher();
-      } else {
-        // watcher.ps1 가 spawn 후 heartbeat 를 쓰기까지 1~2s 걸린다.
-        // 시작 직후 status 는 아직 정지이므로 잠시 기다렸다가 재폴링한다.
-        await callTool("watcher_start");
-        flashToast(t("toastWatcherStart"));
-        for (let i = 0; i < 5; i++) {
-          await delay(900);
-          if (await refreshWatcher()) { flashToast(t("watcherOn")); break; }
-        }
+  return watcherRunning;
+}
+
+$("watcher-toggle").addEventListener("click", async () => {
+  const btn = $("watcher-toggle") as HTMLButtonElement;
+  const label = $("watcher-label");
+  btn.disabled = true;
+  label.textContent = "…";
+  try {
+    if (watcherRunning) {
+      await callTool("watcher_stop");
+      flashToast(t("toastWatcherStop"));
+      await refreshWatcher();
+    } else {
+      // watcher.py 가 spawn 후 heartbeat 를 쓰기까지 1~2s 걸린다.
+      // 시작 직후 status 는 아직 정지이므로 잠시 기다렸다가 재폴링한다.
+      await callTool("watcher_start");
+      flashToast(t("toastWatcherStart"));
+      for (let i = 0; i < 5; i++) {
+        await delay(900);
+        if (await refreshWatcher()) { flashToast(t("watcherOn")); break; }
       }
-    } catch (e) { console.error("[config-monitor] watcher toggle", e); await refreshWatcher(); }
-    finally { btn.disabled = false; }
-  };
-  return running;
+    }
+  } catch (e) { console.error("[config-monitor] watcher toggle", e); await refreshWatcher(); }
+  finally { btn.disabled = false; }
+});
+
+// ----- 실시간성: 상태 폴링 -----
+// MCP Apps 에는 서버->앱 푸시 채널이 없다(호스트발 ui/notifications/tool-* 는 이 앱을 띄운
+// 도구 호출에 묶인다). 그래서 보일 때만 status 를 폴링하고, 실제 변화가 있을 때만 재렌더한다.
+// status --json 은 stat fast-path(내용 해싱 없음) + watcher heartbeat 동봉이라 한 호출로 끝난다.
+const POLL_MS = 5000;
+let pollTimer: number | undefined;
+let pollBusy = false;
+let lastTrk: any = null;
+
+// heartbeat 는 매 틱 바뀌므로 watcher/last_snapshot 을 뺀 나머지로 변화를 판별한다.
+const trackedCmp = (trk: any): string => {
+  const { watcher: _w, last_snapshot: _s, ...rest } = trk || {};
+  return JSON.stringify(rest);
+};
+const bucketOf = (trk: any, p: string): string => {
+  for (const k of ["new", "modified", "deleted", "unchanged"]) if (((trk || {})[k] || []).includes(p)) return k;
+  return "";
+};
+
+// 열린 이력 패널의 최신 리비전과 서버의 최신 리비전이 다른가(=선택 파일에 새 스냅샷이 붙었나).
+async function selectedFileHasNewRevision(): Promise<boolean> {
+  const h = jparseLast(await callTool("get_file_history", { path: selectedPath }));
+  const revs: any[] = (h && h.revisions) || [];
+  const latest = revs.length ? revs[revs.length - 1].snapshot : "";
+  const curLatest = currentRevs.length ? currentRevs[currentRevs.length - 1].snapshot : "";
+  return latest !== curLatest;
+}
+
+async function pollStatus(): Promise<void> {
+  if (document.hidden || pollBusy) return;
+  const host = document.getElementById("tracked");
+  if (!host) return;
+  // 입력값/포커스/펼친 프로젝트 목록이 있는 동안 재렌더하면 작업 중인 상태가 날아간다 - 건너뛴다.
+  const input = host.querySelector<HTMLInputElement>(".adder input");
+  if ((input && input.value) || host.contains(document.activeElement) ||
+      host.querySelector(".projpicklist:not([hidden])")) return;
+  pollBusy = true;
+  try {
+    const trk = jparseLast(await callTool("get_tracked"));
+    if (!trk || trk.ok === false) return;
+    if (trk.watcher) renderWatcherState(trk.watcher);
+    const changed = trackedCmp(trk) !== trackedCmp(lastTrk);
+    const snapMoved = !!lastTrk && trk.last_snapshot !== lastTrk.last_snapshot;
+    const selBucketChanged = !!selectedPath && bucketOf(trk, selectedPath) !== bucketOf(lastTrk, selectedPath);
+    lastTrk = trk;
+    if (changed) {
+      const scroller = document.querySelector<HTMLElement>(".left");
+      const st = scroller ? scroller.scrollTop : 0;
+      renderTracked(trk);
+      if (scroller) scroller.scrollTop = st;
+    }
+    // 선택 파일이 실제로 움직였을 때만 열린 이력/diff 를 다시 읽는다(비교 선택이 리셋되므로).
+    if (selectedPath && (selBucketChanged || (snapMoved && await selectedFileHasNewRevision()))) {
+      await selectFile(selectedPath);
+    }
+  } catch { /* 폴링 실패는 다음 틱에 자연 회복 */ }
+  finally { pollBusy = false; }
 }
 
 // ----- display mode -----
