@@ -152,7 +152,7 @@
   .secbody.libbody{display:block}
 
   /* config: 스코프 필터 칩 + 출처 그룹 헤더(전역/프로젝트) + 재정의 배지 */
-  .scopechips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+  .scopechips{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:12px}
   .scopechip{border:1px solid #D1D6DE;background:#FFF;color:#5A6069;border-radius:999px;padding:4px 12px;
     font-family:var(--mono);font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap}
   .scopechip:hover{border-color:#B9C0CA}
@@ -203,15 +203,31 @@
   .cname{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
   .cname .nm{font-weight:600;font-size:13px;word-break:break-all}
   .badge{font-size:10px;font-weight:600;padding:2px 7px;border-radius:4px;white-space:nowrap;background:#E6E8EC;color:var(--mut)}
-  .hidnotice{display:flex;align-items:center;gap:7px;margin:10px 0 0;padding:5px 10px;cursor:pointer;
-    background:transparent;border:1px dashed var(--line);border-radius:20px;color:var(--mut);
-    font:inherit;font-size:11px}
+  /* 스코프 칩과 같은 행에 서므로 지표(패딩·서체·radius)를 칩에 맞춘다. 테두리만 대시 -
+     칩은 배타 선택이고 이쪽은 설정으로 가는 안내라, 모양은 같아도 역할이 다르다. */
+  .hidnotice{display:inline-flex;align-items:center;gap:7px;padding:4px 12px;cursor:pointer;
+    background:transparent;border:1px dashed var(--line);border-radius:999px;color:var(--mut);
+    font-family:var(--mono);font-size:11px;font-weight:600;white-space:nowrap}
   .hidnotice:hover{border-color:var(--accent);color:var(--fg)}
-  .hidnotice .hidcount{background:#222733;padding:1px 7px;border-radius:20px;font-size:10px}
-  .grpband{display:flex;align-items:center;gap:8px;margin:18px 0 2px;cursor:pointer;user-select:none}
-  .grpband .grplbl{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
-  .grpband .grpcount{font-size:10px;color:var(--mut);background:#222733;padding:1px 7px;border-radius:20px}
-  .grpband.collapsed .chev2{transform:rotate(-90deg)}
+  /* 이미 대시 테두리 안이라 개수에 테두리를 또 두르지 않는다 - 이중 대시는 지저분하고,
+     칩 행은 align-items:stretch 라 안쪽이 커지면 옆 스코프 칩까지 같이 늘어난다.
+     칠하지 않고 글자색 대비만으로 읽히게 한다. */
+  .hidnotice .hidcount{background:transparent;border:0;padding:0;font-size:10px;color:var(--fg2)}
+  /* 그룹 밴드: 카드보다 10px 왼쪽에서 시작해 단차를 준다(감싸는 상자 없이 층위만 표시). */
+  .grpband{display:flex;align-items:center;gap:9px;margin:22px 0 7px -10px;padding:6px 10px 6px 0;
+    cursor:pointer;user-select:none;border-radius:6px}
+  .orgtgls + .grpband{margin-top:6px}
+  .grpband:hover{background:rgba(255,255,255,.55)}
+  /* 섹션 chevron(작은 회색 ▾)과 다른 마커 - 층위가 다르다는 걸 글리프·크기·색으로 말한다. */
+  .grpband .grpchev{display:inline-block;transition:transform .15s;color:var(--accent);
+    font-size:9px;line-height:1;flex:0 0 auto}
+  .grpband.collapsed .grpchev{transform:rotate(-90deg)}
+  .grpband .grplbl{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--accent);line-height:1}
+  .grpband .grpcount{font-family:var(--mono);font-size:10px;line-height:1;color:var(--mut);
+    background:transparent;border:1px dashed var(--line);border-radius:999px;padding:3px 7px}
+  /* 꼬리 헤어라인. 밴드를 상자로 감싸지 않고도 한 행으로 읽히게 묶는다. */
+  .grpband .srcline{flex:1;height:1px;background:var(--line2);min-width:8px}
   .sp-sections{max-height:230px;overflow-y:auto;border-top:1px solid var(--line);margin-top:8px;padding-top:8px}
   .sp-sections .spg{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);margin:8px 0 3px}
   .sp-sections .spsec{display:flex;align-items:center;gap:7px;font-size:12px;padding:2px 0;cursor:pointer}

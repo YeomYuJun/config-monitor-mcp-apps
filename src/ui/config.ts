@@ -89,7 +89,10 @@ export function renderConfig(sections: any[]): void {
   // 플러그인 상세의 project/local 설치가 cwd 로 쓸 후보. 스코프 칩과 같은 원천이다.
   setKnownProjects(projects);
   if (scopeFilter !== "all" && scopeFilter !== "global" && !projSeen.has(scopeFilter)) setScopeFilter("all");
-  if (projects.length) w.appendChild(buildScopeChips(projects));
+  // 숨긴 섹션이 있으면 그 사실을 드러낸다. 줄이는 건 기본값이어도 되지만 침묵은 안 된다
+  // (출처 토글이 기본 '표시'인 것과 같은 근거) - 여기가 다시 켜러 가는 입구다.
+  const hiddenCount = sections.filter((sec: any) => !sectionShown(sec)).length;
+  if (projects.length || hiddenCount) w.appendChild(buildPillRow(projects, hiddenCount));
   w.appendChild(buildOriginToggles());   // 스코프 칩과 달리 프로젝트가 없어도 항상 의미가 있다
   // 그룹 밴드로 묶어 그린다 - 섹션이 20개가 되면 A-Z 평면으로는 훑을 수가 없다.
   // 그룹 안에서만 이름 A-Z(원본 배열은 그대로 - lastConfigSections 캐시를 건드리지 않는다).
@@ -100,10 +103,6 @@ export function renderConfig(sections: any[]): void {
     if (!byGroup.has(g)) byGroup.set(g, []);
     byGroup.get(g)!.push(sec);
   }
-  // 숨긴 섹션이 있으면 그 사실을 드러낸다. 줄이는 건 기본값이어도 되지만 침묵은 안 된다
-  // (출처 토글이 기본 '표시'인 것과 같은 근거) - 여기가 다시 켜러 가는 입구다.
-  const hiddenCount = sections.filter((sec: any) => !sectionShown(sec)).length;
-  if (hiddenCount) w.appendChild(buildHiddenNotice(hiddenCount));
   for (const gid of GROUP_ORDER) {
     const secs = byGroup.get(gid);
     if (!secs || !secs.length) continue;
@@ -131,7 +130,7 @@ function buildGroupBand(gid: string, count: number, open: boolean): HTMLElement 
   const band = document.createElement("div");
   band.className = "grpband" + (open ? "" : " collapsed");
   band.innerHTML =
-    `<span class="chev2">▾</span><span class="grplbl">${esc(t(GROUP_LABEL[gid] || gid))}</span>` +
+    `<span class="grpchev">▼</span><span class="grplbl">${esc(t(GROUP_LABEL[gid] || gid))}</span>` +
     `<span class="grpcount">${count}</span><span class="srcline"></span>`;
   band.addEventListener("click", () => {
     const next = sectionPrefs.groupsCollapsed.filter((x) => x !== gid);
@@ -229,9 +228,10 @@ function syncSectionPicker(sections: any[]): void {
   }
 }
 
-// 스코프 필터 칩: 전체 / 전역 / 프로젝트별. 클릭 시 캐시 섹션으로 즉시 재렌더(서버 왕복 없음).
+// pill 한 행: 스코프 필터 칩(전체 / 전역 / 프로젝트별) + '숨긴 섹션'. 모양이 같은 것끼리 모은다.
+// 클릭 시 캐시 섹션으로 즉시 재렌더(서버 왕복 없음).
 // TODO: 프로젝트가 수십 개가 되면 이 칩 행을 검색형 select 로 교체.
-function buildScopeChips(projects: string[]): HTMLElement {
+function buildPillRow(projects: string[], hiddenCount: number): HTMLElement {
   const row = document.createElement("div");
   row.className = "scopechips";
   const mk = (val: string, label: string, title?: string): HTMLElement => {
@@ -242,9 +242,12 @@ function buildScopeChips(projects: string[]): HTMLElement {
     chip.addEventListener("click", () => { setScopeFilter(val); renderConfig(lastConfigSections); });
     return chip;
   };
-  row.appendChild(mk("all", t("scopeAll")));
-  row.appendChild(mk("global", t("kindGlobal")));
-  for (const p of projects) row.appendChild(mk(p, basename(p), p));
+  if (projects.length) {
+    row.appendChild(mk("all", t("scopeAll")));
+    row.appendChild(mk("global", t("kindGlobal")));
+    for (const p of projects) row.appendChild(mk(p, basename(p), p));
+  }
+  if (hiddenCount) row.appendChild(buildHiddenNotice(hiddenCount));
   return row;
 }
 
