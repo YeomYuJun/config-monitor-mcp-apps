@@ -45,7 +45,8 @@ function sectionAllowed(sec: any): boolean {
 
 function sectionShown(sec: any): boolean {
   if (!sectionAllowed(sec)) return false;
-  if (visibleCards(sec).length) return true;
+  // '＋ 새 …' 카드만 남은 섹션은 비어 있는 것이다 - 그걸 1개로 세면 빈 섹션 숨기기가 안 걸린다.
+  if (visibleCards(sec).some((c: any) => !isAddCard(c))) return true;
   if (sectionPrefs.hideEmpty) return false;
   // 필터 모드에서 결과 0개 섹션은 통째로 스킵. 아무 필터도 안 걸렸으면 항상 렌더.
   return !(scopeFilter !== "all" || !showPlugin || !showBuiltin);
@@ -341,13 +342,15 @@ function renderConfigSection(host: HTMLElement, sec: any): void {
   const cards = sec.cards || [];
   const hasProject = cards.some((c: any) => c.scope === "project");
   const visible = visibleCards(sec);
+  const counted = visible.filter((c: any) => !isAddCard(c));
   secIds.add(sec.id);
   const secEl = document.createElement("div");
   secEl.className = "sec" + (collapsed.has(sec.id) ? " collapsed" : "");
   secEl.dataset.col = "1";
 
-  const gCount = cards.filter((c: any) => c.scope !== "project").length;
-  const pCount = cards.length - gCount;
+  const real = cards.filter((c: any) => !isAddCard(c));
+  const gCount = real.filter((c: any) => c.scope !== "project").length;
+  const pCount = real.length - gCount;
   const summary = (scopeFilter === "all" && pCount)
     ? `<span class="secsum">${esc(t("kindGlobal"))} ${gCount} · ${esc(t("kindProject"))} ${pCount}</span>` : "";
   const srcHtml = sec.source
@@ -358,7 +361,7 @@ function renderConfigSection(host: HTMLElement, sec: any): void {
   head.innerHTML =
     `<div class="secrow"><span class="chev2">▾</span>` +
     `<span class="sectitle">${esc(sec.title)}</span>` +
-    `<span class="seccount">${visible.length}</span>` +
+    `<span class="seccount">${counted.length}</span>` +
     loadBadge(sec.load, sec.note) + `${summary}</div>` + srcHtml;
   head.addEventListener("click", () => {
     if (collapsed.has(sec.id)) collapsed.delete(sec.id); else collapsed.add(sec.id);

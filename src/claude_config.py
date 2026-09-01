@@ -51,7 +51,6 @@ CANDIDATES = {
     "user_claude_md":  [os.path.join(HOME, ".claude", "CLAUDE.md")],
     "workflows_dir":   [os.path.join(HOME, ".claude", "workflows")],
     "themes_dir":      [os.path.join(HOME, ".claude", "themes")],
-    "keybindings":     [os.path.join(HOME, ".claude", "keybindings.json")],
     "agent_memory_dir": [os.path.join(HOME, ".claude", "agent-memory")],
     "scheduled_dir":   [os.path.join(HOME, "Claude", "Scheduled")],
     "desktop_config":  [os.path.join(DESKTOP_DIR, "claude_desktop_config.json")],
@@ -186,8 +185,6 @@ SECTIONS = dict([
          "MEMORY.md EAGER(앞 200줄/25KB) · topic LAZY"),
     _sec("agent-memory", "Agent Memory", "memory", ("user", "project"), "lazy",
          "서브에이전트 memory"),
-    _sec("keybindings", "Keybindings", "env", ("user",), "never",
-         "시작 시 + 편집 시 hot-reload"),
     _sec("themes", "Themes", "env", ("user",), "never", "/theme 목록 · hot-reload"),
     _sec("worktreeinclude", ".worktreeinclude", "env", ("project",), "lazy",
          "worktree 생성 시 복사 목록"),
@@ -196,10 +193,20 @@ SECTIONS = dict([
 ])
 
 
+def _is_add_card(c):
+    """'＋ 새 …' 스캐폴드 카드. 항목이 아니라 입력 폼이므로 개수에 들어가면 안 된다
+    - 규칙 0개인 Rules 가 '· 1' 로 보이고, 빈 섹션 숨기기도 걸리지 않는다."""
+    return str((c.get("edit") or {}).get("kind", "")).endswith("-add")
+
+
+def _count(cards):
+    return sum(1 for c in cards if not _is_add_card(c))
+
+
 def _section(sid, cards, source=None):
     """레지스트리 항목 + 카드 -> 섹션 dict. 제목의 ' · N' 은 여기서만 붙인다."""
     s = SECTIONS[sid]
-    d = {"id": s.id, "title": f"{s.title} · {len(cards)}", "group": s.group,
+    d = {"id": s.id, "title": f"{s.title} · {_count(cards)}", "group": s.group,
          "source": source, "cards": cards}
     if s.load:
         d["load"] = s.load
@@ -209,7 +216,7 @@ def _section(sid, cards, source=None):
 
 
 def _recount(sec):
-    sec["title"] = f"{SECTIONS[sec['id']].title} · {len(sec['cards'])}"
+    sec["title"] = f"{SECTIONS[sec['id']].title} · {_count(sec['cards'])}"
 
 
 def card(name, kv, badge=None, ok=False, edit=None, scope=None, project=None, source=None,
@@ -887,8 +894,6 @@ def parse(found, project_dirs=None):
                      edit_of=lambda rel, p, meta: _item_edit("workflow", rel, wd, None))
     wf.append(_add_card("workflow", "＋ 새 워크플로"))
     add(_section("workflows", wf, wd))
-    kb = found.get("keybindings")
-    add(_section("keybindings", _file_card(kb, "keybindings", load="never"), kb))
     td = found.get("themes_dir")
     add(_section("themes", _glob_cards(td, "*.json", "theme"), td))
     amd = found.get("agent_memory_dir")

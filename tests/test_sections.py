@@ -41,6 +41,31 @@ class TestRegistry(unittest.TestCase):
             self.assertIn(expected, titles)
 
 
+class TestCounting(unittest.TestCase):
+    """'＋ 새 …' 카드는 항목이 아니라 입력 폼이다. 개수에 들어가면 규칙 0개인 Rules 가
+    '· 1' 로 보이고, 빈 섹션 숨기기도 영영 걸리지 않는다."""
+
+    def test_add_cards_are_excluded_from_the_count(self):
+        real = cc.card("real", [("desc", "x")])
+        adder = cc.card("＋ 새 규칙", [], badge="add", edit={"kind": "item-add", "itemKind": "rule"})
+        self.assertEqual(cc._count([real, adder]), 1)
+        self.assertEqual(cc._count([adder]), 0)
+        self.assertTrue(cc._is_add_card(adder))
+        self.assertFalse(cc._is_add_card(real))
+
+    def test_empty_surface_with_only_an_adder_titles_as_zero(self):
+        with tempfile.TemporaryDirectory() as d:
+            sec = cc._section("rules", cc._rules_cards(d))
+            self.assertTrue(sec["title"].endswith("· 0"), sec["title"])
+            self.assertEqual(len(sec["cards"]), 1, "추가 카드 자체는 남아 있어야 한다")
+
+    def test_keybindings_is_not_a_section(self):
+        """파일 한 개짜리이고 내용을 파싱하지도 않는다 - 섹션이 할 말이 없다."""
+        self.assertNotIn("keybindings", cc.SECTIONS)
+        ids = {s["id"] for s in cc.parse(cc.discover())["sections"]}
+        self.assertNotIn("keybindings", ids)
+
+
 class TestBuilders(unittest.TestCase):
     def test_md_dir_reads_frontmatter_and_nests(self):
         with tempfile.TemporaryDirectory() as d:
@@ -174,7 +199,7 @@ class TestEnvSurfaces(unittest.TestCase):
     def test_missing_surfaces_yield_empty_sections_not_errors(self):
         """실측: 이 머신에 rules/themes/workflows 가 아예 없다. 없는 게 정상이어야 한다."""
         by_id = {s["id"]: s for s in cc.parse(cc.discover())["sections"]}
-        for sid in ("workflows", "keybindings", "themes"):
+        for sid in ("workflows", "themes"):
             self.assertIn(sid, by_id)
             self.assertIsInstance(by_id[sid]["cards"], list)
 
