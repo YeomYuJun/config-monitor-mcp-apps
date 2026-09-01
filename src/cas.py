@@ -294,6 +294,11 @@ def cmd_status(args):
         # 전역(기본 추적) 대상 분류용. UI 가 전역(editable) vs 프로젝트(view-only) 행 구분에 사용.
         # 버킷 문자열과 동일 정규화(norm_entry)로 내보내야 UI 의 정확 매칭이 성립.
         out["defaults"] = [norm_entry(t) for t in config.get("tracked", []) if t in DEFAULT_TRACKED]
+        # UI 폴링이 status 한 번으로 watcher 생존과 새 스냅샷 여부까지 아는 데 쓴다
+        # (별도 watcher_status/log 호출 = 폴링마다 프로세스 하나씩 추가라 여기 얹는다).
+        out["watcher"] = _watcher_state(args.store)
+        ids = _snapshot_ids(p)
+        out["last_snapshot"] = ids[-1] if ids else None
         print(json.dumps(out, ensure_ascii=False))
         return
     def show(key, sym):
@@ -415,8 +420,15 @@ def cmd_restore(args):
     with open(tmp, "wb") as f:
         f.write(blob)
     os.replace(tmp, target)
+    # 복원 결과도 즉시 스냅샷: 안 찍으면 다음 편집의 pre-스냅샷이 이 상태를 제 이름 없이
+    # 흡수해, 리비전 행의 메시지와 실제 diff 내용이 한 칸 어긋난다(편집 후행 스냅샷과 동일 원칙).
+    post_snapshot = None
+    if not args.no_snapshot:
+        with contextlib.suppress(TimeoutError):
+            post_snapshot, _ = _take_snapshot(p, f"restore: {os.path.basename(target)} <- {sid}")
     print(json.dumps({"ok": True, "message": f"복원 완료: {os.path.basename(target)} <- {sid}",
-                      "path": target, "from": sid, "backup": bak, "pre_snapshot": pre_snapshot},
+                      "path": target, "from": sid, "backup": bak, "pre_snapshot": pre_snapshot,
+                      "post_snapshot": post_snapshot},
                      ensure_ascii=False))
 
 def cmd_log(args):
@@ -474,6 +486,13 @@ def cmd_history(args):
     print(json.dumps({"path": target, "revisions": rows}, ensure_ascii=False,
                      indent=None if args.json else 2))
 
+def _diff_lines(b: bytes):
+    """diff 비교용 줄 목록: 개행 방식(CRLF/LF/CR)과 선두 BOM 을 정규화한다.
+    keepends 로 비교하면 저장 주체가 바뀔 때 EOL 이 뒤집힌 파일이 전량 삭제+추가로
+    보인다(내용은 그대로인데). blob 은 원본 바이트 그대로 두고 표기만 불감으로."""
+    t = b.decode("utf-8", "replace")
+    return t.lstrip("﻿").splitlines()
+
 def cmd_diff(args):
     p = store_paths(args.store)
     target = os.path.abspath(args.path)
@@ -486,13 +505,14 @@ def cmd_diff(args):
     b = _content_at(p, to, target)
     if a is None and b is None:
         print("양쪽 모두 내용 없음(추적 안 됨/삭제됨)"); return
-    try:
-        at = (a or b"").decode("utf-8", "replace").splitlines(keepends=True)
-        bt = (b or b"").decode("utf-8", "replace").splitlines(keepends=True)
-    except Exception:
-        print("바이너리/판독 불가 — 텍스트 diff 생략"); return
-    diff = "".join(difflib.unified_diff(at, bt, fromfile=str(frm), tofile=str(to)))
-    print(diff if diff else "텍스트 변경 없음")
+    diff = "\n".join(difflib.unified_diff(_diff_lines(a or b""), _diff_lines(b or b""),
+                                          fromfile=str(frm), tofile=str(to), lineterm=""))
+    if diff:
+        print(diff)
+    elif (a or b"") != (b or b""):
+        print("줄 내용 동일 — 개행 방식(CRLF/LF)이나 BOM 만 다름")
+    else:
+        print("텍스트 변경 없음")
 
 def cmd_show(args):
     p = store_paths(args.store)
@@ -513,15 +533,14 @@ def cmd_cat(args):
     with open(target, "rb") as f:
         sys.stdout.write(f.read().decode("utf-8", "replace"))
 
-def cmd_watcher_status(args):
-    """watcher.ps1 가 쓰는 watcher.json(heartbeat) 을 읽어 상주 여부를 판정.
-    heartbeat 가 debounce 의 3배 + 5초 안이면 running, 아니면 stale(죽었거나 멈춤)."""
-    state_path = os.path.join(args.store, "watcher.json")
+def _watcher_state(store):
+    """watcher.py 가 쓰는 watcher.json(heartbeat) 을 읽어 상주 여부를 판정.
+    heartbeat 가 폴링 간격의 3배 + 5초 안이면 running, 아니면 stale(죽었거나 멈춤).
+    watcher-status 와 status --json(watcher 블록) 공용."""
+    state_path = os.path.join(store, "watcher.json")
     if not os.path.exists(state_path):
-        print(json.dumps({"running": False, "reason": "watcher.json 없음 (watcher 미실행)"},
-                         ensure_ascii=False))
-        return
-    with open(state_path, encoding="utf-8-sig") as f:  # PS 가 BOM 을 붙여도 견디게
+        return {"running": False, "reason": "watcher.json 없음 (watcher 미실행)"}
+    with open(state_path, encoding="utf-8-sig") as f:  # 다른 도구가 BOM 을 붙여도 견디게
         st = json.load(f)
     age = None
     stale = True
@@ -534,11 +553,14 @@ def cmd_watcher_status(args):
         stale = age > thresh
     except Exception as e:  # 어떤 파싱 이상도 null 대신 원인 보고
         err = f"{type(e).__name__}: {e}"
-    print(json.dumps({
+    return {
         "running": (not stale), "stale": stale, "age_sec": age, "error": err,
         "pid": st.get("pid"), "started": st.get("started"), "heartbeat": st.get("heartbeat"),
         "dirs": st.get("dirs", []), "lastEvent": st.get("lastEvent", ""),
-    }, ensure_ascii=False))
+    }
+
+def cmd_watcher_status(args):
+    print(json.dumps(_watcher_state(args.store), ensure_ascii=False))
 
 def main():
     ap = argparse.ArgumentParser(prog="cas", description="Custom CAS snapshot engine")

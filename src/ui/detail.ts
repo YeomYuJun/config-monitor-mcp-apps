@@ -136,11 +136,14 @@ export function renderHistory(): void {
 
 export async function renderDiffFor(): Promise<void> {
   if (!fromRev) return;
-  pushCtx(`[Config Monitor] '${selectedPath}' diff ${fromRev} -> ${toRev}.`);
   const args: Record<string, unknown> = { path: selectedPath, from: fromRev };
   if (toRev && toRev !== "work") args.to = toRev;
   try {
-    renderDiff(await callTool("get_diff", args));
+    const diff = await callTool("get_diff", args);
+    // 화면에 보이는 diff 를 모델 컨텍스트에도 얹는다(앞 2KB) - 사용자가 변경 내용을 물으면
+    // 모델이 화면과 같은 근거로 답하게(updateModelContext, standalone 은 no-op).
+    pushCtx(`[Config Monitor] '${selectedPath}' diff ${fromRev} -> ${toRev}:\n${diff.slice(0, 2048)}`);
+    renderDiff(diff);
   } catch (e) {
     const area = document.getElementById("diff-area");
     if (area) area.innerHTML = `<div class="empty err">${esc(t("diffFetchFail"))}: ${esc(String(e))}</div>`;
@@ -150,8 +153,13 @@ export async function renderDiffFor(): Promise<void> {
 function renderDiff(diff: string): void {
   const area = document.getElementById("diff-area");
   if (!area) return;
-  if (!diff.trim() || diff.trim() === "텍스트 변경 없음") {
-    area.innerHTML = `<div class="diffempty">${esc(t("noDiff"))}</div>`;
+  // unified diff 는 항상 @@ 헌크를 가진다 - 없으면 diff 가 아니라 cas 의 안내 메시지
+  // (변경 없음 / 개행·BOM 만 다름 / 스냅샷 없음 등)이므로 그대로 안내로 보여준다.
+  if (!/^@@/m.test(diff)) {
+    const msg = diff.trim();
+    const mapped = msg === "텍스트 변경 없음" ? t("noDiff")
+      : msg.startsWith("줄 내용 동일") ? t("eolOnlyDiff") : msg;
+    area.innerHTML = `<div class="diffempty">${esc(mapped || t("noDiff"))}</div>`;
     return;
   }
   const fromLabel = revLabel(fromRev);

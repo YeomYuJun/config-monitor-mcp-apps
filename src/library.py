@@ -28,7 +28,7 @@ for _s in (sys.stdout, sys.stderr):
     except (AttributeError, ValueError):
         pass
 
-from config_edit import (backup, snapshot_before, trash, out, load, save_atomic,
+from config_edit import (backup, snapshot_before, snapshot_after, trash, out, load, save_atomic,
                          op_mcp_add, op_mcp_remove, _safe_settings_path)  # 동일 안전 규율 재사용
 import lib_store
 import marketplace
@@ -542,8 +542,10 @@ def cmd_install(a):
         # 파일은 이미 설치됐다. 원장만 못 남긴 상태를 숨기지 않는다 -
         # 이 항목은 다음 scan 에서 하위호환(해시 비교) 경로로 흐른다.
         warn = "스토어 미초기화로 출처를 기록하지 못했습니다(설치 자체는 완료)"
-    out(True, f"{'동기화' if existed else '설치'}됨: {a.category}/{a.path}",
-        target=tgt, backup=bak, synced=existed, origin=origin, warning=warn)
+    msg = f"{'동기화' if existed else '설치'}됨: {a.category}/{a.path}"
+    if not a.no_snapshot:
+        snapshot_after(a.store, msg)
+    out(True, msg, target=tgt, backup=bak, synced=existed, origin=origin, warning=warn)
 
 
 def cmd_uninstall(a):
@@ -567,7 +569,10 @@ def cmd_uninstall(a):
         lib_store.save_cfg(a.store, cfg)
     except lib_store.StoreNotInitialized:
         pass          # 원장이 애초에 없었다는 뜻 - 지울 것도 없다
-    out(True, f"제거됨(.trash 이동): {a.category}/{a.name}", trashed=dst, owner=owner)
+    msg = f"제거됨(.trash 이동): {a.category}/{a.name}"
+    if not a.no_snapshot:
+        snapshot_after(a.store, msg)
+    out(True, msg, trashed=dst, owner=owner)
 
 
 def _lib_cache(store, *parts):
@@ -1181,6 +1186,8 @@ def cmd_hooks_install(a):
     except lib_store.StoreNotInitialized:
         warn = "스토어 미초기화로 출처를 기록하지 못했습니다 - 제거 시 --root 로 경로를 직접 지정해야 합니다"
 
+    if not a.no_snapshot:
+        snapshot_after(a.store, f"hooks 설치됨: {name} ({added}건)")
     print(json.dumps({"ok": True, "origin": a.origin, "root": root, "settings": sp,
                       "removed": removed, "added": added, "backup": bak,
                       "warnings": warns, "warning": warn,
@@ -1243,6 +1250,8 @@ def cmd_hooks_uninstall(a):
             snapshot_before(a.store)
         backup(sp)
         save_atomic(sp, s)
+        if not a.no_snapshot:
+            snapshot_after(a.store, f"hooks 제거됨: {name} ({removed}건)")
     try:
         lib_store.ledger_del(cfg, a.target, "hooks", name)
         lib_store.save_cfg(a.store, cfg)
@@ -1307,6 +1316,8 @@ def cmd_mcp_install(a):
         lib_store.save_cfg(a.store, cfg)
     except lib_store.StoreNotInitialized:
         warn = "스토어 미초기화로 출처를 기록하지 못했습니다(설치 자체는 완료)"
+    if not a.no_snapshot:
+        snapshot_after(a.store, f"MCP 서버 설치됨: {name} ({len(servers)}개, scope={a.scope})")
     print(json.dumps({"ok": True, "origin": a.origin, "target": tgt, "backup": bak,
                       "servers": sorted(servers), "warning": warn,
                       "message": f"MCP 서버 설치됨: {name} ({len(servers)}개, scope={a.scope})"},
@@ -1333,6 +1344,8 @@ def cmd_mcp_uninstall(a):
             snapshot_before(a.store)
         backup(tgt)
         save_atomic(tgt, d)
+        if not a.no_snapshot:
+            snapshot_after(a.store, f"MCP 서버 제거됨: {name} ({removed}개)")
     try:
         if a.server and rec.get("servers"):
             rec["servers"] = [s for s in rec["servers"] if s != a.server]
