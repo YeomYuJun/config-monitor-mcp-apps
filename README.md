@@ -32,6 +32,7 @@ Sources can be local folders, remote git repos, or plugin marketplaces. Remote o
   - [Plugins](#plugins)
   - [History / Diff](#history--diff)
   - [Safety](#safety)
+- [Coverage Map](#coverage-map)
 - [What It Reads](#what-it-reads)
 - [Notes](#notes)
 
@@ -43,7 +44,7 @@ Cowork supports both inline and fullscreen; Code supports inline only (following
 
 ## Features
 
-- **The whole config surface, not just to look at** — beyond MCP/hooks/skills/agents: `CLAUDE.md` and `CLAUDE.local.md`, `rules/`, `output-styles/`, `workflows/`, `keybindings.json`, `themes/`, `.worktreeinclude`, agent memory, and per-project `memory/`. Rules, output styles, and workflows can be scaffolded, removed, and installed from a library like any other item.
+- **The whole config surface, not just to look at** — beyond MCP/hooks/skills/agents: `CLAUDE.md` and `CLAUDE.local.md`, `rules/`, `output-styles/`, `workflows/`, `themes/`, `.worktreeinclude`, agent memory, and per-project `memory/`. Rules, output styles, and workflows can be scaffolded, removed, and installed from a library like any other item.
 - **Context load class, and a switch for it** — every section and card is badged `EAGER` / `LAZY` / `NEVER`, so you can see what actually costs you context at session start. A rule with `paths:` frontmatter is LAZY and one without it is EAGER; only the selected output style is EAGER — and you can **activate a different one from its card**, which is the one control that changes what loads next session.
 - **Grouped, filterable sections** — the ~20 sections are banded into six functional groups (instructions, extensions, connections, execution, memory, environment), with a preset (*all* / *commonly used* / *choose*) and a hide-empty switch, both saved to the store.
 - **One view across sources** — Claude Code, Claude Desktop, and each tracked project side by side, with scope badges (`global` / `project`).
@@ -222,6 +223,75 @@ Opens when you click a tracked-file row. It shows the snapshot timeline (time, m
 
 <img src="assets/img/fullscreen.png" width="720" alt="Fullscreen dashboard">
 
+## Coverage Map
+
+Where each file Claude reads lands in the dashboard. `→` is the section it becomes; `✗` means the dashboard deliberately leaves it alone.
+
+### Project scope
+
+```
+your-project/
+├── CLAUDE.md                    → CLAUDE.md                EAGER
+├── CLAUDE.local.md              → CLAUDE.md                EAGER · gitignored, personal
+├── .mcp.json                    → MCP Servers (project)    LAZY · committed, affects the team
+├── .worktreeinclude             → .worktreeinclude         LAZY · listed, contents not parsed
+└── .claude/
+    ├── CLAUDE.md                → CLAUDE.md                EAGER · alternate location
+    ├── settings.json            → Permissions · Hooks      only permissions / hooks / outputStyle
+    ├── settings.local.json      → Permissions · Hooks      both files read, shown as separate cards
+    ├── rules/**/*.md            → Rules                    EAGER, or LAZY when paths: is present
+    ├── skills/<name>/SKILL.md   → Skills (code)            EAGER (name+description only)
+    ├── commands/<name>.md       → Commands                 LAZY
+    ├── agents/<name>.md         → Agents                   EAGER (description only)
+    ├── agent-memory/<agent>/    → Agent Memory             LAZY
+    ├── agent-memory-local/      → Agent Memory             LAZY · gitignored
+    ├── output-styles/<name>.md  → Output Styles            EAGER only for the selected one
+    └── workflows/*.js           → Workflows                LAZY · each file becomes /<name>
+```
+
+### User scope
+
+```
+~/
+├── .claude.json                 → Claude Code              global MCP · projects · trust
+└── .claude/
+    ├── CLAUDE.md                → CLAUDE.md                EAGER · applies to every project
+    ├── settings.json            → Permissions · Hooks
+    ├── settings.local.json      → Permissions · Hooks
+    ├── keybindings.json         ✗ not tracked              one opaque file, nothing to report
+    ├── themes/*.json            → Themes                   NEVER · /theme list
+    ├── rules/*.md               → Rules                    loaded before project rules
+    ├── skills/<name>/SKILL.md   → Skills (code)
+    ├── commands/<name>.md       → Commands
+    ├── agents/<name>.md         → Agents                   recursive; name field is the identity
+    ├── agent-memory/<agent>/    → Agent Memory
+    ├── output-styles/<name>.md  → Output Styles
+    ├── workflows/*.js           → Workflows
+    ├── plugins/                 → Plugins                  contributed items also join their own sections
+    │   └── cache/ · data/       ✗ not tracked              plugin internals
+    └── projects/<project>/memory/
+        ├── MEMORY.md            → Project Memory           EAGER · first 200 lines or 25KB
+        └── <topic>.md           → Project Memory           LAZY
+```
+
+### Claude Desktop
+
+Outside the Claude Code tree above, and not part of it:
+
+```
+<Desktop>/claude_desktop_config.json                        → MCP Servers (desktop)
+<Desktop>/local-agent-mode-sessions/skills-plugin/**/manifest.json
+                                                            → Desktop Skills
+~/Claude/Scheduled/<name>/SKILL.md                          → Scheduled Tasks
+```
+
+### Read but not surfaced
+
+- **`settings.json` keys other than `permissions`, `hooks`, and `outputStyle`** — `model`, `effortLevel`, `statusLine`, `enabledPlugins`, and the rest are not turned into cards. `enabledPlugins` is written when you toggle a plugin, and `outputStyle` when you activate a style, but neither is browsable on its own.
+- **`~/.claude/keybindings.json`** — a keymap is an editor's job. A card could only repeat its size and path.
+- **Conversation history in `~/.claude.json`** — deliberately skipped; it is the bulk of that file and none of it is configuration.
+- **Plugin internals** (`plugins/cache/`, `plugins/data/`) — the managed unit is the plugin, and that is what the Plugins section shows.
+
 ## What It Reads
 
 The dashboard does not dump whole files — it extracts only the fields it needs and turns them into cards. `~/.claude.json` is read selectively (never conversation history), `settings.json` is parsed only for `permissions` and `hooks`, and frontmatter is read shallowly (top-level one-line `key: value` pairs).
@@ -244,7 +314,6 @@ The dashboard does not dump whole files — it extracts only the fields it needs
 | Rules | `~/.claude/rules/**/*.md` | frontmatter `description`; presence of `paths:` decides EAGER vs LAZY |
 | Output Styles | `~/.claude/output-styles/**/*.md` | frontmatter `description`; `settings.outputStyle` decides which one is active |
 | Workflows | `~/.claude/workflows/*.js` | file name (becomes `/<name>`), size, path |
-| Keybindings | `~/.claude/keybindings.json` | size and path only (not parsed) |
 | Themes | `~/.claude/themes/*.json` | theme name, size, path |
 | Agent Memory | `~/.claude/agent-memory/**/*.md` | frontmatter `description` |
 | Project Memory | `~/.claude/projects/<encoded>/memory/*.md` | frontmatter `description`; `MEMORY.md` is the EAGER index |
@@ -266,7 +335,7 @@ When a project is tracked, the Permissions / Hooks / Skills / Agents / Commands 
 - Project cards are capped at 20.
 - **Rules**, **Output Styles**, and **Workflows** are editable: scaffold, remove (to `.trash`), and library install/sync. Output styles additionally offer **activate / deactivate**, which writes `outputStyle` into `settings.json`.
 - Project **memory topics** can be removed (to `.trash`). `MEMORY.md` itself cannot — it is the index, and deleting it cuts the path to every topic it links.
-- **Keybindings**, **Themes**, **CLAUDE.md**, and **`.worktreeinclude`** stay view-only, listed by size and path. A keymap, a color table, and a prose document are an editor's job, not a card's.
+- **Themes**, **CLAUDE.md**, and **`.worktreeinclude`** stay view-only, listed by size and path. A color table and a prose document are an editor's job, not a card's. `keybindings.json` is not surfaced at all — see [Coverage Map](#coverage-map).
 - **Commands** and a project's **`.mcp.json`** remain view-only at every scope, as before.
 - Nested items (in subfolders) are view-only everywhere, because the remove operation takes a single-segment name.
 - A project's active output style follows the real cascade — the global `settings.json` chain first, then the project's own, with the project winning. A style set only globally still badges `EAGER` on that project's card.
