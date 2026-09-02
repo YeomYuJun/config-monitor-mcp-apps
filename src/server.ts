@@ -15,9 +15,6 @@ import { registerAll, buildTools, langScript } from "./mcp-tools.ts";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3002);
 
-const server = new McpServer({ name: "config-monitor", version: "0.1.0" });
-registerAll(server, __dirname);
-
 // REST 용 도구 맵 (MCP 와 동일 핸들러)
 const toolMap = Object.fromEntries(buildTools(__dirname).map((d) => [d.name, d.run]));
 
@@ -85,11 +82,15 @@ app.post("/api/tool/:name", async (req, res) => {
 });
 
 app.post("/mcp", async (req, res) => {
+  // stateless 패턴: 요청마다 server+transport 신규. 서버 인스턴스 하나를 재사용하면
+  // connect 가 내부 transport 를 덮어써 동시 요청의 응답이 뒤바뀌거나 유실될 수 있다.
+  const server = new McpServer({ name: "config-monitor", version: "0.1.0" });
+  registerAll(server, __dirname);
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
   });
-  res.on("close", () => transport.close());
+  res.on("close", () => { transport.close(); server.close(); });
   await server.connect(transport);
   await transport.handleRequest(req, res, req.body);
 });

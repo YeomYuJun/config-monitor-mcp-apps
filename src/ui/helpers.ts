@@ -5,7 +5,12 @@ const DESC_KEYS = new Set(["desc", "description", "설명", "summary"]);
 export const valClass = (k: string) => (DESC_KEYS.has(String(k).toLowerCase()) ? "desc" : "code");
 
 export const basename = (p: string) => p.split(/[\\/]/).filter(Boolean).pop() || p;
-export const dirname = (p: string) => { const a = p.split(/[\\/]/); a.pop(); return a.join("\\"); };
+export const dirname = (p: string) => {
+  // 입력의 구분자를 따른다 - 항상 \\ 로 join 하면 POSIX 경로가 \home\x 꼴이 되어
+  // libProjectTargets 로 백엔드에 넘어가는 프로젝트 경로가 비 Windows 에서 통째로 깨진다.
+  const sep = p.includes("\\") ? "\\" : "/";
+  const a = p.split(/[\\/]/); a.pop(); return a.join(sep);
+};
 
 // 출처 origin 을 사람이 읽는 짧은 라벨로. 캐시 경로(.../markets/<id>/plugins/<name>/<sha12>)는
 // 화면에 그대로 쓸 수 없고, 여러 라이브러리가 같은 이름의 항목을 줄 때 행을 구분하는 유일한 단서다.

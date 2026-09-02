@@ -988,11 +988,14 @@ export function buildTools(scriptDir: string): ToolDef[] {
   // 실행 중인 watcher 프로세스를 모두 종료(좀비/중복 정리).
   // watcher.py(python) 가 대상. 구버전 watcher.ps1 상주분도 함께 정리한다.
   // 커맨드라인 매칭만 쓰면 'watcher.py' 를 인자 문자열로 품은 무관한 셸(이 kill 명령 자신을
-  // 감싼 셸 포함)까지 죽는다 - 프로세스 이름(python/py, powershell)을 함께 걸어 실체만 잡는다.
+  // 감싼 셸 포함)까지 죽는다 - 프로세스 이름(python/py, powershell)을 함께 걸고, python 쪽은
+  // **이 설치본의 watcher.py 전체 경로**로만 매칭한다(다른 프로젝트의 동명 스크립트 오살 방지.
+  // watcher_start 가 같은 forward-slash 경로로 기동하므로 커맨드라인에 그대로 남는다).
   async function killWatchers(): Promise<void> {
     if (process.platform !== "win32") return;
+    const wpy = path.join(scriptDir, "watcher.py").replace(/\\/g, "/").replace(/'/g, "''");
     const cmd = "Get-CimInstance Win32_Process | Where-Object { " +
-      "((($_.Name -like 'python*') -or ($_.Name -eq 'py.exe')) -and $_.CommandLine -like '*watcher.py*') -or " +
+      `((($_.Name -like 'python*') -or ($_.Name -eq 'py.exe')) -and $_.CommandLine -like '*${wpy}*') -or ` +
       "(($_.Name -eq 'powershell.exe') -and $_.CommandLine -like '*-File*watcher.ps1*') } | " +
       "Where-Object { $_.ProcessId -ne $PID } | " +
       "ForEach-Object { Stop-Process -Id $_.ProcessId -Force }";

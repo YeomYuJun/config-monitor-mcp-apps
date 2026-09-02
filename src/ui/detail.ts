@@ -32,6 +32,11 @@ export async function selectFile(p: string): Promise<void> {
   // 응답 도착 전에 사용자가 다른 파일을 골랐으면 이 응답은 버린다. 안 버리면 헤더는 새 파일인데
   // 타임라인은 이전 파일이 되고, 그 상태로 복원하면 엉뚱한 파일이 롤백된다.
   if (selectedPath !== p) return;
+  // 도구 실패({"ok":false})를 빈 이력으로 뭉개면 "스냅샷 없음" 이라는 거짓 안내가 된다.
+  if (h && h.ok === false) {
+    body.innerHTML = `<div class="empty err">${esc(t("fetchFail"))}: ${esc(h.message || t("unknown"))}</div>`;
+    return;
+  }
   setCurrentRevs((h && h.revisions) || []);
   // 선택 행 다시 표시(refresh 없이 강조만). full path 로 매칭(같은 basename, 예: 여러 settings.json
   // 파일이 함께 강조되는 버그 방지).
@@ -125,6 +130,13 @@ export function renderHistory(): void {
     const pre = cur.querySelector("pre")!;
     try {
       const content = await callTool("get_file_content", { path: selectedPath });
+      // 도구 실패는 {"ok":false} 문자열로 온다 - 파일 내용처럼 보여주고 캐시까지 하면
+      // 닫았다 열어도 오류 원문이 내용 행세를 계속한다. 실패는 캐시하지 않는다.
+      const err = jparse(content);
+      if (err && err.ok === false) {
+        pre.textContent = t("fetchFail") + ": " + (err.message || t("unknown"));
+        return;
+      }
       pre.textContent = content || t("emptyFile");
       curLoaded = true;
     } catch (e) {
@@ -136,13 +148,24 @@ export function renderHistory(): void {
 
 export async function renderDiffFor(): Promise<void> {
   if (!fromRev) return;
-  const args: Record<string, unknown> = { path: selectedPath, from: fromRev };
-  if (toRev && toRev !== "work") args.to = toRev;
+  const path = selectedPath, frm = fromRev, to = toRev;
+  const args: Record<string, unknown> = { path, from: frm };
+  if (to && to !== "work") args.to = to;
   try {
     const diff = await callTool("get_diff", args);
+    // 응답 대기 중 파일/리비전 선택이 바뀌었으면 버린다(selectFile 의 가드와 같은 근거 -
+    // 안 버리면 강조는 새 리비전인데 diff 영역과 모델 컨텍스트는 이전 것으로 덮인다).
+    if (path !== selectedPath || frm !== fromRev || to !== toRev) return;
+    // 도구 실패는 {"ok":false} 문자열로 온다 - diff 본문으로 그리거나 컨텍스트에 넣지 않는다.
+    const err = jparse(diff);
+    if (err && err.ok === false) {
+      const area = document.getElementById("diff-area");
+      if (area) area.innerHTML = `<div class="empty err">${esc(t("diffFetchFail"))}: ${esc(err.message || t("unknown"))}</div>`;
+      return;
+    }
     // 화면에 보이는 diff 를 모델 컨텍스트에도 얹는다(앞 2KB) - 사용자가 변경 내용을 물으면
     // 모델이 화면과 같은 근거로 답하게(updateModelContext, standalone 은 no-op).
-    pushCtx(`[Config Monitor] '${selectedPath}' diff ${fromRev} -> ${toRev}:\n${diff.slice(0, 2048)}`);
+    pushCtx(`[Config Monitor] '${path}' diff ${frm} -> ${to}:\n${diff.slice(0, 2048)}`);
     renderDiff(diff);
   } catch (e) {
     const area = document.getElementById("diff-area");

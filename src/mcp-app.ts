@@ -31,7 +31,23 @@ function showErr(hostId: string, label: string, e: unknown): void {
   $(hostId).innerHTML = `<div class="empty err">${esc(label)} ${esc(t("fetchFail"))}: ${esc(String(e))}</div>`;
 }
 
+// 재진입 가드: 진행 중 refresh 위에 겹치면 wrap 밖에 append 되는 Library/카탈로그 섹션이
+// 두 벌 그려진다(설치 액션의 refreshApp 과 새로고침 클릭이 겹치는 경우). 겹친 요청은
+// 버리지 않고 끝난 뒤 한 번 더 돌아 마지막 상태를 반영한다.
+let refreshBusy = false;
+let refreshQueued = false;
 async function refresh(): Promise<void> {
+  if (refreshBusy) { refreshQueued = true; return; }
+  refreshBusy = true;
+  try {
+    await refreshInner();
+  } finally {
+    refreshBusy = false;
+    if (refreshQueued) { refreshQueued = false; void refresh(); }
+  }
+}
+
+async function refreshInner(): Promise<void> {
   // 설치/제거 후의 재렌더로 스크롤이 맨 위로 튀면 작업하던 행을 매번 다시 찾아가야 한다.
   // 목록 길이가 크게 바뀌면 어차피 어긋나지만, 같은 자리에서 이어 작업하는 경우가 압도적이다.
   const scroller = document.querySelector<HTMLElement>(".left");
@@ -105,10 +121,13 @@ async function refreshWatcher(): Promise<boolean> {
   return watcherRunning;
 }
 
+let watcherBusy = false;   // 토글 진행 중이면 폴링이 배지를 stale 상태로 되돌리지 않게
+
 $("watcher-toggle").addEventListener("click", async () => {
   const btn = $("watcher-toggle") as HTMLButtonElement;
   const label = $("watcher-label");
   btn.disabled = true;
+  watcherBusy = true;
   label.textContent = "…";
   try {
     if (watcherRunning) {
@@ -118,15 +137,21 @@ $("watcher-toggle").addEventListener("click", async () => {
     } else {
       // watcher.py 가 spawn 후 heartbeat 를 쓰기까지 1~2s 걸린다.
       // 시작 직후 status 는 아직 정지이므로 잠시 기다렸다가 재폴링한다.
-      await callTool("watcher_start");
-      flashToast(t("toastWatcherStart"));
-      for (let i = 0; i < 5; i++) {
-        await delay(900);
-        if (await refreshWatcher()) { flashToast(t("watcherOn")); break; }
+      const r = jparse(await callTool("watcher_start"));
+      if (r && r.ok === false) {
+        // 기동 실패를 성공 토스트로 덮지 않는다 - 사유(권한/PATH)는 모달로 남긴다.
+        openReasonModal(t("failed"), r.message || t("failed"));
+        await refreshWatcher();
+      } else {
+        flashToast(t("toastWatcherStart"));
+        for (let i = 0; i < 5; i++) {
+          await delay(900);
+          if (await refreshWatcher()) { flashToast(t("watcherOn")); break; }
+        }
       }
     }
   } catch (e) { console.error("[config-monitor] watcher toggle", e); await refreshWatcher(); }
-  finally { btn.disabled = false; }
+  finally { btn.disabled = false; watcherBusy = false; }
 });
 
 // ----- 실시간성: 상태 폴링 -----
@@ -169,7 +194,7 @@ async function pollStatus(): Promise<void> {
   try {
     const trk = jparseLast(await callTool("get_tracked"));
     if (!trk || trk.ok === false) return;
-    if (trk.watcher) renderWatcherState(trk.watcher);
+    if (trk.watcher && !watcherBusy) renderWatcherState(trk.watcher);
     const changed = trackedCmp(trk) !== trackedCmp(lastTrk);
     const snapMoved = !!lastTrk && trk.last_snapshot !== lastTrk.last_snapshot;
     const selBucketChanged = !!selectedPath && bucketOf(trk, selectedPath) !== bucketOf(lastTrk, selectedPath);
@@ -312,8 +337,11 @@ $("collapse-all").addEventListener("click", () => {
 });
 $("refresh").addEventListener("click", () => { refresh(); flashToast(t("toastRefreshed")); });
 $("snap").addEventListener("click", async () => {
-  const r = jparse(await callTool("snapshot_now", { message: t("snapshotMsg") }));
+  const raw = await callTool("snapshot_now", { message: t("snapshotMsg") });
+  const r = jparse(raw);
   if (r && r.ok === false) { openReasonModal(t("failed"), r.message || t("failed")); return; }
+  // cas snapshot 은 평문 출력이다: 변경이 없어 생략된 경우까지 "생성됨" 토스트를 띄우지 않는다.
+  if (raw.trim().startsWith("변경 없음")) { flashToast(t("snapNoChange")); return; }
   flashToast(t("toastSnapshot"));
   await refresh();
   if (selectedPath) selectFile(selectedPath);
