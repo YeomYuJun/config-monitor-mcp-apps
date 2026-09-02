@@ -152,13 +152,16 @@ def scan(p, config, index, rehash=True):
             new_index[path] = prev
             result["unchanged"].append(path)
             continue
-        h = hash_bytes(open(path, "rb").read())
+        # 한 번 읽은 내용으로 해시와 blob 을 함께 만든다 - 두 번 따로 읽으면 그 사이 파일이
+        # 또 바뀌었을 때 index 의 해시가 가리키는 blob 이 존재하지 않게 된다(복원 불가).
+        data = open(path, "rb").read()
+        h = hash_bytes(data)
         if h == prev.get("hash"):
             new_index[path] = {**stt, "hash": h}
             result["unchanged"].append(path)
         else:
             if rehash:
-                write_object(p, open(path, "rb").read())
+                write_object(p, data)
             new_index[path] = {**stt, "hash": h}
             result["modified"].append(path)
     for path in index:
@@ -396,36 +399,35 @@ def cmd_restore(args):
     p = store_paths(args.store)
     target = os.path.abspath(os.path.expanduser(args.path))
     sid = args.frm
-    # 복원 전 현재 상태를 스냅샷으로 보존(복원도 되돌릴 수 있게).
-    pre_snapshot = None
-    if not args.no_snapshot:
-        # 되돌릴 지점을 못 만들면 복원을 하지 않는다 - 조용히 진행하면 롤백 불가 상태가 된다.
-        try:
-            pre_snapshot, _ = _take_snapshot(p, f"before restore of {os.path.basename(target)}")
-        except TimeoutError as e:
-            print(json.dumps({"ok": False, "message": f"복원 전 스냅샷 실패: {e}"}, ensure_ascii=False))
-            sys.exit(1)
     blob = _content_at(p, sid, target)
     if blob is None:
         print(json.dumps({"ok": False, "message": f"스냅샷 {sid} 에 '{target}' 내용 없음(추적 안 됨/삭제됨)"},
                          ensure_ascii=False))
         sys.exit(1)
-    bak = None
-    if os.path.exists(target) and not args.no_backup:
-        bak = f"{target}.{datetime.now().strftime('%Y%m%d%H%M%S')}.bak"
-        with open(bak, "wb") as f:
-            f.write(open(target, "rb").read())
-    os.makedirs(os.path.dirname(target), exist_ok=True)
-    tmp = target + ".restore.tmp"
-    with open(tmp, "wb") as f:
-        f.write(blob)
-    os.replace(tmp, target)
-    # 복원 결과도 즉시 스냅샷: 안 찍으면 다음 편집의 pre-스냅샷이 이 상태를 제 이름 없이
-    # 흡수해, 리비전 행의 메시지와 실제 diff 내용이 한 칸 어긋난다(편집 후행 스냅샷과 동일 원칙).
-    post_snapshot = None
-    if not args.no_snapshot:
-        with contextlib.suppress(TimeoutError):
-            post_snapshot, _ = _take_snapshot(p, f"restore: {os.path.basename(target)} <- {sid}")
+    # 전/후 스냅샷과 파일 쓰기를 한 락 안에서 - 사이가 벌어지면 watcher tick 이 먼저 찍어
+    # 복원 결과가 'auto:' 메시지로 기록되고, 리비전에 복원이라는 사실이 남지 않는다.
+    pre_snapshot = post_snapshot = bak = None
+    try:
+        with (contextlib.nullcontext() if args.no_snapshot else _snapshot_lock(p)):
+            if not args.no_snapshot:
+                # 되돌릴 지점을 못 만들면 복원을 하지 않는다 - 조용히 진행하면 롤백 불가 상태가 된다.
+                pre_snapshot, _ = _take_snapshot_locked(p, f"before restore of {os.path.basename(target)}")
+            if os.path.exists(target) and not args.no_backup:
+                bak = f"{target}.{datetime.now().strftime('%Y%m%d%H%M%S')}.bak"
+                with open(bak, "wb") as f:
+                    f.write(open(target, "rb").read())
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            tmp = target + ".restore.tmp"
+            with open(tmp, "wb") as f:
+                f.write(blob)
+            os.replace(tmp, target)
+            # 복원 결과도 즉시 스냅샷: 안 찍으면 다음 편집의 pre-스냅샷이 이 상태를 제 이름 없이
+            # 흡수해, 리비전 행의 메시지와 실제 diff 내용이 한 칸 어긋난다(편집 후행 스냅샷과 동일 원칙).
+            if not args.no_snapshot:
+                post_snapshot, _ = _take_snapshot_locked(p, f"restore: {os.path.basename(target)} <- {sid}")
+    except TimeoutError as e:
+        print(json.dumps({"ok": False, "message": f"복원 전 스냅샷 실패: {e}"}, ensure_ascii=False))
+        sys.exit(1)
     print(json.dumps({"ok": True, "message": f"복원 완료: {os.path.basename(target)} <- {sid}",
                       "path": target, "from": sid, "backup": bak, "pre_snapshot": pre_snapshot,
                       "post_snapshot": post_snapshot},
@@ -435,7 +437,9 @@ def cmd_log(args):
     p = store_paths(args.store)
     if not os.path.isdir(p["snapshots"]):
         print("스냅샷 없음"); return
-    for name in sorted(os.listdir(p["snapshots"]), reverse=True)[: args.limit]:
+    # _snapshot_ids 와 같은 필터: 저장 중단이 남긴 .tmp 등을 스냅샷으로 세지 않는다.
+    names = [n for n in sorted(os.listdir(p["snapshots"]), reverse=True) if n.endswith(".json")]
+    for name in names[: args.limit]:
         m = load_json(os.path.join(p["snapshots"], name), {})
         c = m.get("changes", {})
         print(f"{name[:-5]}  +{len(c.get('new',[]))} ~{len(c.get('modified',[]))} -{len(c.get('deleted',[]))}  {m.get('message','')}")
@@ -472,7 +476,7 @@ def _content_at(p, ref, target):
 def cmd_history(args):
     """파일별 리비전 이력: 해시가 바뀐 스냅샷만 추려 git log 처럼."""
     p = store_paths(args.store)
-    target = os.path.abspath(args.path)
+    target = os.path.abspath(os.path.expanduser(args.path))   # restore/cat 과 같은 해석
     rows = []
     last = "__init__"
     for sid in _snapshot_ids(p):
@@ -495,7 +499,7 @@ def _diff_lines(b: bytes):
 
 def cmd_diff(args):
     p = store_paths(args.store)
-    target = os.path.abspath(args.path)
+    target = os.path.abspath(os.path.expanduser(args.path))
     ids = _snapshot_ids(p)
     frm = args.frm or (ids[-1] if ids else None)
     to = args.to or "work"
@@ -516,7 +520,7 @@ def cmd_diff(args):
 
 def cmd_show(args):
     p = store_paths(args.store)
-    h = _latest_hash_for(p, os.path.abspath(args.path))
+    h = _latest_hash_for(p, os.path.abspath(os.path.expanduser(args.path)))
     if not h:
         print("index 에 없음"); return
     sys.stdout.buffer.write(read_object(p, h))
@@ -540,8 +544,13 @@ def _watcher_state(store):
     state_path = os.path.join(store, "watcher.json")
     if not os.path.exists(state_path):
         return {"running": False, "reason": "watcher.json 없음 (watcher 미실행)"}
-    with open(state_path, encoding="utf-8-sig") as f:  # 다른 도구가 BOM 을 붙여도 견디게
-        st = json.load(f)
+    try:
+        with open(state_path, encoding="utf-8-sig") as f:  # 다른 도구가 BOM 을 붙여도 견디게
+            st = json.load(f)
+    except (OSError, ValueError) as e:
+        # exists 확인과 open 사이에 watcher 종료가 파일을 지울 수 있고(폴링과 겹침),
+        # 깨진 JSON 도 있을 수 있다. 여기서 죽으면 status --json 전체(추적 목록)가 죽는다.
+        return {"running": False, "reason": f"watcher.json 판독 실패: {type(e).__name__}: {e}"}
     age = None
     stale = True
     err = None

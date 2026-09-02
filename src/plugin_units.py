@@ -141,8 +141,20 @@ def hook_refs_root(hook, root: str) -> bool:
     c = hook.get("command") if isinstance(hook, dict) else None
     if not isinstance(c, str):
         return False
-    # 명령은 따옴표/인자와 섞여 있다. 정규화 후 접두 비교로 판정한다.
-    return _norm(root) in _norm(c)
+    # 명령은 따옴표/인자와 섞여 있다. 정규화 후 부분 매치를 찾되, 매치 다음 문자가
+    # 경로 경계(구분자/따옴표/공백/끝)인지 본다 - 경계 없는 부분문자열 매칭은
+    # .../plugins/foo 가 .../plugins/foo-bar 의 hook 까지 지운다
+    # (ledger_refs_root 가 os.sep 접두 가드를 쓰는 것과 같은 근거).
+    nr, nc = _norm(root), _norm(c)
+    i = 0
+    while True:
+        i = nc.find(nr, i)
+        if i < 0:
+            return False
+        j = i + len(nr)
+        if j >= len(nc) or nc[j] in (os.sep, "/", '"', "'") or nc[j].isspace():
+            return True
+        i += 1
 
 
 def entry_refs_root(entry, root: str) -> bool:

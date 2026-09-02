@@ -1433,4 +1433,11 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except SystemExit:
+        raise
+    except Exception as e:
+        # stdout 한 줄 JSON 계약 유지: 예기치 못한 실패(권한/디스크 등)도 트레이스백 대신 사유로.
+        print(json.dumps({"ok": False, "message": f"{type(e).__name__}: {e}"}, ensure_ascii=False))
+        sys.exit(1)

@@ -34,7 +34,7 @@ ops:
 파괴적 삭제는 없다: JSON 편집은 스냅샷+.bak+atomic, 파일/디렉토리 삭제는 .trash 이동.
 """
 from __future__ import annotations
-import argparse, json, os, shutil, subprocess, sys, time
+import argparse, contextlib, json, os, shutil, sys, time
 
 # Windows 콘솔 기본 인코딩(cp949)에서 한글/em-dash 출력 시 UnicodeEncodeError 방지.
 for _s in (sys.stdout, sys.stderr):
@@ -44,6 +44,7 @@ for _s in (sys.stdout, sys.stderr):
         pass
 
 import paths  # read(claude_config.py) 와 동일한 해석기로 Desktop config 경로를 잡는다
+import cas    # 스냅샷은 in-process 로 찍는다(락을 편집 전후로 걸쳐 쥐기 위해 - snapshot_before 주석)
 
 HOME = os.path.expanduser("~")
 DEFAULT_SETTINGS = os.path.join(HOME, ".claude", "settings.json")
@@ -142,27 +143,52 @@ def save_atomic(path, data):
         json.load(f)
     os.replace(tmp, path)
 
-def _snapshot(store, message):
-    """cas.py 스냅샷 시도(있으면). 실패는 무시(편집 자체는 진행)."""
-    try:
-        env = dict(os.environ)
-        if store:
-            env["CLAUDE_SNAPSHOT_STORE"] = store
-        subprocess.run([sys.executable, os.path.join(HERE, "cas.py"), "snapshot",
-                        "-m", message], cwd=HERE, env=env,
-                       capture_output=True, timeout=30)
-    except Exception:
-        pass
+def _store_p(store):
+    return cas.store_paths(store or cas.DEFAULT_STORE)
+
+# snapshot_before 가 잡은 스냅샷 락을 snapshot_after 까지 들고 가는 스팬 상태.
+_snap_span = {"lock": None, "p": None}
+
+def _release_span():
+    lock = _snap_span["lock"]
+    _snap_span["lock"] = _snap_span["p"] = None
+    if lock is not None:
+        with contextlib.suppress(Exception):
+            lock.__exit__(None, None, None)
 
 def snapshot_before(store):
-    """편집 직전: 아직 스냅샷 안 된 변경(대시보드 밖 편집)을 롤백 지점으로 보존.
-    편집 후에는 snapshot_after 가 항상 찍히므로, 여기가 실제로 발화했다 = 외부 변경이 있었다."""
-    _snapshot(store, "external change (before edit)")
+    """편집 직전: 아직 스냅샷 안 된 변경(대시보드 밖 편집)을 롤백 지점으로 보존하고,
+    스냅샷 락을 잡은 채 유지한다. 락은 snapshot_after 가 op 스냅샷을 찍은 뒤 푼다 -
+    풀어 두면 파일 쓰기와 op 스냅샷 사이에 watcher tick 이 먼저 찍어 편집 결과가
+    'auto:' 메시지로 기록되고, 리비전에 작업 이름이 남지 않는다(경합 가드).
+    실패는 무시(편집 자체는 진행)."""
+    try:
+        if _snap_span["p"] is not None:          # 이미 스팬 안 - 드리프트만 추가 캡처
+            cas._take_snapshot_locked(_snap_span["p"], "external change (before edit)")
+            return
+        p = _store_p(store)
+        lock = cas._snapshot_lock(p)
+        lock.__enter__()
+        _snap_span["lock"], _snap_span["p"] = lock, p
+        cas._take_snapshot_locked(p, "external change (before edit)")
+    except Exception:
+        _release_span()
 
 def snapshot_after(store, message):
-    """편집 직후: 이 편집의 결과를 op 메시지로 스냅샷. 전에는 pre-스냅샷만 있어서
-    리비전 N 의 diff 가 N-1 편집 내용을 보여주는 오프바이원 귀속이 났다."""
-    _snapshot(store, message)
+    """편집 직후: 이 편집의 결과를 op 메시지로 스냅샷 후 락 해제. 전에는 pre-스냅샷만
+    있어서 리비전 N 의 diff 가 N-1 편집 내용을 보여주는 오프바이원 귀속이 났다.
+    snapshot_before 가 실패했으면 단독 락으로라도 찍는다."""
+    try:
+        if _snap_span["p"] is not None:
+            cas._take_snapshot_locked(_snap_span["p"], message)
+        else:
+            p = _store_p(store)
+            with cas._snapshot_lock(p):
+                cas._take_snapshot_locked(p, message)
+    except Exception:
+        pass
+    finally:
+        _release_span()
 
 def trash(path):
     """rmtree 대신 형제 .trash/<name>.<ts> 로 이동 — 디렉토리 삭제도 복구 가능하게."""
@@ -521,4 +547,12 @@ def main():
     out(True, msg, changed=True, settings=a.settings, backup=bak)
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except SystemExit:
+        raise
+    except Exception as e:
+        # stdout 한 줄 JSON 계약 유지: 예기치 못한 실패(권한/디스크 등)도 트레이스백 대신 사유로.
+        _release_span()
+        print(json.dumps({"ok": False, "message": f"{type(e).__name__}: {e}"}, ensure_ascii=False))
+        sys.exit(1)

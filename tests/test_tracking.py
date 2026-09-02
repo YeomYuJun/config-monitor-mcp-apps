@@ -19,6 +19,8 @@ sys.path.insert(0, SRC)
 
 # 기본 추적 대상(실사용자 파일)이 테스트 스토어에 합류하지 않게 - import 전 설정.
 os.environ["CLAUDE_CAS_NO_DEFAULT_TRACK"] = "1"
+# 락 경합 테스트가 기본 8초 대기를 하지 않게 - cas 가 import 시점에 읽는다.
+os.environ["CLAUDE_CAS_LOCK_WAIT"] = "0.2"
 
 import cas
 import config_edit
@@ -146,6 +148,28 @@ class TestEditSnapshotAttribution(CasStoreCase):
         self.assertIn("external change (before edit)", msgs)
 
 
+class TestSnapshotSpanLock(CasStoreCase):
+    """snapshot_before~snapshot_after 가 락을 걸쳐 쥐어, 그 사이 watcher tick 이
+    편집 결과를 'auto:' 메시지로 가로채지 못해야 한다(op 메시지 소실 방지)."""
+
+    def test_span_blocks_watcher_and_records_op_message(self):
+        self.snapshot("base")
+        p = cas.store_paths(self.store)
+        lock = os.path.join(self.store, "snapshot.lock")
+        self.write_lf('{\n  "keep": "drift"\n}')            # 대시보드 밖 편집
+        config_edit.snapshot_before(self.store)
+        try:
+            self.assertTrue(os.path.exists(lock))            # 스팬 동안 락 유지
+            self.write_lf('{\n  "keep": "op-result"\n}')     # 편집 본문에 해당
+            self.assertIsNone(watcher.tick(p))               # 락에 막혀 못 가로챔
+        finally:
+            config_edit.snapshot_after(self.store, "op done")
+        self.assertFalse(os.path.exists(lock))
+        msgs = [r["message"] for r in self.history()]
+        self.assertIn("external change (before edit)", msgs)
+        self.assertEqual("op done", msgs[-1])
+
+
 class TestWatcherTick(CasStoreCase):
     def test_tick_snapshots_changes_and_idles_when_clean(self):
         p = cas.store_paths(self.store)
@@ -164,6 +188,13 @@ class TestWatcherTick(CasStoreCase):
         p = cas.store_paths(self.store)
         watcher.write_state(p, 2000, "2026-01-01T00:00:00", "")
         self.assertTrue(cas._watcher_state(self.store)["running"])
+
+    def test_corrupt_watcher_json_does_not_kill_status(self):
+        with open(os.path.join(self.store, "watcher.json"), "w", encoding="utf-8") as f:
+            f.write("{broken")
+        st = cas._watcher_state(self.store)
+        self.assertFalse(st["running"])
+        self.assertIn("판독 실패", st["reason"])
 
 
 if __name__ == "__main__":
