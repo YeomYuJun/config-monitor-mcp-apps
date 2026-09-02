@@ -221,7 +221,8 @@ function syncSectionPicker(sections: any[]): void {
         renderConfig(lastConfigSections);
       });
       const tx = document.createElement("span");
-      tx.textContent = `${secName(sec.title)} (${(sec.cards || []).length})`;
+      // 괄호 숫자는 실카드만 - 스캐폴드 카드를 세면 빈 섹션이 (1)로 보인다(제목의 · N 과 같은 기준).
+      tx.textContent = `${secName(sec.title)} (${(sec.cards || []).filter((c: any) => !isAddCard(c)).length})`;
       row.append(cb, tx);
       box.appendChild(row);
     }
@@ -351,9 +352,10 @@ function renderConfigSection(host: HTMLElement, sec: any): void {
   secEl.className = "sec" + (collapsed.has(sec.id) ? " collapsed" : "");
   secEl.dataset.col = "1";
 
-  const real = cards.filter((c: any) => !isAddCard(c));
-  const gCount = real.filter((c: any) => c.scope !== "project").length;
-  const pCount = real.length - gCount;
+  // 요약도 그룹 헤더와 같은 근거(visible)로 센다 - 전체 카드로 세면 플러그인/기본제공을
+  // 끈 화면에서 보이는 수(seccount)와 요약이 서로 다른 말을 한다.
+  const gCount = counted.filter((c: any) => c.scope !== "project").length;
+  const pCount = counted.length - gCount;
   const summary = (scopeFilter === "all" && pCount)
     ? `<span class="secsum">${esc(t("kindGlobal"))} ${gCount} · ${esc(t("kindProject"))} ${pCount}</span>` : "";
   const srcHtml = sec.source
@@ -427,7 +429,9 @@ function renderConfigSection(host: HTMLElement, sec: any): void {
   if (scopeFilter === "all" && (groups.length > 1 || groups.some((g) => !g.isGlobal))) {
     // 그룹 모드: 출처별 그룹(등장 순 - 백엔드가 전역 카드를 앞에 둔다). 접힌 그룹은 카드 렌더 스킵(DOM 제외).
     for (const g of groups) {
-      body.appendChild(buildSrcGroupHeader(g.key, g.isGlobal, g.label, g.cards.length));
+      // 헤더 숫자는 실카드만 - 스캐폴드 카드까지 세면 전역 20개가 21로 보인다.
+      body.appendChild(buildSrcGroupHeader(g.key, g.isGlobal, g.label,
+        g.cards.filter((c) => !isAddCard(c)).length));
       if ((g.key in srcOpen) ? srcOpen[g.key] : g.isGlobal) {
         for (const c of g.cards) body.appendChild(renderConfigCard(c, shadowOf));
       }
