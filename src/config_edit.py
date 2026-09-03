@@ -174,6 +174,17 @@ def snapshot_before(store):
     except Exception:
         _release_span()
 
+def snapshot_once(store, message):
+    """단발 스냅샷(락을 스팬으로 유지하지 않는다). 오래 걸리는 위임 작업(claude CLI 등)의
+    전/후 캡처용 - 스팬을 쓰면 60초 뒤 죽은 락으로 판정돼 회수된다(cas.LOCK_STALE_SEC).
+    실패는 무시(작업 자체는 진행)."""
+    try:
+        p = _store_p(store)
+        with cas._snapshot_lock(p):
+            cas._take_snapshot_locked(p, message)
+    except Exception:
+        pass
+
 def snapshot_after(store, message):
     """편집 직후: 이 편집의 결과를 op 메시지로 스냅샷 후 락 해제. 전에는 pre-스냅샷만
     있어서 리비전 N 의 diff 가 N-1 편집 내용을 보여주는 오프바이원 귀속이 났다.

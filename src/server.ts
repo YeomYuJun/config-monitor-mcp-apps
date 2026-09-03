@@ -10,7 +10,7 @@ import express from "express";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import fs from "node:fs/promises";
-import { registerAll, buildTools, langScript } from "./mcp-tools.ts";
+import { autoStartWatcher, registerAll, buildTools, langScript } from "./mcp-tools.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3002);
@@ -100,4 +100,5 @@ app.post("/mcp", async (req, res) => {
 // 브라우저 오리진은 이걸로 못 막는다 - 그건 위의 Host/Origin 게이트가 맡는다.
 app.listen(PORT, "127.0.0.1", () => {
   console.error(`[config-monitor] HTTP at http://127.0.0.1:${PORT}/ (dashboard) · /mcp · /api/tool/:name`);
+  void autoStartWatcher(__dirname);   // CONFIG_MONITOR_WATCHER=auto 일 때만(기본 no-op)
 });

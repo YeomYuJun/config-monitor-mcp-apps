@@ -178,6 +178,29 @@ class TestSnapshotSpanLock(CasStoreCase):
         self.assertEqual("op done", msgs[-1])
 
 
+class TestCliDelegationSnapshots(CasStoreCase):
+    """plugin_cli 위임이 전/후 스냅샷으로 이력 공백을 막는지. 가짜 claude 가 추적 파일을
+    실제로 고쳐, 후행 스냅샷이 위임 결과를 제 메시지로 잡는 것까지 본다."""
+
+    @unittest.skipUnless(os.name == "nt", "가짜 claude.bat 는 Windows 전용")
+    def test_delegation_wraps_run_with_snapshots(self):
+        fake = os.path.join(self.tmp.name, "bin")
+        os.makedirs(fake)
+        with open(os.path.join(fake, "claude.bat"), "w", encoding="ascii") as f:
+            f.write('@echo delegated>>"%CM_TEST_FILE%"\r\n@exit /b 0\r\n')
+        env = dict(os.environ, CLAUDE_CAS_NO_DEFAULT_TRACK="1", PYTHONUTF8="1",
+                   CM_TEST_FILE=self.file,
+                   PATH=fake + os.pathsep + os.environ.get("PATH", ""))
+        p = subprocess.run([sys.executable, os.path.join(SRC, "plugin_cli.py"), "install",
+                            "--marketplace", "m", "--plugin", "p", "--store", self.store],
+                           capture_output=True, text=True, encoding="utf-8", env=env)
+        r = json.loads(p.stdout)
+        self.assertTrue(r["ok"], r)
+        msgs = [x["message"] for x in self.history()]
+        self.assertIn("external change (before edit)", msgs)   # 위임 전 미스냅샷 상태 캡처
+        self.assertEqual("설치됨: p@m (claude CLI)", msgs[-1])  # 위임 결과가 제 메시지로
+
+
 class TestWatcherTick(CasStoreCase):
     def test_tick_snapshots_changes_and_idles_when_clean(self):
         p = cas.store_paths(self.store)

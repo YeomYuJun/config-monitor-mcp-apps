@@ -1013,6 +1013,20 @@ export function buildTools(scriptDir: string): ToolDef[] {
   }
 }
 
+// CONFIG_MONITOR_WATCHER=auto 일 때 서버 기동 시 watcher 를 함께 올린다(옵트인, 기본 꺼짐).
+// watcher_start 도구를 그대로 재사용한다 - 단일 인스턴스 보장/heartbeat 확인까지 같은 경로.
+// 실패해도 서버는 정상 기동해야 하므로 로그만 남긴다.
+export async function autoStartWatcher(scriptDir: string): Promise<void> {
+  if ((process.env.CONFIG_MONITOR_WATCHER || "").toLowerCase() !== "auto") return;
+  const tool = buildTools(scriptDir).find((d) => d.name === "watcher_start");
+  try {
+    const r = await tool!.run({});
+    console.error("[config-monitor] watcher auto-start:", r.content?.[0]?.text ?? "");
+  } catch (e) {
+    console.error("[config-monitor] watcher auto-start failed:", e);
+  }
+}
+
 export function registerAll(server: any, scriptDir: string): void {
   for (const d of buildTools(scriptDir)) {
     server.registerTool(d.name, d.meta, d.run);
