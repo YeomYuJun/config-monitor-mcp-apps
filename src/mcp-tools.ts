@@ -220,6 +220,22 @@ export function buildTools(scriptDir: string): ToolDef[] {
       run: async (a: { message?: string }) => text(await runPy("cas.py", ["snapshot", "-m", a.message || "manual"])),
     },
     {
+      name: "snapshot_gc",
+      meta: {
+        title: "Snapshot GC",
+        description: "보존 기한(기본 90일)이 지난 스냅샷과 미참조 객체를 정리. dryRun=true 면 계산만 하고 지우지 않음. 최신 스냅샷과 현재 index 참조 객체는 항상 보존",
+        inputSchema: z.object({
+          keepDays: z.number().optional().describe("보존 일수(기본 90)"),
+          dryRun: z.boolean().optional().describe("true 면 정리 대상 계산만"),
+        }), annotations: WRITE,
+      },
+      run: async (a: { keepDays?: number; dryRun?: boolean }) => {
+        const args = ["gc", "--json", "--keep-days", String(a.keepDays ?? 90)];
+        if (a.dryRun) args.push("--dry-run");
+        return jsonResult(await runPy("cas.py", args));
+      },
+    },
+    {
       name: "config_restore",
       meta: {
         title: "Restore File From Snapshot",

@@ -15,7 +15,7 @@ git 과 다른 점:
 """
 from __future__ import annotations
 import argparse, contextlib, json, os, re, sys, time, zlib, hashlib, glob as globmod, difflib
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Windows 콘솔 기본 인코딩(cp949)에서 한글/em-dash 출력 시 UnicodeEncodeError 방지.
 # newline="" 필수: 기본 텍스트 모드는 쓰기 시 \n 을 \r\n 으로 바꾸는데, cat/diff 처럼
@@ -573,6 +573,64 @@ def _watcher_state(store):
 def cmd_watcher_status(args):
     print(json.dumps(_watcher_state(args.store), ensure_ascii=False))
 
+def cmd_gc(args):
+    """보존 기한이 지난 스냅샷 정리 + 미참조 객체 sweep. 가장 최신 스냅샷과 현재 index 가
+    참조하는 객체는 어떤 경우에도 지우지 않는다(현재 상태의 복원 지점 보장)."""
+    p = store_paths(args.store)
+    cutoff = datetime.now() - timedelta(days=args.keep_days)
+    with _snapshot_lock(p):
+        ids = _snapshot_ids(p)
+        drop = []
+        for sid in ids:
+            m = _manifest(p, sid)
+            try:
+                if _parse_iso(m.get("time")) < cutoff:
+                    drop.append(sid)
+            except Exception:
+                pass                       # 시간을 못 읽는 매니페스트는 지우지 않는다
+        if ids and ids[-1] in drop:
+            drop.remove(ids[-1])           # 전부 기한을 넘겼어도 최신 하나는 남긴다
+        keep = [sid for sid in ids if sid not in drop]
+        marked = set()
+        for e in load_json(p["index"], {}).values():
+            if e.get("hash"):
+                marked.add(e["hash"])
+        for sid in keep:
+            for e in _manifest(p, sid).get("entries", {}).values():
+                if e.get("hash"):
+                    marked.add(e["hash"])
+        sweep = []
+        if os.path.isdir(p["objects"]):
+            for root, _dirs, names in os.walk(p["objects"]):
+                for n in names:
+                    if os.path.basename(root) + n not in marked:
+                        sweep.append(os.path.join(root, n))
+        freed = 0
+        for f in sweep:
+            with contextlib.suppress(OSError):
+                freed += os.path.getsize(f)
+        tmps = [os.path.join(p["snapshots"], n) for n in os.listdir(p["snapshots"])
+                if not n.endswith(".json")] if os.path.isdir(p["snapshots"]) else []
+        if not args.dry_run:
+            for sid in drop:
+                with contextlib.suppress(OSError):
+                    os.unlink(os.path.join(p["snapshots"], sid + ".json"))
+            for f in sweep + tmps:
+                with contextlib.suppress(OSError):
+                    os.unlink(f)
+            if os.path.isdir(p["objects"]):     # 비게 된 버킷 폴더 정리(비어있지 않으면 무시)
+                for d in os.listdir(p["objects"]):
+                    with contextlib.suppress(OSError):
+                        os.rmdir(os.path.join(p["objects"], d))
+    res = {"ok": True, "dry_run": bool(args.dry_run), "keep_days": args.keep_days,
+           "removed_snapshots": len(drop), "kept_snapshots": len(keep),
+           "removed_objects": len(sweep), "freed_bytes": freed, "tmp_removed": len(tmps)}
+    if args.json:
+        print(json.dumps(res, ensure_ascii=False))
+    else:
+        act = "정리 예정" if args.dry_run else "정리 완료"
+        print(f"{act}: 스냅샷 {len(drop)}개 · 객체 {len(sweep)}개 · {freed / 1048576:.1f} MB (보존 {args.keep_days:g}일)")
+
 def main():
     ap = argparse.ArgumentParser(prog="cas", description="Custom CAS snapshot engine")
     ap.add_argument("--store", default=DEFAULT_STORE, help=f"저장소 경로 (기본 {DEFAULT_STORE})")
@@ -594,6 +652,9 @@ def main():
     sp = sub.add_parser("show"); sp.add_argument("path"); sp.set_defaults(func=cmd_show)
     sp = sub.add_parser("cat"); sp.add_argument("path"); sp.set_defaults(func=cmd_cat)
     sub.add_parser("watcher-status").set_defaults(func=cmd_watcher_status)
+    sp = sub.add_parser("gc"); sp.add_argument("--keep-days", type=float, default=90)
+    sp.add_argument("--dry-run", action="store_true"); sp.add_argument("--json", action="store_true")
+    sp.set_defaults(func=cmd_gc)
     sp = sub.add_parser("restore"); sp.add_argument("path")
     sp.add_argument("--from", dest="frm", required=True, help="복원할 스냅샷 id")
     sp.add_argument("--no-snapshot", action="store_true", help="복원 전 스냅샷 생략")

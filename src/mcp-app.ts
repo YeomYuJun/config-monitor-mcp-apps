@@ -295,6 +295,33 @@ function wireSettings(): void {
     document.documentElement.style.setProperty("--desc-lines", lines.value);
     $("opt-lines-val").textContent = lines.value + t("linesSuffix");
   });
+  // 스냅샷 저장소 정리: 1클릭 = dry-run 으로 대상 계산만, 같은 버튼 재클릭 = 실행.
+  // 파괴적 동작이라 숫자를 먼저 보여주고 두 번째 클릭을 받는다. 팝오버가 닫히면 해제.
+  const gcBtn = $("opt-gc") as HTMLButtonElement;
+  const gcRes = $("gc-result");
+  const resetGc = () => { gcArmed = false; gcBtn.textContent = t("gcScan"); };
+  let gcArmed = false;
+  gcBtn.addEventListener("click", async () => {
+    gcBtn.disabled = true;
+    try {
+      const r = jparse(await callTool("snapshot_gc", { dryRun: !gcArmed }));
+      gcRes.hidden = false;
+      if (!r || r.ok === false) { gcRes.textContent = r?.message || t("failed"); resetGc(); return; }
+      const line = `${t("gcSnaps")} ${r.removed_snapshots} · ${t("gcObjs")} ${r.removed_objects} · ${(r.freed_bytes / 1048576).toFixed(1)} MB`;
+      if (!gcArmed) {
+        if (!r.removed_snapshots && !r.removed_objects) { gcRes.textContent = t("gcNothing"); resetGc(); return; }
+        gcRes.textContent = line;
+        gcArmed = true;
+        gcBtn.textContent = t("gcRun");
+      } else {
+        gcRes.textContent = `${t("gcDone")} · ${line}`;
+        flashToast(t("gcDone"));
+        resetGc();
+        if (selectedPath) selectFile(selectedPath);   // 타임라인이 줄었을 수 있다
+      }
+    } catch (e) { gcRes.hidden = false; gcRes.textContent = String(e); resetGc(); }
+    finally { gcBtn.disabled = false; }
+  });
   wireSectionPrefs();
 }
 wireSettings();

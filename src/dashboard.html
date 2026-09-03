@@ -583,6 +583,7 @@
   .setpop input[type=checkbox]{width:32px;height:18px;accent-color:var(--accent);cursor:pointer;margin:0}
   .setpop input[type=range]{flex:1;min-width:0;accent-color:var(--accent);cursor:pointer}
   #setpop-backdrop{position:fixed;inset:0;z-index:65;background:transparent}
+  .setpop .sp-gcres{font-size:11px;color:var(--mut);padding:0 2px 6px;line-height:1.5}
   body.nosrc .secsrc{display:none}
 
   /* toast - 상단 중앙. 하단에 두면 호스트(Claude) 프롬프트 입력창이 iframe 아래를 덮어
@@ -658,6 +659,9 @@
             <div class="sp-row"><span class="sp-lbl" data-i18n="hideEmpty">빈 섹션 숨기기</span>
               <input type="checkbox" id="opt-hide-empty" checked></div>
             <div id="opt-sections" class="sp-sections" hidden></div>
+            <div class="sp-row"><span class="sp-lbl" data-i18n="gcTitle">스냅샷 정리</span>
+              <button id="opt-gc" class="addbtn" data-i18n="gcScan">확인</button></div>
+            <div id="gc-result" class="sp-gcres" hidden></div>
           </div>
         </span>
         <button id="lang-toggle" title="Switch to English">

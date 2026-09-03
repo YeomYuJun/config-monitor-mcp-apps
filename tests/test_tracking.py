@@ -178,6 +178,51 @@ class TestSnapshotSpanLock(CasStoreCase):
         self.assertEqual("op done", msgs[-1])
 
 
+class TestGc(CasStoreCase):
+    """gc: 기한 지난 매니페스트 삭제 + 미참조 객체 sweep. 최신 스냅샷과 index 참조는 보존."""
+
+    def _snap_files(self):
+        d = os.path.join(self.store, "snapshots")
+        return sorted(n for n in os.listdir(d) if n.endswith(".json"))
+
+    def _obj_count(self):
+        d = os.path.join(self.store, "objects")
+        return sum(len(ns) for _r, _d, ns in os.walk(d)) if os.path.isdir(d) else 0
+
+    def _age(self, name):
+        f = os.path.join(self.store, "snapshots", name)
+        m = json.load(open(f, encoding="utf-8"))
+        m["time"] = "2020-01-01T00:00:00"
+        with open(f, "w", encoding="utf-8") as fh:
+            json.dump(m, fh)
+
+    def test_gc_drops_old_keeps_latest_and_current_objects(self):
+        self.snapshot("old")
+        self.write_lf('{\n  "keep": 2\n}')
+        self.snapshot("new")
+        self._age(self._snap_files()[0])
+        objs_before = self._obj_count()
+        out = json.loads(run(CAS, "--store", self.store, "gc", "--json",
+                             "--keep-days", "30", "--dry-run"))
+        self.assertEqual(out["removed_snapshots"], 1)
+        self.assertEqual(len(self._snap_files()), 2)          # dry-run 은 지우지 않는다
+        out = json.loads(run(CAS, "--store", self.store, "gc", "--json", "--keep-days", "30"))
+        self.assertEqual(out["removed_snapshots"], 1)
+        self.assertEqual(len(self._snap_files()), 1)
+        self.assertEqual(self._obj_count(), objs_before - 1)  # old 전용 blob 만 sweep
+        # 남은 리비전은 여전히 복원 가능해야 한다
+        rev = self.history()[-1]["snapshot"]
+        r = json.loads(run(CAS, "--store", self.store, "restore", self.file, "--from", rev))
+        self.assertTrue(r["ok"], r)
+
+    def test_gc_never_drops_the_newest_manifest(self):
+        self.snapshot("only")
+        self._age(self._snap_files()[0])
+        out = json.loads(run(CAS, "--store", self.store, "gc", "--json", "--keep-days", "30"))
+        self.assertEqual(out["removed_snapshots"], 0)
+        self.assertEqual(len(self._snap_files()), 1)
+
+
 class TestCliDelegationSnapshots(CasStoreCase):
     """plugin_cli 위임이 전/후 스냅샷으로 이력 공백을 막는지. 가짜 claude 가 추적 파일을
     실제로 고쳐, 후행 스냅샷이 위임 결과를 제 메시지로 잡는 것까지 본다."""
