@@ -12,9 +12,10 @@ git 과 다른 점:
   1) stat fast-path: size + mtime_ns 가 index 와 같으면 내용을 안 읽고 unchanged.
   2) 다르면 내용을 해싱해 hash 비교 (touch 등 내용 무변경 케이스 제거).
   3) index 에 없는 경로 = 신규, 워킹트리에 없는데 index 에 있으면 = 삭제.
+  4) 해시가 달라도 파일별 무시 키 프로필(DEFAULT_IGNORE_KEYS)로 걸러 같으면 unchanged.
 """
 from __future__ import annotations
-import argparse, contextlib, json, os, re, sys, time, zlib, hashlib, glob as globmod, difflib
+import argparse, contextlib, fnmatch, json, os, re, sys, time, zlib, hashlib, glob as globmod, difflib
 from datetime import datetime, timedelta
 
 # Windows 콘솔 기본 인코딩(cp949)에서 한글/em-dash 출력 시 UnicodeEncodeError 방지.
@@ -81,7 +82,7 @@ def load_json(path, default):
 
 def save_json(path, data):
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = path + ".tmp"
+    tmp = f"{path}.{os.getpid()}.tmp"   # 잠금 없는 쓰기(sig 캐시)가 두 프로세스에서 겹쳐도 서로의 임시 파일을 밟지 않게
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     os.replace(tmp, path)
@@ -104,6 +105,189 @@ def write_object(p, content: bytes) -> str:
 def read_object(p, h) -> bytes:
     with open(object_path(p, h), "rb") as f:
         return zlib.decompress(f.read())
+
+# ---- 의미 변경 판정 ----
+# .claude.json 은 설정과 기계 상태(캐시·카운터·타임스탬프)가 한 파일에 섞여 있어 바이트 비교로는 매 세션이
+# 리비전이 된다(2026-09 실측: 리비전 434개 중 실변경 10개). 파일별 무시 키 프로필로 판정과 기본 diff 표시에서만
+# 그 키들을 뺀다. blob 은 원문 그대로 저장·복원되고 diff --raw 는 전부 보여준다.
+# 규칙: 점 구분 경로, 세그먼트별 glob, 매칭된 경로의 하위 전체. 기본 규칙은 실제 스냅샷에서 관측된 키만 담았다.
+DEFAULT_IGNORE_KEYS = {
+    ".claude.json": [
+        "cached*", "*Cache", "*CacheSlots", "*Count", "*At", "last*", "hasSeen*", "*Migration*",
+        "numStartups", "migrationVersion", "tipsHistory", "tipLifetimeShownCounts", "pluginUsage",
+        "skillUsage", "replBridgePlaceholders", "changelogLastFetched", "closedIssuesLastChecked",
+        "announcementImpressions", "feedbackSurveyState", "seenNotifications", "fleetViewPeakConcurrent",
+        "githubRepoPaths", "rcLongTurnNudgeSeenKey", "oauthAccount.profileFetchedAt",
+        "projects.*.last*", "projects.*.projectOnboardingSeenCount", "projects.*.hasCompletedProjectOnboarding",
+        "projects.*.hasUnseenTeamArtifacts", "projects.*.loggedAuthoredArtifactPaths",
+    ],
+    "settings.json": ["feedbackDrafts"],
+    "claude_desktop_config.json": ["preferences.sidebarMode", "preferences.epitaxyPrefs"],
+}
+# 새 프로젝트 폴더에서 Claude Code 를 처음 열면 생기는, 값이 전부 기본값인 projects 항목의 등장·소멸.
+PROJECT_DEFAULTS = {
+    "allowedTools": [], "mcpContextUris": [], "mcpServers": {}, "enabledMcpjsonServers": [],
+    "disabledMcpjsonServers": [], "disabledMcpServers": [], "hasTrustDialogAccepted": False,
+    "hasClaudeMdExternalIncludesApproved": False, "hasClaudeMdExternalIncludesWarningShown": False,
+}
+
+def ignore_profile(config, path):
+    """path 의 무시 프로필(None = 원문 해시 판정). config.ignore_keys 는 basename/절대경로 키로 기본 규칙에
+    더해진다. '!경로' 는 규칙에 걸려도 그 경로(와 하위)를 남기는 예외 - '!last*' 는 기본 규칙 하나를 끄고
+    '!lastCost' 는 키 하나만 살린다. fp 는 판정 지문(sig 캐시 키) - 바뀌면 sig 를 다시 계산한다."""
+    name = os.path.basename(path)
+    user = config.get("ignore_keys") or {}
+    rules, keep = list(DEFAULT_IGNORE_KEYS.get(name, [])), []
+    for r in list(user.get(name, [])) + list(user.get(path, [])):
+        (keep if r.startswith("!") else rules).append(r.lstrip("!"))
+    empty_projects = name == ".claude.json" and bool(config.get("ignore_empty_projects", True))
+    if not rules and not empty_projects:
+        return None
+    fp = hash_bytes(json.dumps([sorted(set(rules)), sorted(set(keep)), empty_projects and PROJECT_DEFAULTS],
+                               sort_keys=True).encode())[:16]
+    return {"rules": [r.split(".") for r in rules], "keep": [r.split(".") for r in keep],
+            "empty_projects": empty_projects, "fp": fp}
+
+def _rule_hits(segs, rules):
+    return any(len(r) <= len(segs) and all(fnmatch.fnmatchcase(s, pat) for s, pat in zip(segs, r)) for r in rules)
+
+def _keep_below(segs, keep):
+    """segs 아래 어딘가를 살리는 예외가 있으면 통째로 지우지 말고 내려가야 한다."""
+    return any(len(r) > len(segs) and all(fnmatch.fnmatchcase(s, pat) for s, pat in zip(segs, r)) for r in keep)
+
+def _strip(obj, rules, keep, prefix=()):
+    if not isinstance(obj, dict):
+        return obj
+    out = {}
+    for k, v in obj.items():
+        kp = prefix + (k,)
+        if _rule_hits(kp, rules) and not _rule_hits(kp, keep) and not _keep_below(kp, keep):
+            continue
+        out[k] = _strip(v, rules, keep, kp)
+    return out
+
+def _is_default_project(v):
+    return isinstance(v, dict) and all(PROJECT_DEFAULTS.get(k, object()) == x for k, x in v.items())
+
+def significant(data, profile):
+    """무시 경로를 뺀 파싱 결과. JSON 이 아니면 None."""
+    try:
+        obj = json.loads(data.decode("utf-8-sig"))
+    except (UnicodeDecodeError, ValueError):
+        return None
+    obj = _strip(obj, profile["rules"], profile["keep"])
+    if profile["empty_projects"] and isinstance(obj, dict) and isinstance(obj.get("projects"), dict):
+        obj["projects"] = {k: v for k, v in obj["projects"].items() if not _is_default_project(v)}
+    return obj
+
+def sig_of(data, profile):
+    obj = significant(data, profile)
+    if obj is None:
+        return "raw:" + hash_bytes(data)
+    return "json:" + hash_bytes(json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8"))
+
+def _changed_paths(a, b, prefix=()):
+    """두 JSON 값 사이에 값이 다른 리프 경로(튜플) 집합."""
+    if isinstance(a, dict) and isinstance(b, dict):
+        out = set()
+        for k in set(a) | set(b):
+            if k in a and k in b:
+                out |= _changed_paths(a[k], b[k], prefix + (k,))
+            else:
+                out.add(prefix + (k,))
+        return out
+    return set() if a == b else {prefix}
+
+def _ignored_summary(a, b, profile):
+    """원문 두 내용 사이에서 무시 규칙에 걸려 diff 본문에 안 나온 변경의 요약(최상위 키별 개수). 없으면 ''."""
+    try:
+        ra, rb = json.loads(a.decode("utf-8-sig")), json.loads(b.decode("utf-8-sig"))
+    except (UnicodeDecodeError, ValueError):
+        return ""
+    # 걸러진 diff 가 조상 경로에서 이미 보여주는 변경(빈 프로젝트 항목이 한쪽에서만 빠져 깊이가 달라지는 경우)은
+    # 숨은 것이 아니다 - 걸러진 변경 경로를 접두로 갖지 않는 원문 변경 경로만 센다.
+    shown = _changed_paths(significant(a, profile), significant(b, profile))
+    hidden = {pth for pth in _changed_paths(ra, rb) if not any(pth[:len(s)] == s for s in shown)}
+    counts = {}
+    for path in hidden:
+        top = path[0] if path else "<root>"
+        counts[top] = counts.get(top, 0) + 1
+    top = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+    parts = [f"{k}({n})" if n > 1 else k for k, n in top[:6]]
+    if len(top) > 6:
+        parts.append(f"(+{len(top) - 6})")
+    return ", ".join(parts)
+
+def _filtered_text(data, profile):
+    """diff 표시용: 무시 경로를 뺀 JSON 을 2칸 들여쓰기로 다시 직렬화(키 순서 보존). JSON 이 아니면 None."""
+    if not data:
+        return ""
+    obj = significant(data, profile)
+    return None if obj is None else json.dumps(obj, indent=2, ensure_ascii=False)
+
+# sig 캐시: blob 하나의 sig 계산이 20ms 라 타임라인(수백 blob)을 매번 계산하면 클릭이 초 단위로 멈춘다.
+def _sig_cache_path(p):
+    return os.path.join(p["store"], "sig-cache.json")
+
+def load_sig_cache(p):
+    """{"sigs": {fp: {blob hash: sig}}, "warmed": [fp...]}. 깨졌으면 빈 캐시(다시 계산하면 된다)."""
+    try:
+        c = load_json(_sig_cache_path(p), {})
+    except ValueError:
+        c = {}
+    return {"sigs": c.get("sigs") or {}, "warmed": c.get("warmed") or []}
+
+def save_sig_cache(p, cache):
+    save_json(_sig_cache_path(p), cache)
+
+def blob_sig(p, cache, profile, h):
+    """blob h 의 sig(캐시 우선, 없으면 계산해 cache 에 넣는다 - 저장은 호출자 몫). blob 이 없으면 None."""
+    bucket = cache["sigs"].setdefault(profile["fp"], {})
+    if h not in bucket:
+        try:
+            bucket[h] = sig_of(read_object(p, h), profile)
+        except OSError:
+            return None
+    return bucket[h]
+
+def _sig_cached(p, profile, h, persist):
+    cache = load_sig_cache(p)
+    known = h in cache["sigs"].get(profile["fp"], {})
+    s = blob_sig(p, cache, profile, h)
+    if persist and not known and s is not None:
+        save_sig_cache(p, cache)
+    return s
+
+def _remember_sig(p, profile, h, s):
+    cache = load_sig_cache(p)
+    cache["sigs"].setdefault(profile["fp"], {})[h] = s
+    save_sig_cache(p, cache)
+
+def warm_sig_cache(p, config, budget=8):
+    """스냅샷 blob 의 sig 를 미리 계산해 둔다(watcher 유휴 틱이 조금씩 부른다). 남은 개수를 반환."""
+    profiles = {}
+    for path in expand_tracked(config.get("tracked", [])):
+        pr = ignore_profile(config, path)
+        if pr:
+            profiles[path] = pr
+    fps = sorted({pr["fp"] for pr in profiles.values()})
+    cache = load_sig_cache(p)
+    if not fps or cache["warmed"] == fps:
+        return 0
+    todo = {}
+    for sid in _snapshot_ids(p):
+        entries = _manifest(p, sid).get("entries", {})
+        for path, pr in profiles.items():
+            h = (entries.get(path) or {}).get("hash")
+            if h and h not in cache["sigs"].get(pr["fp"], {}):
+                todo[h] = pr
+    for h, pr in list(todo.items())[:budget]:
+        blob_sig(p, cache, pr, h)
+    cache["sigs"] = {fp: v for fp, v in cache["sigs"].items() if fp in fps}
+    if len(todo) <= budget:
+        cache["warmed"] = fps
+    save_sig_cache(p, cache)
+    return max(0, len(todo) - budget)
 
 def expand_tracked(tracked):
     """config.tracked 항목(파일/디렉토리/glob)을 실제 파일 절대경로 집합으로 전개."""
@@ -159,11 +343,20 @@ def scan(p, config, index, rehash=True):
         if h == prev.get("hash"):
             new_index[path] = {**stt, "hash": h}
             result["unchanged"].append(path)
-        else:
-            if rehash:
-                write_object(p, data)
-            new_index[path] = {**stt, "hash": h}
-            result["modified"].append(path)
+            continue
+        profile = ignore_profile(config, path)
+        cur_sig = sig_of(data, profile) if profile else None
+        if profile and prev.get("hash") and cur_sig == _sig_cached(p, profile, prev["hash"], persist=rehash):
+            # 무시 키만 바뀜: 새 blob 없이 stat 만 따라간다(index 가 저장되면 다음 스캔은 fast-path)
+            new_index[path] = {**stt, "hash": prev["hash"]}
+            result["unchanged"].append(path)
+            continue
+        if rehash:
+            write_object(p, data)
+            if profile:
+                _remember_sig(p, profile, h, cur_sig)
+        new_index[path] = {**stt, "hash": h}
+        result["modified"].append(path)
     for path in index:
         if path not in current:
             result["deleted"].append(path)
@@ -367,6 +560,8 @@ def _take_snapshot_locked(p, message, force=False):
     result, new_index = scan(p, config, index, rehash=True)
     changed = sum(len(result[k]) for k in ("new", "modified", "deleted"))
     if changed == 0 and not force:
+        if new_index != index:
+            save_json(p["index"], new_index)   # 무시 키만 바뀐 파일의 stat 을 따라가 다음 스캔은 fast-path
         return None, result
     snaps = sorted(os.listdir(p["snapshots"])) if os.path.isdir(p["snapshots"]) else []
     parent = snaps[-1] if snaps else None
@@ -381,6 +576,16 @@ def _take_snapshot_locked(p, message, force=False):
     save_json(os.path.join(p["snapshots"], ts + ".json"), manifest)
     save_json(p["index"], new_index)
     return ts, result
+
+def refresh_index(p):
+    """변경은 없는데 stat 만 바뀐 파일(무시 키만 저장된 경우)의 index 를 락 안에서 따라가게 한다.
+    락을 잡고 다시 봤을 때 진짜 변경이 있으면 손대지 않는다 - 다음 틱이 제 메시지로 스냅샷한다."""
+    with _snapshot_lock(p):
+        config = load_config(p)
+        index = load_json(p["index"], {})
+        result, new_index = scan(p, config, index, rehash=False)
+        if not any(result[k] for k in ("new", "modified", "deleted")) and new_index != index:
+            save_json(p["index"], new_index)
 
 def cmd_snapshot(args):
     p = store_paths(args.store)
@@ -476,19 +681,29 @@ def _content_at(p, ref, target):
         return None
 
 def cmd_history(args):
-    """파일별 리비전 이력: 해시가 바뀐 스냅샷만 추려 git log 처럼."""
+    """파일별 리비전 이력: 내용이 바뀐 스냅샷만 추려 git log 처럼. 무시 프로필이 있는 파일은 해시가 아니라
+    sig 전환으로 행을 만들어, 무시 키만 다른 연속 리비전은 한 행으로 접힌다(이미 쌓인 blob 포함)."""
     p = store_paths(args.store)
     target = os.path.abspath(os.path.expanduser(args.path))   # restore/cat 과 같은 해석
+    profile = ignore_profile(load_config(p), target)
+    cache = load_sig_cache(p) if profile else None
+    computed = 0
     rows = []
     last = "__init__"
     for sid in _snapshot_ids(p):
         m = _manifest(p, sid)
         e = m.get("entries", {}).get(target)
         h = e.get("hash") if e else None
-        if h != last:
+        key = h
+        if profile and h:
+            computed += h not in cache["sigs"].get(profile["fp"], {})
+            key = blob_sig(p, cache, profile, h) or h
+        if key != last:
             rows.append({"snapshot": sid, "time": m.get("time"), "message": m.get("message", ""),
                          "hash": (h[:12] if h else None), "present": e is not None})
-            last = h
+            last = key
+    if computed:
+        save_sig_cache(p, cache)
     print(json.dumps({"path": target, "revisions": rows}, ensure_ascii=False,
                      indent=None if args.json else 2))
 
@@ -511,14 +726,30 @@ def cmd_diff(args):
     b = _content_at(p, to, target)
     if a is None and b is None:
         print("양쪽 모두 내용 없음(추적 안 됨/삭제됨)"); return
-    diff = "\n".join(difflib.unified_diff(_diff_lines(a or b""), _diff_lines(b or b""),
-                                          fromfile=str(frm), tofile=str(to), lineterm=""))
+    a, b = a or b"", b or b""
+    lines_a, lines_b = _diff_lines(a), _diff_lines(b)
+    note = ""
+    filtered = False
+    profile = None if args.raw else ignore_profile(load_config(p), target)
+    if profile:
+        fa, fb = _filtered_text(a, profile), _filtered_text(b, profile)
+        if fa is not None and fb is not None:       # 한쪽이라도 JSON 이 아니면 원문 diff
+            hidden = _ignored_summary(a, b, profile) if a and b else ""
+            if fa == fb and hidden:
+                print(f"무시 목록 항목만 다름: {hidden}")
+                return
+            lines_a, lines_b, filtered = fa.splitlines(), fb.splitlines(), True
+            if hidden:
+                note = f"\n# 무시 목록 항목도 바뀜: {hidden}"
+    diff = "\n".join(difflib.unified_diff(lines_a, lines_b, fromfile=str(frm), tofile=str(to), lineterm=""))
     if diff:
-        print(diff)
-    elif (a or b"") != (b or b""):
+        print(diff + note)
+    elif a == b:
+        print("텍스트 변경 없음")
+    elif not filtered or _diff_lines(a) == _diff_lines(b):
         print("줄 내용 동일 — 개행 방식(CRLF/LF)이나 BOM 만 다름")
     else:
-        print("텍스트 변경 없음")
+        print("표기만 다름 (들여쓰기·공백 등, 의미 있는 내용은 동일)")
 
 def cmd_show(args):
     p = store_paths(args.store)
@@ -648,7 +879,9 @@ def main():
     sp = sub.add_parser("history"); sp.add_argument("path"); sp.add_argument("--json", action="store_true")
     sp.set_defaults(func=cmd_history)
     sp = sub.add_parser("diff"); sp.add_argument("path")
-    sp.add_argument("--from", dest="frm"); sp.add_argument("--to", dest="to"); sp.set_defaults(func=cmd_diff)
+    sp.add_argument("--from", dest="frm"); sp.add_argument("--to", dest="to")
+    sp.add_argument("--raw", action="store_true", help="무시 키 프로필을 적용하지 않은 원문 diff")
+    sp.set_defaults(func=cmd_diff)
     sp = sub.add_parser("show"); sp.add_argument("path"); sp.set_defaults(func=cmd_show)
     sp = sub.add_parser("cat"); sp.add_argument("path"); sp.set_defaults(func=cmd_cat)
     sub.add_parser("watcher-status").set_defaults(func=cmd_watcher_status)

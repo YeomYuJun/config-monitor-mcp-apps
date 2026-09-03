@@ -273,5 +273,104 @@ class TestWatcherTick(CasStoreCase):
         self.assertIn("판독 실패", st["reason"])
 
 
+class TestIgnoreProfile(CasStoreCase):
+    """무시 키 프로필: 기계 상태 키만 바뀐 저장은 리비전이 되지 않고 기본 diff 본문에서 빠진다.
+    blob 은 원문이라 --raw 와 복원에는 그대로 남는다. settings.json 의 기본 규칙은 feedbackDrafts."""
+
+    def set_ignore(self, rules):
+        cfg = os.path.join(self.store, "config.json")
+        with open(cfg, encoding="utf-8") as f:
+            c = json.load(f)
+        c["ignore_keys"] = {"settings.json": rules}
+        with open(cfg, "w", encoding="utf-8") as f:
+            json.dump(c, f)
+
+    def modified(self):
+        return json.loads(run(CAS, "--store", self.store, "status", "--json"))["modified"]
+
+    def diff_revs(self, a, b, *extra):
+        return run(CAS, "--store", self.store, "diff", self.file, "--from", a, "--to", b, *extra)
+
+    def test_ignored_only_change_is_not_a_revision(self):
+        self.snapshot("base")
+        self.write_lf('{\n  "keep": true,\n  "feedbackDrafts": {"x": 1}\n}')
+        self.assertEqual(self.modified(), [])
+        self.assertIsNone(watcher.tick(cas.store_paths(self.store)))
+        config_edit.snapshot_before(self.store)            # 편집 전 드리프트 캡처도 같은 판정을 탄다
+        config_edit.snapshot_after(self.store, "op")
+        self.assertEqual(len(self.history()), 1)
+        self.assertIn("무시 목록 항목만 다름: feedbackDrafts", self.diff())
+        self.assertIn("feedbackDrafts", run(CAS, "--store", self.store, "diff", self.file, "--raw"))
+
+    def test_mixed_change_shows_significant_keys_and_notes_the_rest(self):
+        self.snapshot("base")
+        self.write_lf('{\n  "keep": false,\n  "feedbackDrafts": {"x": 1}\n}')
+        self.snapshot("edit")
+        r0, r1 = [r["snapshot"] for r in self.history()]
+        body, _, note = self.diff_revs(r0, r1).partition("\n# ")
+        self.assertIn('-  "keep": true', body)
+        self.assertIn('+  "keep": false', body)
+        self.assertNotIn("feedbackDrafts", body)
+        self.assertIn("무시 목록 항목도 바뀜: feedbackDrafts", note)
+        self.assertIn("feedbackDrafts", self.diff_revs(r0, r1, "--raw"))
+
+    def test_config_rules_wildcard_subtree_and_keep_exceptions(self):
+        self.set_ignore(["!feedbackDrafts", "hooks", "!hooks.b", "meta.*.ts"])
+        base = ('{\n  "keep": true,\n  "hooks": {"a": {"ts": 1}, "b": {"ts": 2}},\n'
+                '  "meta": {"x": {"ts": 1}},\n  "feedbackDrafts": 1\n}')
+        self.write_lf(base)
+        self.snapshot("base")
+        self.write_lf(base.replace('"a": {"ts": 1}', '"a": {"ts": 9}').replace('"x": {"ts": 1}', '"x": {"ts": 9}'))
+        self.assertEqual(self.modified(), [])                 # hooks 하위와 meta.*.ts 는 무시
+        self.write_lf(base.replace('"b": {"ts": 2}', '"b": {"ts": 8}'))
+        self.assertEqual(self.modified(), [self.file])        # !hooks.b 는 무시 규칙 안의 예외
+        self.write_lf(base.replace('"feedbackDrafts": 1', '"feedbackDrafts": 2'))
+        self.assertEqual(self.modified(), [self.file])        # 기본 규칙을 껐으니 보인다
+
+    def test_unparsable_content_falls_back_to_raw_hash(self):
+        self.snapshot("base")
+        self.write_lf('{ broken')
+        self.assertEqual(self.modified(), [self.file])
+        self.snapshot("broken")
+        r0, r1 = [r["snapshot"] for r in self.history()]
+        self.assertIn("@@", self.diff_revs(r0, r1))
+
+    def test_history_folds_revisions_that_differ_only_in_ignored_keys(self):
+        self.set_ignore(["!feedbackDrafts"])               # 프로필 없이 잡음 리비전을 쌓는다
+        for i in range(3):
+            self.write_lf('{\n  "keep": true,\n  "feedbackDrafts": %d\n}' % i)
+            self.snapshot(f"noise {i}")
+        self.assertEqual(len(self.history()), 3)
+        self.set_ignore([])
+        self.assertEqual(len(self.history()), 1)
+        cache = os.path.join(self.store, "sig-cache.json")
+        self.assertTrue(os.path.exists(cache))
+        os.remove(cache)
+        p = cas.store_paths(self.store)
+        config = cas.load_config(p)
+        self.assertEqual(cas.warm_sig_cache(p, config, budget=1), 2)
+        self.assertEqual(cas.warm_sig_cache(p, config, budget=8), 0)
+        self.assertEqual(cas.warm_sig_cache(p, config, budget=8), 0)   # warmed: 매니페스트를 다시 돌지 않는다
+
+    def test_default_valued_project_entries_are_ignored(self):
+        f = os.path.join(self.work, ".claude.json")        # 이름으로 기본 프로필을 탄다
+
+        def write(s):
+            with open(f, "wb") as fh:
+                fh.write(s.encode("utf-8"))
+        write('{"projects": {}}')
+        run(CAS, "--store", self.store, "track", f)
+        self.snapshot("base")
+        write('{"projects": {"/a": {"allowedTools": [], "hasTrustDialogAccepted": false}}}')
+        self.assertEqual(self.modified(), [])
+        write('{"projects": {"/a": {"allowedTools": [], "hasTrustDialogAccepted": true}}}')
+        self.assertEqual(self.modified(), [f])
+        self.snapshot("trust")
+        revs = json.loads(run(CAS, "--store", self.store, "history", f, "--json"))["revisions"]
+        d = run(CAS, "--store", self.store, "diff", f, "--from", revs[0]["snapshot"], "--to", revs[1]["snapshot"])
+        self.assertIn('+      "hasTrustDialogAccepted": true', d)
+        self.assertNotIn("# 무시 목록", d)                    # 빈 항목이 한쪽에서만 빠진 것은 숨긴 변경이 아니다
+
+
 if __name__ == "__main__":
     unittest.main()

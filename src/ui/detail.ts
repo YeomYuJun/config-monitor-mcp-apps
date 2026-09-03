@@ -9,6 +9,11 @@ import {
   setSelectedPath, setCurrentRevs, setFromRev, setToRev, setDetailOpen,
 } from "./state";
 
+let rawDiff = false;   // 원문 diff 토글(무시 키 프로필 미적용). 파일을 바꿔도 유지
+// cas 가 무시 키 변경을 알리는 문장의 접두어. UI 는 접두어만 번역하고 뒤의 키 목록은 그대로 보인다.
+const IGNORED_ONLY = "무시 목록 항목만 다름";
+const IGNORED_ALSO = "# 무시 목록 항목도 바뀜";
+
 const revTime = (r: any) => (r.time || "").replace("T", " ").slice(0, 19);
 const revLabel = (id: string) => {
   const r = currentRevs.find((x) => x.snapshot === id);
@@ -66,11 +71,14 @@ export function renderHistory(): void {
     .concat(revsDesc.map((r) =>
       `<option value="${esc(r.snapshot)}">${esc(revTime(r).slice(5, 16))} · ${esc(r.message || "")}</option>`))
     .join("");
-  cmp.innerHTML = `<span class="dlabel">${esc(t("compareTo"))}</span><select id="cmp-to">${opts}</select>`;
+  cmp.innerHTML = `<span class="dlabel">${esc(t("compareTo"))}</span><select id="cmp-to">${opts}</select>` +
+    `<label class="rawtoggle"><input type="checkbox" id="raw-diff"${rawDiff ? " checked" : ""}>${esc(t("rawDiff"))}</label>`;
   body.appendChild(cmp);
   const sel = cmp.querySelector("#cmp-to") as HTMLSelectElement;
   sel.value = toRev;
   sel.addEventListener("change", () => { setToRev(sel.value); renderDiffFor(); });
+  const rawBox = cmp.querySelector("#raw-diff") as HTMLInputElement;
+  rawBox.addEventListener("change", () => { rawDiff = rawBox.checked; renderDiffFor(); });
 
   // 타임라인
   const hl = document.createElement("div");
@@ -152,7 +160,7 @@ export function renderHistory(): void {
 
 export async function renderDiffFor(): Promise<void> {
   if (!fromRev) return;
-  const path = selectedPath, frm = fromRev, to = toRev;
+  const path = selectedPath, frm = fromRev, to = toRev, raw = rawDiff;
   // 기본 비교(prev)는 "이 리비전이 뭘 바꿨나" = 직전 리비전 -> 선택 리비전.
   // 직전이 없는 첫 리비전은 빈 내용(empty)과 비교해 파일 전체가 등장한 것으로 보인다.
   let reqFrom = frm;
@@ -170,11 +178,12 @@ export async function renderDiffFor(): Promise<void> {
   }
   const args: Record<string, unknown> = { path, from: reqFrom };
   if (reqTo) args.to = reqTo;
+  if (raw) args.raw = true;
   try {
     const diff = await callTool("get_diff", args);
     // 응답 대기 중 파일/리비전 선택이 바뀌었으면 버린다(selectFile 의 가드와 같은 근거 -
     // 안 버리면 강조는 새 리비전인데 diff 영역과 모델 컨텍스트는 이전 것으로 덮인다).
-    if (path !== selectedPath || frm !== fromRev || to !== toRev) return;
+    if (path !== selectedPath || frm !== fromRev || to !== toRev || raw !== rawDiff) return;
     // 도구 실패는 {"ok":false} 문자열로 온다 - diff 본문으로 그리거나 컨텍스트에 넣지 않는다.
     const err = jparse(diff);
     if (err && err.ok === false) {
@@ -200,7 +209,9 @@ function renderDiff(diff: string, fromLabel: string, toLabel: string): void {
   if (!/^@@/m.test(diff)) {
     const msg = diff.trim();
     const mapped = msg === "텍스트 변경 없음" ? t("noDiff")
-      : msg.startsWith("줄 내용 동일") ? t("eolOnlyDiff") : msg;
+      : msg.startsWith("줄 내용 동일") ? t("eolOnlyDiff")
+      : msg.startsWith("표기만 다름") ? t("formatOnlyDiff")
+      : msg.startsWith(IGNORED_ONLY) ? t("ignoredOnlyDiff") + msg.slice(IGNORED_ONLY.length) : msg;
     area.innerHTML = `<div class="diffempty">${esc(mapped || t("noDiff"))}</div>`;
     return;
   }
@@ -211,9 +222,13 @@ function renderDiff(diff: string, fromLabel: string, toLabel: string): void {
     if (line.startsWith("+") && !line.startsWith("+++")) return "add";
     if (line.startsWith("-") && !line.startsWith("---")) return "del";
     if (line.startsWith("@@")) return "hunk";
+    if (line.startsWith(IGNORED_ALSO)) return "note";
     return "";
   });
-  const html = raw.map((line, i) => `<div class="dl ${cls[i]}">${esc(line) || "&nbsp;"}</div>`);
+  const html = raw.map((line, i) => {
+    const text = cls[i] === "note" ? t("ignoredAlso") + line.slice(IGNORED_ALSO.length) : line;
+    return `<div class="dl ${cls[i]}">${esc(text) || "&nbsp;"}</div>`;
+  });
   // 줄 안 하이라이트: 연속 del 묶음과 뒤따르는 add 묶음을 순서대로 짝지어, 공통 접두/접미를
   // 뺀 가운데만 강조한다. JSON 설정은 한 줄에서 값 하나가 바뀌는 경우가 대부분이라 이게
   // 판독 시간을 좌우한다. 줄 대부분이 바뀐 짝(80% 초과)은 전면 재작성이라 칠하지 않는다.

@@ -32,9 +32,14 @@ def tick(p):
     다른 프로세스(config_edit 의 후행 스냅샷 등)가 먼저 찍었으면 변경이 비어 그냥 지나간다."""
     config = cas.load_config(p)
     index = cas.load_json(p["index"], {})
-    result, _ = cas.scan(p, config, index, rehash=False)
+    result, new_index = cas.scan(p, config, index, rehash=False)
     changed = result["modified"] + result["new"] + result["deleted"]
     if not changed:
+        with contextlib.suppress(TimeoutError, OSError, ValueError):   # 깨진 매니페스트/캐시 쓰기 실패로 상주가 죽지 않게
+            if new_index != index:
+                cas.refresh_index(p)          # 무시 키만 저장된 파일: 스냅샷 없이 index 의 stat 만 따라간다
+            else:
+                cas.warm_sig_cache(p, config)  # 유휴 틱에 타임라인 접기용 sig 를 조금씩 미리 계산
         return None
     names = ", ".join(os.path.basename(x) for x in changed[:3])
     if len(changed) > 3:

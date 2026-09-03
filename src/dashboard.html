@@ -508,6 +508,7 @@
   .cmpbar{display:flex;align-items:center;gap:11px;margin:18px 0 20px;flex-wrap:wrap}
   .cmpbar select{background:var(--panel);border:1px solid #DDE0E5;border-radius:6px;padding:6px 11px;
     font-size:12px;font-family:var(--mono);color:var(--fg);max-width:300px;cursor:pointer}
+  .cmpbar .rawtoggle{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--mut2);cursor:pointer;user-select:none}
 
   /* history timeline: 고정 높이 스크롤(.rev-list) 안에 relative 트랙(.rev-track) — spine 이 스크롤과 함께 늘어남 */
   .rev-list{max-height:340px;overflow-y:auto;overflow-x:hidden;margin-top:12px}
@@ -543,6 +544,7 @@
   .dl.add .ichg{background:#B5DFC0}
   .dl.del .ichg{background:#F2B8AC}
   .dl.hunk{background:#EDF1FD;color:var(--accent);font-weight:500}
+  .dl.note{color:var(--mut2);font-style:italic;border-top:1px dashed var(--line2);margin-top:6px;padding-top:6px}
   .diffempty{border:1px dashed #D7DAE0;border-radius:6px;padding:22px;text-align:center;color:var(--mut2);
     font-size:13px;background:#FBFBFC;margin-top:12px}
   /* Diff 접이식(curbody) 안에서는 내부 박스가 껍데기를 꽉 채우도록 자체 테두리/마진 제거 */

@@ -178,7 +178,7 @@ export function buildTools(scriptDir: string): ToolDef[] {
       name: "get_file_history",
       meta: {
         title: "Get File History",
-        description: "특정 파일의 스냅샷 리비전 이력(git log 스타일). 내용이 바뀐 스냅샷만 추림",
+        description: "특정 파일의 스냅샷 리비전 이력(git log 스타일). 내용이 바뀐 스냅샷만 추리고, 무시 키 프로필이 있는 파일은 무시 키만 다른 리비전을 접는다",
         inputSchema: z.object({ path: z.string().describe("추적 중인 파일의 절대경로") }), annotations: READ,
       },
       run: async (a: { path: string }) => jsonResult(await runPy("cas.py", ["history", a.path, "--json"])),
@@ -196,17 +196,19 @@ export function buildTools(scriptDir: string): ToolDef[] {
       name: "get_diff",
       meta: {
         title: "Get File Diff",
-        description: "파일의 두 리비전(또는 스냅샷 vs 현재) 간 unified diff. from/to 미지정 시 최신 스냅샷 vs 작업본",
+        description: "파일의 두 리비전(또는 스냅샷 vs 현재) 간 unified diff. 무시 키 프로필이 있는 파일은 무시 키를 뺀 diff 에 '무시 목록 항목도 바뀜' 각주가 붙는다(raw=true 면 원문). from/to 미지정 시 최신 스냅샷 vs 작업본",
         inputSchema: z.object({
           path: z.string(),
           from: z.string().optional().describe("스냅샷 id (생략 시 최신 스냅샷)"),
           to: z.string().optional().describe("스냅샷 id 또는 'work'(기본=현재 파일)"),
+          raw: z.boolean().optional().describe("true 면 무시 키 프로필을 적용하지 않은 원문 diff"),
         }), annotations: READ,
       },
-      run: async (a: { path: string; from?: string; to?: string }) => {
+      run: async (a: { path: string; from?: string; to?: string; raw?: boolean }) => {
         const args = ["diff", a.path];
         if (a.from) args.push("--from", a.from);
         if (a.to) args.push("--to", a.to);
+        if (a.raw) args.push("--raw");
         return text(await runPy("cas.py", args));
       },
     },
