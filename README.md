@@ -95,6 +95,7 @@ npm run build
 - `CLAUDE_SNAPSHOT_STORE` → where snapshots are stored (must be an existing drive; defaults to `D:\.claude-snapshot` if unset).
 - *(optional)* to use a library, add `"CLAUDE_CONFIG_LIBRARIES": "C:/.../my-library/.claude"` to `env`.
 - *(optional)* to start the dashboard in English, add `"CONFIG_MONITOR_LANG": "en"` to `env`. Accepted values are case-insensitive and ignore the region suffix — `en` / `EN` / `en-US` start in English, `ko` / `KO` / `ko-KR` in Korean. **Unset, empty, or an unrecognized value starts in Korean.**
+- *(optional)* add `"CONFIG_MONITOR_WATCHER": "auto"` to `env` and the file watcher starts together with the MCP server, so out-of-dashboard changes are captured without pressing the toolbar toggle. Default (unset) keeps the watcher manual. The watcher is a detached process, so it keeps running after Claude Desktop quits — stop it from the toolbar.
 
 > **Config file location varies by install type.** Standard installs use `%APPDATA%\Claude\claude_desktop_config.json`; Microsoft Store / MSIX installs use `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\claude_desktop_config.json`. The most recently modified one is the config your running Claude reads.
 
@@ -108,7 +109,7 @@ npm run build
 
 The toolbar runs the global actions: **watcher** (a resident file watcher that auto-snapshots on change), **snapshot** (capture the current state once), and **refresh** (re-read tracking, config, and library).
 
-**Report** builds a static, data-baked HTML page and opens it in the browser for read-only/offline viewing; **Open in browser** opens the live dashboard in a tab. **Display settings** control the accent color, source-path visibility, and card description line count, alongside **KO / EN** language and **fullscreen** toggles.
+**Report** builds a static, data-baked HTML page and opens it in the browser for read-only/offline viewing; **Open in browser** opens the live dashboard in a tab. **Display settings** control the accent color, source-path visibility, and card description line count, alongside **KO / EN** language and **fullscreen** toggles. The same popover also carries **snapshot cleanup**: one click computes what a cleanup would remove (snapshots past the retention window, default 90 days, plus objects nothing references anymore), and only a second click actually deletes — the newest snapshot and everything the current state needs are always kept.
 
 ### Tracked Files
 
@@ -212,11 +213,14 @@ Registering a marketplace also reads the ones Claude Code already knows about an
 
 Opens when you click a tracked-file row. It shows the snapshot timeline (time, message, hash), the diff between two selected versions, and the current file contents (read-only).
 
-**Restore** rolls the file back to a chosen version. Because the current state is auto-snapshotted (plus a `.bak`) before restoring, you can undo the undo.
+**How to read a revision**: each edit, install, and restore records its result as a revision under the operation's own message, so a revision *is* one operation. Clicking a revision therefore shows **what that operation changed** — the diff against the previous revision — by default; the compare selector switches to the working copy or any specific revision. A revision labeled *external change* holds edits made outside the dashboard (hand edits, Claude Code itself) that were captured just before the next operation. The first revision of a file is shown as the whole file appearing. Within changed lines, the exact changed span is highlighted, so a one-value JSON edit reads at a glance.
+
+**Restore** rolls the file back to a chosen version. Because the current state is auto-snapshotted (plus a `.bak`) before restoring, you can undo the undo. Revisions at which the file did not exist have their restore button disabled — there is nothing to restore to.
 
 ### Safety
 
-- Every edit, install, and restore is snapshotted automatically: the result is recorded under the operation's own message, so a revision's diff shows exactly the change its label names; un-snapshotted outside changes are captured separately right before the edit.
+- Every edit, install, and restore is snapshotted automatically: the result is recorded under the operation's own message, so a revision's diff shows exactly the change its label names; un-snapshotted outside changes are captured separately right before the edit. Operations delegated to the `claude` CLI (plugin install / update / uninstall, marketplace changes) are wrapped the same way, so nothing that touches your settings escapes the timeline.
+- Snapshot cleanup (in Display settings) is the one deliberately destructive control, and it is two-step: the first click only reports what would be removed; the newest snapshot and every object the current state references survive any cleanup.
 - Before an overwrite, files are kept as `.bak` and directories are moved to `.trash`.
 - Removal is a move to `.trash`, not a real delete — it can be recovered.
 - Untracking only removes an entry from the watch list; the file is left in place.
