@@ -18,7 +18,7 @@ const revLabel = (id: string) => {
 export async function selectFile(p: string): Promise<void> {
   setSelectedPath(p);
   setFromRev("");
-  setToRev("work");
+  setToRev("prev");
   setDetailOpen(true);
   applyDetailState();
   $("sel-name").textContent = basename(p);
@@ -57,10 +57,12 @@ export function renderHistory(): void {
   body.innerHTML = "";
   const revsDesc = currentRevs.slice().reverse();
 
-  // 비교 대상 select
+  // 비교 대상 select. 기본은 '직전 리비전' - 후행 스냅샷 도입으로 리비전 하나 = 작업
+  // 하나가 되었으므로, 리비전 클릭이 답할 질문은 "이 작업이 뭘 바꿨나"다.
   const cmp = document.createElement("div");
   cmp.className = "cmpbar";
-  const opts = [`<option value="work">${esc(t("working"))}</option>`]
+  const opts = [`<option value="prev">${esc(t("cmpPrev"))}</option>`,
+    `<option value="work">${esc(t("working"))}</option>`]
     .concat(revsDesc.map((r) =>
       `<option value="${esc(r.snapshot)}">${esc(revTime(r).slice(5, 16))} · ${esc(r.message || "")}</option>`))
     .join("");
@@ -85,11 +87,13 @@ export function renderHistory(): void {
   revsDesc.forEach((r) => {
     const item = document.createElement("div");
     item.className = "rev" + (r.snapshot === fromRev ? " sel" : "");
+    // 파일이 없던 시점의 리비전은 복원할 내용이 없다 - 눌러서 거절당하게 두지 않는다.
+    const noFile = !r.hash;
     item.innerHTML =
       `<span class="rdot"></span>` +
       `<div class="rbody"><div class="rmsg" title="${esc(r.message || "")}">${esc(r.message || "(no message)")}</div>` +
       `<div class="rmeta">${esc(revTime(r))} · ${esc(r.hash || t("deletedHash"))}</div></div>` +
-      `<button class="rrestore" title="${esc(t("restoreTitle"))}">${esc(t("restore"))}</button>`;
+      `<button class="rrestore"${noFile ? " disabled" : ""} title="${esc(noFile ? t("restoreNoFile") : t("restoreTitle"))}">${esc(t("restore"))}</button>`;
     item.querySelector(".rbody")!.addEventListener("click", () => {
       // 선택만 바뀌면 renderHistory() 전체 재렌더(innerHTML 재구성)를 피한다 - 그러면
       // .rev-list 스크롤이 최상단으로 리셋된다. 강조 클래스만 교체 + diff 만 갱신
@@ -99,7 +103,7 @@ export function renderHistory(): void {
       item.classList.add("sel");
       renderDiffFor();
     });
-    item.querySelector(".rrestore")!.addEventListener("click", (e) => {
+    if (!noFile) item.querySelector(".rrestore")!.addEventListener("click", (e) => {
       e.stopPropagation(); inlineRestore(e.currentTarget as HTMLElement, r);
     });
     tl.appendChild(item);
@@ -149,8 +153,23 @@ export function renderHistory(): void {
 export async function renderDiffFor(): Promise<void> {
   if (!fromRev) return;
   const path = selectedPath, frm = fromRev, to = toRev;
-  const args: Record<string, unknown> = { path, from: frm };
-  if (to && to !== "work") args.to = to;
+  // 기본 비교(prev)는 "이 리비전이 뭘 바꿨나" = 직전 리비전 -> 선택 리비전.
+  // 직전이 없는 첫 리비전은 빈 내용(empty)과 비교해 파일 전체가 등장한 것으로 보인다.
+  let reqFrom = frm;
+  let reqTo: string | undefined = to !== "work" ? to : undefined;
+  let fromLabel: string, toLabel: string;
+  if (to === "prev") {
+    const i = currentRevs.findIndex((r) => r.snapshot === frm);
+    reqFrom = i > 0 ? currentRevs[i - 1].snapshot : "empty";
+    reqTo = frm;
+    fromLabel = i > 0 ? revLabel(reqFrom) : t("revNone");
+    toLabel = revLabel(frm);
+  } else {
+    fromLabel = revLabel(frm);
+    toLabel = to === "work" ? t("workingShort") : revLabel(to);
+  }
+  const args: Record<string, unknown> = { path, from: reqFrom };
+  if (reqTo) args.to = reqTo;
   try {
     const diff = await callTool("get_diff", args);
     // 응답 대기 중 파일/리비전 선택이 바뀌었으면 버린다(selectFile 의 가드와 같은 근거 -
@@ -165,15 +184,15 @@ export async function renderDiffFor(): Promise<void> {
     }
     // 화면에 보이는 diff 를 모델 컨텍스트에도 얹는다(앞 2KB) - 사용자가 변경 내용을 물으면
     // 모델이 화면과 같은 근거로 답하게(updateModelContext, standalone 은 no-op).
-    pushCtx(`[Config Monitor] '${path}' diff ${frm} -> ${to}:\n${diff.slice(0, 2048)}`);
-    renderDiff(diff);
+    pushCtx(`[Config Monitor] '${path}' diff ${reqFrom} -> ${reqTo || "work"}:\n${diff.slice(0, 2048)}`);
+    renderDiff(diff, fromLabel, toLabel);
   } catch (e) {
     const area = document.getElementById("diff-area");
     if (area) area.innerHTML = `<div class="empty err">${esc(t("diffFetchFail"))}: ${esc(String(e))}</div>`;
   }
 }
 
-function renderDiff(diff: string): void {
+function renderDiff(diff: string, fromLabel: string, toLabel: string): void {
   const area = document.getElementById("diff-area");
   if (!area) return;
   // unified diff 는 항상 @@ 헌크를 가진다 - 없으면 diff 가 아니라 cas 의 안내 메시지
@@ -185,21 +204,47 @@ function renderDiff(diff: string): void {
     area.innerHTML = `<div class="diffempty">${esc(mapped || t("noDiff"))}</div>`;
     return;
   }
-  const fromLabel = revLabel(fromRev);
-  const toLabel = toRev === "work" ? t("workingShort") : revLabel(toRev);
   // CRLF 파일의 diff 는 각 줄 끝에 \r 이 남는데, .dl 이 white-space:pre-wrap 이라
   // 그 \r 이 segment break 로 렌더돼 빈 줄처럼 보인다. 개행 종류와 무관하게 분리.
-  const lines = diff.split(/\r?\n/).map((line) => {
-    let cls = "";
-    if (line.startsWith("+") && !line.startsWith("+++")) cls = "add";
-    else if (line.startsWith("-") && !line.startsWith("---")) cls = "del";
-    else if (line.startsWith("@@")) cls = "hunk";
-    return `<div class="dl ${cls}">${esc(line) || "&nbsp;"}</div>`;
-  }).join("");
+  const raw = diff.split(/\r?\n/);
+  const cls = raw.map((line) => {
+    if (line.startsWith("+") && !line.startsWith("+++")) return "add";
+    if (line.startsWith("-") && !line.startsWith("---")) return "del";
+    if (line.startsWith("@@")) return "hunk";
+    return "";
+  });
+  const html = raw.map((line, i) => `<div class="dl ${cls[i]}">${esc(line) || "&nbsp;"}</div>`);
+  // 줄 안 하이라이트: 연속 del 묶음과 뒤따르는 add 묶음을 순서대로 짝지어, 공통 접두/접미를
+  // 뺀 가운데만 강조한다. JSON 설정은 한 줄에서 값 하나가 바뀌는 경우가 대부분이라 이게
+  // 판독 시간을 좌우한다. 줄 대부분이 바뀐 짝(80% 초과)은 전면 재작성이라 칠하지 않는다.
+  for (let i = 0; i < raw.length; ) {
+    if (cls[i] !== "del") { i++; continue; }
+    const ds = i;
+    while (i < raw.length && cls[i] === "del") i++;
+    const as = i;
+    while (i < raw.length && cls[i] === "add") i++;
+    const pairs = Math.min(as - ds, i - as);
+    for (let k = 0; k < pairs; k++) {
+      const d = raw[ds + k].slice(1), a = raw[as + k].slice(1);
+      let p = 0;
+      while (p < d.length && p < a.length && d[p] === a[p]) p++;
+      let s = 0;
+      while (s < d.length - p && s < a.length - p && d[d.length - 1 - s] === a[a.length - 1 - s]) s++;
+      const longest = Math.max(d.length, a.length);
+      const mid = longest - p - s;
+      if (mid <= 0 || mid > longest * 0.8) continue;
+      const mk = (body: string, marker: string, klass: string) =>
+        `<div class="dl ${klass}">${esc(marker)}${esc(body.slice(0, p))}` +
+        `<span class="ichg">${esc(body.slice(p, body.length - s))}</span>` +
+        `${esc(body.slice(body.length - s))}</div>`;
+      html[ds + k] = mk(d, raw[ds + k][0], "del");
+      html[as + k] = mk(a, raw[as + k][0], "add");
+    }
+  }
   area.innerHTML =
     `<div class="diffwrap"><div class="diffhead">` +
     `<span>${esc(fromLabel)}</span><span class="arrow">→</span><span>${esc(toLabel)}</span></div>` +
-    `<div class="difflines">${lines}</div></div>`;
+    `<div class="difflines">${html.join("")}</div></div>`;
 }
 
 // 복원: window.confirm 회피 위해 인라인 확인. 복원 전 자동 스냅샷+.bak 은 서버가 보장.

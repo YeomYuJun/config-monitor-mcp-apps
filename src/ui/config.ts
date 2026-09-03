@@ -366,7 +366,7 @@ function renderConfigSection(host: HTMLElement, sec: any): void {
   head.innerHTML =
     `<div class="secrow"><span class="chev2">▾</span>` +
     `<span class="sectitle">${esc(sec.title)}</span>` +
-    `<span class="seccount">${counted.length}</span>` +
+    `<span class="seccount" title="${esc(t("cntShown"))} ${counted.length} · ${esc(t("cntTotal"))} ${cards.filter((c: any) => !isAddCard(c)).length}">${counted.length}</span>` +
     loadBadge(sec.load, sec.note) + `${summary}</div>` + srcHtml;
   head.addEventListener("click", () => {
     if (collapsed.has(sec.id)) collapsed.delete(sec.id); else collapsed.add(sec.id);

@@ -105,6 +105,14 @@ class TestDiffEolInsensitive(CasStoreCase):
         self.write_lf('{\r\n  "keep": true\r\n}')
         self.assertIn("줄 내용 동일", self.diff())
 
+    def test_empty_ref_shows_first_revision_as_full_addition(self):
+        # UI 의 '직전 리비전 (기본)' 비교에서 첫 리비전은 empty 와 비교된다.
+        self.snapshot("base")
+        rev = self.history()[0]["snapshot"]
+        d = run(CAS, "--store", self.store, "diff", self.file, "--from", "empty", "--to", rev)
+        self.assertIn('+  "keep": true', d)
+        self.assertNotIn("\n-", d)   # 삭제 줄이 없어야 전체 추가다
+
     def test_real_change_shows_only_changed_lines(self):
         self.snapshot("base")
         # EOL 도 뒤집고 값도 바꾼다 - 바뀐 줄만 diff 에 나와야 한다.

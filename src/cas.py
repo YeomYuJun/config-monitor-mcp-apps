@@ -462,9 +462,11 @@ def _hash_in_snapshot(p, sid, target):
     return e.get("hash") if e else None
 
 def _content_at(p, ref, target):
-    """ref: 'work'/None -> 현재 파일, 그 외 -> 스냅샷 id 의 blob."""
+    """ref: 'work'/None -> 현재 파일, 'empty' -> 빈 내용, 그 외 -> 스냅샷 id 의 blob."""
     if ref in (None, "work", "WORK"):
         return open(target, "rb").read() if os.path.exists(target) else None
+    if ref == "empty":
+        return b""   # 직전 리비전이 없는 첫 리비전과의 비교용 - 전체가 추가로 표시된다
     h = _hash_in_snapshot(p, ref, target)
     if not h:
         return None
