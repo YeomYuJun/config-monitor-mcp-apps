@@ -585,7 +585,16 @@
   .setpop input[type=checkbox]{width:32px;height:18px;accent-color:var(--accent);cursor:pointer;margin:0}
   .setpop input[type=range]{flex:1;min-width:0;accent-color:var(--accent);cursor:pointer}
   #setpop-backdrop{position:fixed;inset:0;z-index:65;background:transparent}
-  .setpop .sp-gcres{font-size:11px;color:var(--mut);padding:0 2px 6px;line-height:1.5}
+  .sp-foot{border-top:1px solid var(--line);margin-top:12px;padding-top:10px}
+  .sp-foot .sp-row{margin-top:0;align-items:flex-start}
+  .sp-hint{font-size:11px;color:var(--mut);margin-top:2px;line-height:1.4}
+  .hbtns .setpop .sp-btn{flex:0 0 auto;height:auto;min-width:0;padding:4px 10px;font-size:11px;font-weight:600;
+    border:1px solid var(--accent);border-radius:5px;background:var(--panel);color:var(--accent);cursor:pointer}
+  .hbtns .setpop .sp-btn:hover:not(:disabled){background:#F4F6FE}
+  .hbtns .setpop .sp-btn.danger{border-color:#B42318;color:#B42318}
+  .hbtns .setpop .sp-btn.danger:hover:not(:disabled){background:#FEF3F2}
+  .hbtns .setpop .sp-btn:disabled{opacity:.55;cursor:default}
+  .setpop .sp-gcres{font-size:11px;color:var(--mut);padding:6px 2px 0;line-height:1.5}
   body.nosrc .secsrc{display:none}
 
   /* toast - 상단 중앙. 하단에 두면 호스트(Claude) 프롬프트 입력창이 iframe 아래를 덮어
@@ -658,9 +667,12 @@
             <div class="sp-row"><span class="sp-lbl" data-i18n="hideEmpty">빈 섹션 숨기기</span>
               <input type="checkbox" id="opt-hide-empty" checked></div>
             <div id="opt-sections" class="sp-sections" hidden></div>
-            <div class="sp-row"><span class="sp-lbl" data-i18n="gcTitle">스냅샷 정리</span>
-              <button id="opt-gc" class="addbtn" data-i18n="gcScan">확인</button></div>
-            <div id="gc-result" class="sp-gcres" hidden></div>
+            <div class="sp-foot">
+              <div class="sp-row"><div><div class="sp-lbl" data-i18n="gcTitle">스냅샷 정리</div>
+                  <div class="sp-hint" data-i18n="gcHint">90일 지난 스냅샷과 미참조 객체</div></div>
+                <button id="opt-gc" class="sp-btn" data-i18n="gcScan">대상 계산</button></div>
+              <div id="gc-result" class="sp-gcres" hidden></div>
+            </div>
           </div>
         </span>
         <button id="lang-toggle" title="Switch to English">

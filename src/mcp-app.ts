@@ -311,7 +311,7 @@ function wireSettings(): void {
   // 파괴적 동작이라 숫자를 먼저 보여주고 두 번째 클릭을 받는다. 팝오버가 닫히면 해제.
   const gcBtn = $("opt-gc") as HTMLButtonElement;
   const gcRes = $("gc-result");
-  const resetGc = () => { gcArmed = false; gcBtn.textContent = t("gcScan"); };
+  const resetGc = () => { gcArmed = false; gcBtn.textContent = t("gcScan"); gcBtn.classList.remove("danger"); };
   let gcArmed = false;
   gcBtn.addEventListener("click", async () => {
     gcBtn.disabled = true;
@@ -322,9 +322,11 @@ function wireSettings(): void {
       const line = `${t("gcSnaps")} ${r.removed_snapshots} · ${t("gcObjs")} ${r.removed_objects} · ${(r.freed_bytes / 1048576).toFixed(1)} MB`;
       if (!gcArmed) {
         if (!r.removed_snapshots && !r.removed_objects) { gcRes.textContent = t("gcNothing"); resetGc(); return; }
-        gcRes.textContent = line;
+        // 계산 결과는 완료 보고와 같은 모양이라 접두 없이는 이미 지운 것으로 읽힌다.
+        gcRes.textContent = `${t("gcPlan")} · ${line}`;
         gcArmed = true;
-        gcBtn.textContent = t("gcRun");
+        gcBtn.textContent = `${t("gcRun")} (${r.removed_snapshots + r.removed_objects})`;
+        gcBtn.classList.add("danger");
       } else {
         gcRes.textContent = `${t("gcDone")} · ${line}`;
         flashToast(t("gcDone"));
