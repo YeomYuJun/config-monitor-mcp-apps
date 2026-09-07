@@ -373,14 +373,6 @@ $("snap").addEventListener("click", async () => {
   await refresh();
   if (selectedPath) selectFile(selectedPath);
 });
-$("report").addEventListener("click", async () => {
-  flashToast(t("toastReport"));
-  try {
-    const r = jparse(await callTool("open_report"));
-    if (r && r.ok === false) { openReasonModal(t("toastReportFail"), r.message || t("failed")); return; }
-    flashToast(t("toastReportOpened"));
-  } catch (e) { flashToast(t("toastReportFail")); console.error("[config-monitor] report", e); }
-});
 $("panel-close").addEventListener("click", () => { setDetailOpen(false); applyDetailState(); });
 $("panel-reopen").addEventListener("click", () => { setDetailOpen(true); applyDetailState(); });
 // 초기 상태도 마크업이 아니라 detailOpen 에서 온다 - 두 곳에 적으면 한쪽만 고쳐져 어긋난다.

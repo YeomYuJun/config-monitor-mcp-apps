@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 r"""
-claude_config.py - Claude 설정 introspection + 카드 HTML 생성기 (v2, 7 카테고리)
+claude_config.py - Claude 설정 introspection (정규화 sections JSON)
 
 대상 경로:
   ~\.claude.json                                  Claude Code 전역 (관심 키만 선별 추출)
@@ -16,10 +16,9 @@ claude_config.py - Claude 설정 introspection + 카드 HTML 생성기 (v2, 7 �
 CLI:
   python claude_config.py discover            # 어떤 경로가 잡히는지
   python claude_config.py dump                # 정규화 상태(JSON)  ← MCP get_config 가 사용
-  python claude_config.py report -o out.html  # 카드 HTML 생성(데이터 인라인)
 """
 from __future__ import annotations
-import argparse, json, os, glob as globmod, html, re, sys
+import argparse, json, os, glob as globmod, re, sys
 from dataclasses import dataclass
 
 # Windows 콘솔 기본 인코딩(cp949)에서 한글/em-dash 출력 시 UnicodeEncodeError 방지.
@@ -986,65 +985,6 @@ def parse(found, project_dirs=None):
         _append_project_cards(state["sections"], project_dirs, chain)
     return state
 
-HTML_TEMPLATE = """<!DOCTYPE html>
-<html lang="ko"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Claude 설정 상태</title>
-<style>
-  :root{ --bg:#0f1115; --card:#1a1d24; --line:#2a2f3a; --fg:#e6e8ec; --mut:#8b93a1;
-         --accent:#7aa2f7; --ok:#9ece6a; }
-  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--fg);
-     font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;padding:28px}
-  h1{font-size:20px;margin:0 0 4px} .sub{color:var(--mut);font-size:12px;margin-bottom:22px}
-  h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);
-     margin:26px 0 4px;border-bottom:1px solid var(--line);padding-bottom:6px}
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-top:12px}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
-  .card .name{font-weight:600;font-size:14px;margin-bottom:8px;display:flex;align-items:center;gap:8px;
-     justify-content:space-between}
-  .badge{font-size:10px;padding:2px 7px;border-radius:20px;background:#222733;color:var(--mut);white-space:nowrap}
-  .badge.ok{background:rgba(158,206,106,.15);color:var(--ok)}
-  .kv{display:flex;gap:6px;font-size:12px;margin-top:4px}
-  .kv .k{color:var(--mut);min-width:84px;flex:0 0 auto}
-  .kv .v{color:var(--fg);word-break:break-all;font-family:ui-monospace,monospace;white-space:pre-wrap}
-  .empty{color:var(--mut);font-style:italic;padding:8px 0}
-  .src{font-size:11px;color:var(--mut)} code{background:#222733;padding:1px 5px;border-radius:4px}
-</style></head><body>
-<h1>Claude 설정 상태 카드</h1>
-<div class="sub">생성: __GENERATED__ · 데이터 인라인(오프라인 열람) · 관심 키만 선별 추출</div>
-<div id="app"></div>
-<script>
-const STATE = __DATA__;
-const el = h=>{const t=document.createElement('template');t.innerHTML=h.trim();return t.content.firstChild;};
-const esc = s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-const app = document.getElementById('app');
-STATE.sections.forEach(sec=>{
-  app.appendChild(el(`<h2>${esc(sec.title)}</h2>`));
-  app.appendChild(el(`<div class="src">출처: <code>${esc(sec.source||'미발견')}</code></div>`));
-  const grid = el('<div class="grid"></div>');
-  if(!sec.cards.length) grid.appendChild(el('<div class="empty">항목 없음 / 파일 미발견</div>'));
-  sec.cards.forEach(c=>{
-    const cd = el('<div class="card"></div>');
-    cd.appendChild(el(`<div class="name"><span>${esc(c.name)}</span>`+
-      (c.badge?`<span class="badge ${c.ok?'ok':''}">${esc(c.badge)}</span>`:'')+`</div>`));
-    c.kv.forEach(([k,v])=>cd.appendChild(
-      el(`<div class="kv"><span class="k">${esc(k)}</span><span class="v">${esc(v)}</span></div>`)));
-    grid.appendChild(cd);
-  });
-  app.appendChild(grid);
-});
-</script></body></html>
-"""
-
-def make_html(state):
-    # JSON 을 <script> 안에 굽는다: '<' 를 그대로 두면 값 속의 "</script>" 가 태그를 닫고
-    # 그 뒤가 HTML 로 파싱된다. description 은 마켓·플러그인·claude.ai 에서 온 원격 저작물이다.
-    data = (json.dumps(state, ensure_ascii=False)
-            .replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026"))
-    return (HTML_TEMPLATE
-            .replace("__GENERATED__", html.escape(state["generated"]))
-            .replace("__DATA__", data))
-
 def list_projects(found):
     """~/.claude.json 의 projects 맵을 {path, name, claude_dir, has_claude} 리스트로.
     has_claude=True 는 <path>/.claude 가 실제 디렉토리로 존재(=경로 자체도 존재). UI 가
@@ -1074,16 +1014,14 @@ def list_projects(found):
     return out
 
 def main():
-    ap = argparse.ArgumentParser(prog="claude_config", description="Claude 설정 introspection + 카드 HTML")
+    ap = argparse.ArgumentParser(prog="claude_config", description="Claude 설정 introspection")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    for name in ("discover", "dump", "report", "projects"):
+    for name in ("discover", "dump", "projects"):
         sp = sub.add_parser(name)
         sp.add_argument("--paths", nargs="*", help="key=path 로 후보 직접 지정")
-        if name in ("dump", "report"):
+        if name == "dump":
             sp.add_argument("--projects", nargs="*", default=None,
                             help="프로젝트 .claude 디렉토리들 - 각각의 permissions/hooks/skills/agents 를 프로젝트 항목으로 추가")
-        if name == "report":
-            sp.add_argument("-o", "--out", default="claude-status.html")
     args = ap.parse_args()
     found = discover(getattr(args, "paths", None))
     projects = getattr(args, "projects", None)
@@ -1095,13 +1033,7 @@ def main():
         print(json.dumps({"projects": list_projects(found)}, ensure_ascii=False, indent=2))
     elif args.cmd == "dump":
         print(json.dumps(parse(found, projects), ensure_ascii=False, indent=2))
-    elif args.cmd == "report":
-        state = parse(found, projects)
-        with open(args.out, "w", encoding="utf-8") as f:
-            f.write(make_html(state))
-        print(f"리포트 생성: {os.path.abspath(args.out)}")
-        for s in state["sections"]:
-            print(f"  - {s['title']}")
+
 
 if __name__ == "__main__":
     main()

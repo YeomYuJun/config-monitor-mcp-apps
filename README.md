@@ -109,7 +109,7 @@ npm run build
 
 The toolbar runs the global actions: **watcher** (a resident file watcher that auto-snapshots on change), **snapshot** (capture the current state once), and **refresh** (re-read tracking, config, and library).
 
-**Report** builds a static, data-baked HTML page and opens it in the browser for read-only/offline viewing; **Open in browser** opens the live dashboard in a tab. **Display settings** control the accent color, source-path visibility, and card description line count, alongside **KO / EN** language and **fullscreen** toggles. The same popover also carries **snapshot cleanup**: one click computes what a cleanup would remove (snapshots past the retention window, default 90 days, plus objects nothing references anymore), and only a second click actually deletes — the newest snapshot and everything the current state needs are always kept.
+**Open in browser** opens the live dashboard in a browser tab, starting the local HTTP server if it is not already running. **Display settings** control the accent color, source-path visibility, and card description line count, alongside **KO / EN** language and **fullscreen** toggles. The same popover also carries **snapshot cleanup**: one click computes what a cleanup would remove (snapshots past the retention window, default 90 days, plus objects nothing references anymore), and only a second click actually deletes — the newest snapshot and everything the current state needs are always kept.
 
 ### Tracked Files
 
