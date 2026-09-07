@@ -32,6 +32,7 @@ Sources can be local folders, remote git repos, or plugin marketplaces. Remote o
   - [Plugins](#plugins)
   - [History / Diff](#history--diff)
   - [Safety](#safety)
+- [Talking to Claude](#talking-to-claude)
 - [Coverage Map](#coverage-map)
 - [What It Reads](#what-it-reads)
 - [Notes](#notes)
@@ -58,6 +59,7 @@ Cowork supports both inline and fullscreen; Code supports inline only (following
 - **Provenance tracking** — the dashboard records which source owns each installed item, so a second plugin shipping the same name shows as `conflict` instead of silently overwriting the first.
 - **Override badges** — when two items share a name, the one that is *not* actually applied is flagged, following the real precedence rules (project wins for agents, global wins for skills).
 - **Reversible by default** — auto-snapshot before every edit; `.bak` / `.trash` backups before every overwrite or delete.
+- **Works in conversation, too** — every read and edit is an ordinary MCP tool, so Claude can summarize your setup, look up one section, or remove a skill when you ask in chat. Edits made that way show up in the open dashboard within a few seconds.
 
 ## Requirements
 
@@ -228,6 +230,21 @@ Opens when you click a tracked-file row. It shows the snapshot timeline (time, m
 - Untracking only removes an entry from the watch list; the file is left in place.
 
 <img src="assets/img/fullscreen.png" width="720" alt="Fullscreen dashboard">
+
+## Talking to Claude
+
+The dashboard is one client of this server. Claude in the same conversation is another: every tool the widget uses is a normal MCP tool, so you can ask *"what hooks do I have?"* or *"remove the `foo` skill from project bar"* and Claude will call the same handlers, with the same snapshot-before-edit and `.bak` / `.trash` protection.
+
+Two tools exist only for that use:
+
+- **`summarize_config`** returns an overview instead of the full state: per section, the item count, the load class (`eager` / `lazy` / `never`), how many items are global versus per-project, and the item names; plus same-name collisions between global and project items (and which side actually wins) and the plugin state distribution. It is the natural first call when you want Claude to review, tidy, or explain the current setup.
+- **`get_config`** with filters drills into one part: `sections` (ids such as `hooks`, `perm`, `skills`, `agents`, `mcp-desktop`, `plugins`), `scope` (`global` or `project`), `query` (substring match on names and values), and `compact` (identity fields plus a short description instead of every key). A full dump is over 200 KB on a machine with a hundred skills; a compact hooks-only view is under 10 KB. Each card keeps its `edit` block, which carries the exact paths the edit tools accept.
+
+Edit tools that touch a project's `.claude` accept a **`project`** argument (the folder name or its path) instead of the raw `settings` / `skillsDir` / `dir` paths the widget passes. The server resolves it against the tracked projects and the projects Claude Code knows about; an unknown or ambiguous name is refused with the candidate list before anything is written.
+
+Edits Claude makes are reflected in the dashboard without a manual refresh. Every successful non-read tool call records a change marker in the snapshot store, the widget's regular status poll reads it, and a new marker triggers a full re-render — so a skill removed in chat disappears from the Skills card on the next tick (about five seconds). The widget's own edits absorb the marker on their follow-up refresh and do not re-render twice.
+
+Tools that only serve the widget (`open_in_browser`, `get_prefs`, `set_prefs`) say so in their descriptions, so Claude does not reach for them when asked about configuration.
 
 ## Coverage Map
 
