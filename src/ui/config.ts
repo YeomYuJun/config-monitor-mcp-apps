@@ -1,6 +1,7 @@
 // src/ui/config.ts - 설정 카드(8분류) 렌더와 인라인 편집(권한 · hooks · mcp · skill · agent · plugin).
 // 밖으로 나가는 건 renderConfig 하나뿐이고, 재렌더는 refreshApp 훅으로 엔트리에 되묻는다.
 import { t } from "./i18n";
+import { persistView } from "./view";
 import { callTool, jparse } from "./bridge";
 import { $, esc, setPending, clearPending, mkNotice, openReasonModal, flashToast } from "./widgets";
 import { valClass, basename, safeSegment, looksLikePermRule } from "./helpers";
@@ -240,7 +241,7 @@ function buildPillRow(projects: string[], hiddenCount: number): HTMLElement {
     chip.className = "scopechip" + (scopeFilter === val ? " on" : "");
     chip.textContent = label;
     if (title) chip.title = title;
-    chip.addEventListener("click", () => { setScopeFilter(val); renderConfig(lastConfigSections); });
+    chip.addEventListener("click", () => { setScopeFilter(val); renderConfig(lastConfigSections); persistView(); });
     return chip;
   };
   if (projects.length) {

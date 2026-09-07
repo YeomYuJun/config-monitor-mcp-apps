@@ -33,6 +33,18 @@ class TestPrefs(unittest.TestCase):
             self.assertEqual(ui["sections"]["hidden"], ["themes"])
             self.assertTrue(ui["sections"]["hideEmpty"], "패치하지 않은 키는 기본값이 유지되어야 함")
 
+    def test_view_block_round_trips_and_ignores_unknown_keys(self):
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "config.json"), "w", encoding="utf-8") as f:
+                json.dump({"version": 1}, f)
+            prefs.save_ui(d, {"view": {"selectedPath": "C:/x/settings.json", "detailOpen": False, "bogus": 1}})
+            ui = prefs.load_ui(d)
+            self.assertEqual(ui["view"]["selectedPath"], "C:/x/settings.json")
+            self.assertFalse(ui["view"]["detailOpen"])
+            self.assertEqual(ui["view"]["scope"], "all", "패치하지 않은 view 키는 기본값")
+            self.assertNotIn("bogus", ui["view"])
+            self.assertEqual(ui["sections"]["preset"], "all", "다른 블록은 건드리지 않는다")
+
     def test_save_preserves_unrelated_store_keys(self):
         """prefs 저장이 tracked/libraries 를 날리면 안 된다."""
         with tempfile.TemporaryDirectory() as d:

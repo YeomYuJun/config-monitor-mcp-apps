@@ -149,7 +149,8 @@ export function buildTools(scriptDir: string): ToolDef[] {
     config_item_add: ["dir", "*item"], config_item_remove: ["dir", "*item"],
   };
   const ITEM_DIRS: Record<string, string> = { rule: "rules", "output-style": "output-styles", workflow: "workflows" };
-  const NO_SIGNAL = new Set(["open_in_browser", "watcher_start", "watcher_stop"]);
+  // set_prefs 는 화면 옵션이라 다른 위젯을 다시 그릴 이유가 없다 - 보던 자리 저장이 매 클릭마다 전체 refresh 를 부르면 안 된다.
+  const NO_SIGNAL = new Set(["open_in_browser", "watcher_start", "watcher_stop", "set_prefs"]);
 
   // 두 가지 공통 처리를 도구 정의 밖에서 한 번에 건다:
   //  1) project -> 경로 해석(PROJECT_FIELDS 에 있는 도구만; 명시한 경로 인자가 있으면 그것이 우선)
@@ -245,22 +246,37 @@ export function buildTools(scriptDir: string): ToolDef[] {
             hidden: z.array(z.string()).optional(),
             hideEmpty: z.boolean().optional(),
             groupsCollapsed: z.array(z.string()).optional(),
-          }).describe("덮어쓸 키만 보낸다"),
+          }).optional().describe("덮어쓸 키만 보낸다"),
+          view: z.object({
+            selectedPath: z.string().optional(),
+            detailOpen: z.boolean().optional(),
+            scope: z.string().optional(),
+            libTarget: z.string().optional(),
+          }).optional().describe("보던 자리(선택 파일·패널·필터). 위젯이 다시 올라올 때 복원한다"),
         }), annotations: WRITE,
       },
       // execFile 은 셸을 거치지 않으므로 JSON 을 argv 한 칸으로 넘겨도 인용 문제가 없다.
-      run: async (a: { sections?: Record<string, unknown> }) =>
+      run: async (a: { sections?: Record<string, unknown>; view?: Record<string, unknown> }) =>
         jsonResult(await runPy("prefs.py",
-          ["set", "--store", STORE, "--json", JSON.stringify({ sections: a.sections || {} })])),
+          ["set", "--store", STORE, "--json", JSON.stringify({ sections: a.sections || {}, view: a.view || {} })])),
     },
     {
       name: "get_tracked",
       meta: {
         title: "Get Tracked File Status",
         description: "스냅샷 추적 파일들의 변경 상태(new/modified/deleted/unchanged)와 watcher 상태, 마지막 편집 도구 호출(change.seq). 어떤 설정 파일이 스냅샷 대비 바뀌었는지 볼 때",
-        inputSchema: z.object({}), annotations: READ,
+        inputSchema: z.object({
+          phase: z.enum(["boot", "refresh", "poll"]).optional().describe("[UI 전용] 위젯이 왜 부르는지. 스토어의 widget.log 에 남는다"),
+          instance: z.string().optional().describe("[UI 전용] 위젯 인스턴스 id"),
+        }), annotations: READ,
       },
-      run: async () => {
+      run: async (a: { phase?: string; instance?: string }) => {
+        // 호스트가 위젯을 몇 번 다시 올리는지, 동시에 몇 개가 살아 있는지는 서버 밖에서 알 길이 없다.
+        // 폴링은 양이 많아 남기지 않고, 부트·전체 refresh 만 한 줄씩 적는다.
+        if (a?.phase && a.phase !== "poll") {
+          const line = `${new Date().toISOString()} ${a.phase} ${a.instance || "-"}\n`;
+          await fs.mkdir(STORE, { recursive: true }).then(() => fs.appendFile(path.join(STORE, "widget.log"), line)).catch(() => {});
+        }
         const raw = await runPy("cas.py", ["status", "--json"]);
         // 대시보드 폴링이 이 한 호출로 다른 클라이언트의 편집까지 알아야 한다(호출 하나 = 프로세스 하나).
         try {

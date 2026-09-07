@@ -31,7 +31,14 @@ DEFAULT_UI = {
         "hidden": [],             # custom 에서만 의미
         "hideEmpty": True,
         "groupsCollapsed": [],
-    }
+    },
+    # 보던 자리. 호스트가 위젯 iframe 을 다시 올려도 같은 파일·같은 필터로 돌아오게 한다.
+    "view": {
+        "selectedPath": "",
+        "detailOpen": True,
+        "scope": "all",           # all | global | <projectPath>
+        "libTarget": "",          # "" = 전역, 아니면 프로젝트 .claude
+    },
 }
 
 
@@ -49,20 +56,24 @@ def load_ui(store):
         return ui
     saved = cfg.get("ui")
     if isinstance(saved, dict):
-        for k, v in (saved.get("sections") or {}).items():
-            if k in ui["sections"]:
-                ui["sections"][k] = v
+        _merge_known(ui, saved)
     ui["sections"]["preset"] = _norm_preset(ui["sections"]["preset"])
     return ui
 
 
+def _merge_known(ui, patch):
+    """DEFAULT_UI 에 있는 블록·키만 받아들인다. 모르는 키는 저장하지 않는다."""
+    for block, keys in ui.items():
+        for k, v in ((patch or {}).get(block) or {}).items():
+            if k in keys:
+                keys[k] = v
+
+
 def save_ui(store, patch):
-    """patch 의 알려진 sections 키만 덮어쓴다. 스토어 미초기화면 StoreNotInitialized."""
+    """patch 의 알려진 sections/view 키만 덮어쓴다. 스토어 미초기화면 StoreNotInitialized."""
     cfg = lib_store.load_cfg(store)
     ui = load_ui(store)
-    for k, v in ((patch or {}).get("sections") or {}).items():
-        if k in ui["sections"]:
-            ui["sections"][k] = v
+    _merge_known(ui, patch)
     ui["sections"]["preset"] = _norm_preset(ui["sections"]["preset"])
     cfg["ui"] = ui
     lib_store.save_cfg(store, cfg)
@@ -76,7 +87,7 @@ def main():
         sp = sub.add_parser(name)
         sp.add_argument("--store", default=DEFAULT_STORE)
         if name == "set":
-            sp.add_argument("--json", required=True, help='{"sections": {...}} 패치')
+            sp.add_argument("--json", required=True, help='{"sections": {...}, "view": {...}} 패치')
     args = ap.parse_args()
 
     if args.cmd == "get":

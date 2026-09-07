@@ -25,6 +25,7 @@ import { renderCatalog } from "./ui/market";
 import { openMarketAdd, openLibAdd } from "./ui/libmarket";
 import { renderTracked } from "./ui/tracked";
 import { refreshLibrary } from "./ui/library";
+import { INSTANCE_ID, persistView } from "./ui/view";
 // ----- load / refresh -----
 function showErr(hostId: string, label: string, e: unknown): void {
   console.error(`[config-monitor] ${label}`, e);
@@ -57,7 +58,7 @@ async function refreshInner(): Promise<void> {
   $("tracked").innerHTML = `<div class="empty">${esc(t("loading"))}</div>`;
   let trackedCount = 0;
   try {
-    const trk = jparseLast(await callTool("get_tracked"));
+    const trk = jparseLast(await callTool("get_tracked", { phase: booted ? "refresh" : "boot", instance: INSTANCE_ID }));
     if (trk && trk.ok !== false) {
       trackedCount = renderTracked(trk);
       lastTrk = trk;   // 폴링의 변화 판별 기준점(재렌더 직후 상태)
@@ -67,10 +68,21 @@ async function refreshInner(): Promise<void> {
   } catch (e) {
     showErr("tracked", t("trackedStatus"), e);
   }
+  let restoreView: any = null;
   try {
     const pf = jparse(await callTool("get_prefs"));
-    if (pf && pf.ok !== false) applySectionPrefs(pf.ui);
+    if (pf && pf.ok !== false) {
+      applySectionPrefs(pf.ui);
+      // 첫 부트에서만 보던 자리를 되살린다. 이후 refresh 는 현재 화면 상태가 진실이다.
+      if (!booted && pf.ui && pf.ui.view) restoreView = pf.ui.view;
+    }
   } catch (e) { console.error("[config-monitor] prefs", e); }
+  if (restoreView) {
+    if (typeof restoreView.scope === "string") setScopeFilter(restoreView.scope);
+    if (typeof restoreView.libTarget === "string") setLibTarget(restoreView.libTarget);
+    if (typeof restoreView.detailOpen === "boolean") { setDetailOpen(restoreView.detailOpen); applyDetailState(); }
+  }
+  booted = true;
   try {
     // libProjectTargets(추적 프로젝트 .claude 경로들)는 앞선 renderTracked 에서 채워짐 -> 프로젝트 스코프 설정 포함.
     const cfg = jparse(await callTool("get_config", { projects: libProjectTargets }));
@@ -88,8 +100,13 @@ async function refreshInner(): Promise<void> {
   $("subtitle").textContent = `${t("generatedPrefix")}${trackedCount}${t("generatedMid")}${now}`;
   if (scroller) scroller.scrollTop = scrollTop;
   refreshWatcher();
+  // 되살릴 파일이 아직 추적 중일 때만 연다(추적 해제된 경로면 빈 패널 대신 그냥 지나간다).
+  if (restoreView && restoreView.selectedPath && lastTrk && bucketOf(lastTrk, restoreView.selectedPath)) {
+    void selectFile(restoreView.selectedPath);
+  }
   if (pollTimer === undefined) pollTimer = window.setInterval(pollStatus, POLL_MS);
 }
+let booted = false;
 // 선언 직후 등록한다 - 모듈 최상위라 어떤 이벤트 핸들러보다 먼저 실행된다.
 setRefreshApp(refresh);
 
@@ -195,7 +212,7 @@ async function pollStatus(): Promise<void> {
       host.querySelector(".projpicklist:not([hidden])")) return;
   pollBusy = true;
   try {
-    const trk = jparseLast(await callTool("get_tracked"));
+    const trk = jparseLast(await callTool("get_tracked", { phase: "poll", instance: INSTANCE_ID }));
     if (!trk || trk.ok === false) return;
     if (trk.watcher && !watcherBusy) renderWatcherState(trk.watcher);
     const changed = trackedCmp(trk) !== trackedCmp(lastTrk);
@@ -387,8 +404,8 @@ $("snap").addEventListener("click", async () => {
   await refresh();
   if (selectedPath) selectFile(selectedPath);
 });
-$("panel-close").addEventListener("click", () => { setDetailOpen(false); applyDetailState(); });
-$("panel-reopen").addEventListener("click", () => { setDetailOpen(true); applyDetailState(); });
+$("panel-close").addEventListener("click", () => { setDetailOpen(false); applyDetailState(); persistView(); });
+$("panel-reopen").addEventListener("click", () => { setDetailOpen(true); applyDetailState(); persistView(); });
 // 초기 상태도 마크업이 아니라 detailOpen 에서 온다 - 두 곳에 적으면 한쪽만 고쳐져 어긋난다.
 applyDetailState();
 

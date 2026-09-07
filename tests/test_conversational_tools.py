@@ -99,19 +99,31 @@ class ConversationalTools(unittest.TestCase):
 
     def test_successful_write_bumps_the_change_marker_seen_by_get_tracked(self):
         before = self.tool("get_tracked").get("change", {}).get("seq", 0)
-        r = self.tool("set_prefs", sections={"hideEmpty": True})
+        probe = os.path.join(self.store, "probe.json")
+        with open(probe, "w", encoding="utf-8") as f:
+            f.write("{}")
+        r = self.tool("config_track", path=probe)
         self.assertNotEqual(r.get("ok"), False, r)
         after = self.tool("get_tracked")["change"]
         self.assertGreater(after["seq"], before)
-        self.assertEqual(after["tool"], "set_prefs")
+        self.assertEqual(after["tool"], "config_track")
         marker = json.load(open(os.path.join(self.store, "changes.json"), encoding="utf-8-sig"))
         self.assertEqual(marker["seq"], after["seq"])
+        self.tool("config_untrack", path=probe)
 
-    def test_read_only_tool_does_not_bump_the_marker(self):
+    def test_read_only_and_ui_only_tools_do_not_bump_the_marker(self):
         a = self.tool("get_tracked").get("change", {}).get("seq", 0)
         self.tool("summarize_config")
+        self.tool("set_prefs", view={"selectedPath": "x"})
         b = self.tool("get_tracked").get("change", {}).get("seq", 0)
-        self.assertEqual(a, b)
+        self.assertEqual(a, b, "화면 옵션 저장은 다른 위젯을 다시 그리게 하지 않는다")
+
+    def test_boot_phase_is_logged_for_diagnosis(self):
+        self.tool("get_tracked", phase="boot", instance="abc123")
+        self.tool("get_tracked", phase="poll", instance="abc123")
+        log = open(os.path.join(self.store, "widget.log"), encoding="utf-8").read()
+        self.assertIn(" boot abc123", log)
+        self.assertNotIn(" poll ", log)
 
 
 if __name__ == "__main__":

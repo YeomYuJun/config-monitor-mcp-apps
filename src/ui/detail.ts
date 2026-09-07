@@ -1,6 +1,7 @@
 // src/ui/detail.ts - 오른쪽 상세 패널: 선택 파일의 스냅샷 이력과 두 버전 사이 diff, 그리고 복원.
 // 패널 열림 여부(detailOpen)는 state 가 들고 있고 여기서는 화면에 반영만 한다.
 import { t } from "./i18n";
+import { persistView } from "./view";
 import { callTool, pushCtx, jparse, jparseLast } from "./bridge";
 import { $, esc, flashToast } from "./widgets";
 import { basename } from "./helpers";
@@ -31,6 +32,7 @@ export async function selectFile(p: string): Promise<void> {
   // 선택 강조 갱신
   document.querySelectorAll(".file").forEach((el) => el.classList.remove("sel"));
   pushCtx(`[Config Monitor] 사용자가 '${p}' 의 변경 이력을 보는 중.`);
+  persistView();
   const body = $("panel-body");
   body.innerHTML = `<div class="empty">${esc(t("loading"))}</div>`;
   const h = jparseLast(await callTool("get_file_history", { path: p }));

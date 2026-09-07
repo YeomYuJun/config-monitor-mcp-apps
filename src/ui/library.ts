@@ -2,6 +2,7 @@
 // 그리고 그것들의 설치 · 동기화 · 제거. 설치 대상(전역 / 프로젝트 .claude)은 state 의 libTarget 이 정한다.
 // 등록 모달은 libmarket.ts 가 갖는다 - Marketplace 쪽과 공유하므로 여기 두면 순환이 된다.
 import { t } from "./i18n";
+import { persistView } from "./view";
 import { callTool, jparse } from "./bridge";
 import { $, esc, setPending, clearPending, openReasonModal, flashToast } from "./widgets";
 import { basename, originShort, mkSrcTag } from "./helpers";
@@ -297,7 +298,7 @@ function buildTargetBar(allItems: any[]): HTMLElement {
     `<option value="">${esc(t("targetGlobal"))}</option>` +
     libProjectTargets.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join("");
   sel.value = libTarget;
-  sel.addEventListener("change", async () => { setLibTarget(sel.value); await refreshApp?.(); });
+  sel.addEventListener("change", async () => { setLibTarget(sel.value); persistView(); await refreshApp?.(); });
   const selBtn = document.createElement("button");
   selBtn.className = "addbtn selbtn";
   const update = () => {
