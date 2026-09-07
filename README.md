@@ -246,6 +246,10 @@ Edits Claude makes are reflected in the dashboard without a manual refresh. Ever
 
 Tools that only serve the widget (`open_in_browser`, `get_prefs`, `set_prefs`) say so in their descriptions, so Claude does not reach for them when asked about configuration.
 
+A companion skill named `config-monitor` (a single `SKILL.md`, kept in the `Skills/` folder of the my-tools library) makes summoning the widget a one-liner: `/config-monitor` in Claude Code, or the same skill uploaded to Claude Desktop through Customize > Skills. It does one thing, call `show_config_monitor`, and defers every configuration question to the tools above.
+
+If the widget seems to reload on its own, the server keeps a small diagnostic log at `widget.log` in the snapshot store: one line per widget boot or full refresh with a per-instance id, so you can tell a host remount (repeated `boot` lines) from several live widgets polling at once (many different ids). Polls are not logged. The widget also remembers the file, panel state, scope filter, and library target you were looking at, and restores them after a remount.
+
 ## Coverage Map
 
 Where each file Claude reads lands in the dashboard. `→` is the section it becomes; `✗` means the dashboard deliberately leaves it alone.
