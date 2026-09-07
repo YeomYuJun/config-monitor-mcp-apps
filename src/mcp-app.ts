@@ -61,6 +61,8 @@ async function refreshInner(): Promise<void> {
     if (trk && trk.ok !== false) {
       trackedCount = renderTracked(trk);
       lastTrk = trk;   // 폴링의 변화 판별 기준점(재렌더 직후 상태)
+      // 여기서 흡수하면 이 UI 자신의 편집(도구 호출 -> refresh)은 폴링을 다시 깨우지 않는다.
+      if (trk.change && trk.change.seq !== undefined) lastChangeSeq = trk.change.seq;
     } else $("tracked").innerHTML = `<div class="empty">${esc(trk?.message || t("emptyTrackedResp"))}</div>`;
   } catch (e) {
     showErr("tracked", t("trackedStatus"), e);
@@ -162,6 +164,7 @@ const POLL_MS = 5000;
 let pollTimer: number | undefined;
 let pollBusy = false;
 let lastTrk: any = null;
+let lastChangeSeq: number | null = null;
 
 // heartbeat 는 매 틱 바뀌므로 watcher/last_snapshot 을 뺀 나머지로 변화를 판별한다.
 const trackedCmp = (trk: any): string => {
@@ -199,6 +202,15 @@ async function pollStatus(): Promise<void> {
     const snapMoved = !!lastTrk && trk.last_snapshot !== lastTrk.last_snapshot;
     const selBucketChanged = !!selectedPath && bucketOf(trk, selectedPath) !== bucketOf(lastTrk, selectedPath);
     lastTrk = trk;
+    // 다른 클라이언트(대화 중인 Claude, 다른 창)의 편집 도구 호출은 서버가 change.seq 로 알린다.
+    // 추적 파일 밖의 변화(스킬 폴더 제거 등)는 tracked 비교로는 안 보이므로 여기서 전체 refresh.
+    const seq = trk.change ? trk.change.seq : undefined;
+    if (seq !== undefined && lastChangeSeq !== null && seq !== lastChangeSeq) {
+      lastChangeSeq = seq;
+      await refresh();
+      return;
+    }
+    if (seq !== undefined) lastChangeSeq = seq;
     if (changed) {
       const scroller = document.querySelector<HTMLElement>(".left");
       const st = scroller ? scroller.scrollTop : 0;

@@ -224,3 +224,73 @@ class TestMemorySurfaces(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestConversationalViews(unittest.TestCase):
+    """대화용 축약: 필터·compact·summary. 대시보드가 받는 전체 dump 는 건드리지 않는다."""
+
+    def _state(self):
+        g = cc.card("brainstorm", [("description", "x" * 800)], badge="skill", ok=True)
+        p = cc.card("brainstorm", [("description", "proj")], badge="skill", ok=True,
+                    scope="project", project="D:/proj",
+                    edit={"kind": "skill", "skillsDir": "D:/proj/.claude/skills"})
+        q = cc.card("other", [("description", "unique-needle")], badge="skill", ok=True)
+        add = cc.card("＋ 새 스킬", [("형식", "name")], badge="add", edit={"kind": "skill-add"})
+        hooks = cc.card("PreToolUse", [("command", "python x.py")], badge="hook", ok=True)
+        plug = cc.card("Notion", [("marketplace", "official")], badge="disabled", ok=True)
+        return {"generated": "t", "sources": {}, "sections": [
+            cc._section("skills", [g, p, q, add]),
+            cc._section("hooks", [hooks]),
+            cc._section("plugins", [plug]),
+        ]}
+
+    def test_filter_by_section_scope_and_query(self):
+        st = self._state()
+        only = cc.filter_state(st, sections=["hooks"])
+        self.assertEqual([s["id"] for s in only["sections"]], ["hooks"])
+        proj = cc.filter_state(st, scope="project")["sections"][0]
+        self.assertEqual([c["name"] for c in proj["cards"]], ["brainstorm"])
+        self.assertEqual(proj["title"], "Skills (code) · 1")
+        glob = cc.filter_state(st, scope="global")["sections"][0]
+        self.assertEqual([c["name"] for c in glob["cards"]], ["brainstorm", "other"],
+                         "필터가 걸리면 입력 폼 카드는 빠져야 한다")
+        hit = cc.filter_state(st, query="NEEDLE")["sections"][0]
+        self.assertEqual([c["name"] for c in hit["cards"]], ["other"])
+
+    def test_compact_keeps_edit_and_trims_description(self):
+        sec = cc.compact_state(self._state())["sections"][0]
+        names = [c["name"] for c in sec["cards"]]
+        self.assertNotIn("＋ 새 스킬", names)
+        g = sec["cards"][0]
+        self.assertNotIn("kv", g)
+        self.assertLessEqual(len(g["desc"]), 201)
+        p = sec["cards"][1]
+        self.assertEqual(p["edit"]["skillsDir"], "D:/proj/.claude/skills",
+                         "Claude 가 편집 도구에 넘길 경로는 compact 에서도 남아야 한다")
+        self.assertEqual(p["scope"], "project")
+
+    def test_summary_counts_names_collisions_and_plugin_states(self):
+        s = cc.summarize(self._state())
+        skills = next(e for e in s["sections"] if e["id"] == "skills")
+        self.assertEqual((skills["count"], skills["global"], skills["project"]), (3, 2, 1))
+        self.assertEqual(skills["names"], ["brainstorm", "brainstorm", "other"])
+        self.assertEqual(skills["title"], "Skills (code)")
+        self.assertEqual(skills["load"], "eager")
+        self.assertEqual(s["collisions"], [
+            {"section": "skills", "name": "brainstorm", "projects": ["D:/proj"], "wins": "global"}])
+        self.assertEqual(s["plugins"], {"disabled": 1})
+
+    def test_dump_cli_accepts_filters_and_summary_subcommand(self):
+        import subprocess
+        cfg = os.path.join(SRC, "claude_config.py")
+        env = dict(os.environ, PYTHONUTF8="1")
+        out = subprocess.run([sys.executable, cfg, "dump", "--sections", "hooks", "--compact"],
+                             capture_output=True, env=env, timeout=60)
+        self.assertEqual(out.returncode, 0, out.stderr.decode("utf-8", "replace")[-300:])
+        d = json.loads(out.stdout.decode("utf-8"))
+        self.assertEqual([s["id"] for s in d["sections"]], ["hooks"])
+        out = subprocess.run([sys.executable, cfg, "summary"], capture_output=True, env=env, timeout=60)
+        self.assertEqual(out.returncode, 0, out.stderr.decode("utf-8", "replace")[-300:])
+        d = json.loads(out.stdout.decode("utf-8"))
+        self.assertIn("collisions", d)
+        self.assertTrue(all("names" in e for e in d["sections"]))

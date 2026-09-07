@@ -985,6 +985,123 @@ def parse(found, project_dirs=None):
         _append_project_cards(state["sections"], project_dirs, chain)
     return state
 
+# --- 대화용 축약(필터 · compact · summary) -----------------------------------
+# 전체 dump 는 이 PC 에서 200KB 를 넘는다. 대시보드는 그걸 한 번 받아 그리지만, 대화에서
+# Claude 가 "hooks 뭐 있어" 에 답하려고 전부를 받으면 컨텍스트가 그 질문 하나로 찬다.
+# 필터는 섹션·스코프·이름 세 축이고, compact 는 카드에서 UI 전용 폼과 긴 kv 를 뺀다.
+
+def _card_text(c):
+    parts = [c.get("name", ""), c.get("badge") or "", c.get("project") or "", c.get("plugin") or ""]
+    parts += [str(v) for _, v in c.get("kv", [])]
+    return " ".join(str(p) for p in parts).lower()
+
+
+def filter_state(state, sections=None, scope=None, query=None):
+    """sections=섹션 id 목록, scope=global|project, query=이름·값 부분일치(대소문자 무시).
+    필터가 하나라도 걸리면 '＋ 새 …' 폼 카드는 뺀다 - 항목을 묻는 질문에 입력 폼은 답이 아니다."""
+    q = (query or "").strip().lower()
+    out = dict(state)
+    out["sections"] = []
+    for sec in state["sections"]:
+        if sections and sec["id"] not in sections:
+            continue
+        cards = sec["cards"]
+        if scope or q:
+            cards = [c for c in cards if not _is_add_card(c)]
+        if scope == "global":
+            cards = [c for c in cards if c.get("scope") != "project"]
+        elif scope == "project":
+            cards = [c for c in cards if c.get("scope") == "project"]
+        if q:
+            cards = [c for c in cards if q in _card_text(c)]
+        sec = dict(sec, cards=cards)
+        if sec["id"] in SECTIONS:
+            _recount(sec)
+        out["sections"].append(sec)
+    return out
+
+
+_COMPACT_KEEP = ("name", "badge", "scope", "project", "source", "plugin", "builtin", "load", "edit")
+
+
+def compact_state(state):
+    """카드를 식별·조작에 필요한 필드만으로 줄인다. edit 는 남긴다 - Claude 가 편집 도구에
+    넘길 settings/dir 경로가 거기 있다. 서술은 첫 설명 키 하나를 200자로 자른다."""
+    out = dict(state)
+    out["sections"] = []
+    for sec in state["sections"]:
+        cards = []
+        for c in sec["cards"]:
+            if _is_add_card(c):
+                continue
+            n = {k: c[k] for k in _COMPACT_KEEP if k in c and c[k] not in (None, False, "")}
+            for k, v in c.get("kv", []):
+                if str(k).lower() in DESC_KEYS and v:
+                    n["desc"] = _short(v, 200)
+                    break
+            cards.append(n)
+        sec = dict(sec, cards=cards)
+        if sec["id"] in SECTIONS:
+            _recount(sec)
+        out["sections"].append(sec)
+    return out
+
+
+# 같은 이름이 전역과 프로젝트에 함께 있을 때 실제로 적용되는 쪽. UI 의 배지 규칙과 같다:
+# 에이전트·커맨드는 프로젝트가, 스킬은 전역(개인)이 이긴다.
+_COLLISION_WINNER = {"skills": "global", "agents": "project", "commands": "project"}
+
+
+def summarize(state):
+    """섹션별 개수·적재등급·이름 목록과 이름 충돌·플러그인 상태만 담은 개요.
+    상세는 filter_state 로 내려간다(2단 구조)."""
+    secs = []
+    collisions = []
+    plugin_states = {}
+    for sec in state["sections"]:
+        cards = [c for c in sec["cards"] if not _is_add_card(c)]
+        reg = SECTIONS.get(sec["id"])
+        glob_names, proj_names = {}, {}
+        n_plugin = n_builtin = 0
+        for c in cards:
+            if c.get("plugin"):
+                n_plugin += 1
+            if c.get("builtin"):
+                n_builtin += 1
+            if c.get("scope") == "project":
+                proj_names.setdefault(c["name"], []).append(c.get("project") or "")
+            else:
+                glob_names.setdefault(c["name"], True)
+        entry = {
+            "id": sec["id"],
+            "title": reg.title if reg else sec["title"].split(" · ")[0],
+            "group": sec.get("group"),
+            "load": sec.get("load"),
+            "count": len(cards),
+            "global": sum(1 for c in cards if c.get("scope") != "project"),
+            "project": sum(1 for c in cards if c.get("scope") == "project"),
+            "names": [c["name"] for c in cards],
+        }
+        if n_plugin:
+            entry["plugin"] = n_plugin
+        if n_builtin:
+            entry["builtin"] = n_builtin
+        if sec.get("note"):
+            entry["note"] = sec["note"]
+        secs.append(entry)
+        if sec["id"] in _COLLISION_WINNER:
+            for name, projs in proj_names.items():
+                if name in glob_names:
+                    collisions.append({"section": sec["id"], "name": name, "projects": projs,
+                                       "wins": _COLLISION_WINNER[sec["id"]]})
+        if sec["id"] == "plugins":
+            for c in cards:
+                b = c.get("badge") or "?"
+                plugin_states[b] = plugin_states.get(b, 0) + 1
+    return {"generated": state["generated"], "sources": state.get("sources", {}),
+            "sections": secs, "collisions": collisions, "plugins": plugin_states}
+
+
 def list_projects(found):
     """~/.claude.json 의 projects 맵을 {path, name, claude_dir, has_claude} 리스트로.
     has_claude=True 는 <path>/.claude 가 실제 디렉토리로 존재(=경로 자체도 존재). UI 가
@@ -1016,12 +1133,17 @@ def list_projects(found):
 def main():
     ap = argparse.ArgumentParser(prog="claude_config", description="Claude 설정 introspection")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    for name in ("discover", "dump", "projects"):
+    for name in ("discover", "dump", "summary", "projects"):
         sp = sub.add_parser(name)
         sp.add_argument("--paths", nargs="*", help="key=path 로 후보 직접 지정")
-        if name == "dump":
+        if name in ("dump", "summary"):
             sp.add_argument("--projects", nargs="*", default=None,
                             help="프로젝트 .claude 디렉토리들 - 각각의 permissions/hooks/skills/agents 를 프로젝트 항목으로 추가")
+        if name == "dump":
+            sp.add_argument("--sections", nargs="*", default=None, help="이 섹션 id 들만")
+            sp.add_argument("--scope", choices=("global", "project"), default=None)
+            sp.add_argument("--query", default=None, help="이름·값 부분일치(대소문자 무시)")
+            sp.add_argument("--compact", action="store_true", help="카드를 식별 필드+짧은 설명으로 축약")
     args = ap.parse_args()
     found = discover(getattr(args, "paths", None))
     projects = getattr(args, "projects", None)
@@ -1031,8 +1153,15 @@ def main():
     elif args.cmd == "projects":
         # MCP structuredContent 는 객체여야 함(배열 금지) -> {projects:[...]} 로 감쌈.
         print(json.dumps({"projects": list_projects(found)}, ensure_ascii=False, indent=2))
+    elif args.cmd == "summary":
+        print(json.dumps(summarize(parse(found, projects)), ensure_ascii=False, indent=2))
     elif args.cmd == "dump":
-        print(json.dumps(parse(found, projects), ensure_ascii=False, indent=2))
+        state = parse(found, projects)
+        if args.sections or args.scope or args.query:
+            state = filter_state(state, args.sections, args.scope, args.query)
+        if args.compact:
+            state = compact_state(state)
+        print(json.dumps(state, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":

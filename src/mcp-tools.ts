@@ -88,20 +88,140 @@ export function buildTools(scriptDir: string): ToolDef[] {
     }
   };
 
-  return [
+  // 추적 중인 프로젝트 .claude 디렉토리(전역 기본 추적분 제외). 대시보드가 get_tracked 로 같은
+  // 목록을 만들어 넘기던 것을 서버가 스스로 구해, 대화에서 projects 를 몰라도 되게 한다.
+  const trackedProjectDirs = async (): Promise<string[]> => {
+    try {
+      const st = JSON.parse((await runPy("cas.py", ["status", "--json"])).trim().split("\n").pop() || "{}");
+      const defaults = new Set<string>(st.defaults || []);
+      const out: string[] = [];
+      for (const k of ["modified", "new", "unchanged"]) {
+        for (const p of st[k] || []) {
+          if (defaults.has(p)) continue;
+          const d = path.dirname(p);
+          if (path.basename(d).toLowerCase() === ".claude" && !out.includes(d)) out.push(d);
+        }
+      }
+      return out;
+    } catch { return []; }
+  };
+
+  // 편집 도구가 project(이름 또는 경로)만 받아도 되게 .claude 디렉토리로 푼다. 후보는 추적 중인
+  // 프로젝트와 ~/.claude.json 의 projects. 이름은 폴더 마지막 세그먼트를 대소문자 무시로 맞춘다.
+  const resolveProject = async (ref: string): Promise<{ dir?: string; error?: string; candidates?: string[] }> => {
+    const norm = (p: string) => p.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+    const dirs = new Set<string>(await trackedProjectDirs());
+    try {
+      const pj = JSON.parse(await runPy("claude_config.py", ["projects"]));
+      for (const p of pj.projects || []) if (p.has_claude) dirs.add(p.claude_dir);
+    } catch { /* projects 목록이 없어도 추적분만으로 푼다 */ }
+    const all = [...dirs];
+    const r = norm(ref);
+    const byPath = all.filter((d) => norm(d) === r || norm(d) === r + "/.claude");
+    if (byPath.length) return { dir: byPath[0] };
+    const byName = all.filter((d) => path.basename(path.dirname(d)).toLowerCase() === r);
+    if (byName.length === 1) return { dir: byName[0] };
+    if (byName.length > 1) return { error: `프로젝트 이름 '${ref}' 이 여러 개에 해당합니다. 경로로 지정해 주세요`, candidates: byName };
+    return { error: `프로젝트 '${ref}' 을 찾을 수 없습니다(추적 중이거나 ~/.claude.json 에 있는 프로젝트만 가능)`, candidates: all };
+  };
+
+  // 마지막 편집 도구 호출 표식. 파일에 두는 이유: Desktop 위젯과 대화 중인 Claude 가 서로 다른
+  // 서버 프로세스를 쓸 수 있어(Cowork 별도 인스턴스 등) 메모리 카운터로는 서로를 못 본다.
+  const CHANGE_FILE = path.join(STORE, "changes.json");
+  const readChange = async (): Promise<{ seq: number; tool?: string; at?: string }> => {
+    try { return JSON.parse(await fs.readFile(CHANGE_FILE, "utf-8")); } catch { return { seq: 0 }; }
+  };
+  const bumpChange = async (tool: string): Promise<void> => {
+    try {
+      const prev = await readChange();
+      await fs.mkdir(STORE, { recursive: true });
+      await fs.writeFile(CHANGE_FILE, JSON.stringify({ seq: Math.max(Date.now(), prev.seq + 1), tool, at: new Date().toISOString() }));
+    } catch { /* 표식 실패는 편집 결과를 바꾸지 않는다 */ }
+  };
+
+  // project 인자를 받는 편집 도구와, 풀린 .claude 디렉토리를 채워 넣을 필드.
+  const PROJECT_FIELDS: Record<string, [string, string]> = {
+    config_perm_add: ["settings", "settings.json"], config_perm_remove: ["settings", "settings.json"],
+    config_hook_add: ["settings", "settings.json"], config_hook_remove: ["settings", "settings.json"],
+    config_outputstyle_set: ["settings", "settings.json"], config_plugin_toggle: ["settings", "settings.json"],
+    skill_scaffold: ["skillsDir", "skills"], config_skill_remove: ["skillsDir", "skills"],
+    config_agent_add: ["agentsDir", "agents"], config_agent_remove: ["agentsDir", "agents"],
+    config_item_add: ["dir", "*item"], config_item_remove: ["dir", "*item"],
+  };
+  const ITEM_DIRS: Record<string, string> = { rule: "rules", "output-style": "output-styles", workflow: "workflows" };
+  const NO_SIGNAL = new Set(["open_in_browser", "watcher_start", "watcher_stop"]);
+
+  // 두 가지 공통 처리를 도구 정의 밖에서 한 번에 건다:
+  //  1) project -> 경로 해석(PROJECT_FIELDS 에 있는 도구만; 명시한 경로 인자가 있으면 그것이 우선)
+  //  2) 읽기 전용이 아닌 도구가 성공하면 변경 표식을 올려 열려 있는 대시보드가 다시 그리게 한다.
+  const decorate = (d: ToolDef): ToolDef => {
+    const pf = PROJECT_FIELDS[d.name];
+    const meta = pf ? {
+      ...d.meta,
+      inputSchema: d.meta.inputSchema.extend({
+        project: z.string().optional().describe("대상 프로젝트(폴더 이름 또는 경로). 지정하면 그 프로젝트의 .claude 를 대상으로 하고 경로 인자를 대신 채운다. 생략 시 전역"),
+      }),
+    } : d.meta;
+    const run = async (a: any) => {
+      if (pf && a?.project) {
+        const [field, sub] = pf;
+        const r = await resolveProject(String(a.project));
+        if (!r.dir) return jsonResult(JSON.stringify({ ok: false, message: r.error, candidates: r.candidates }));
+        const subdir = sub === "*item" ? (ITEM_DIRS[a.itemKind] || a.itemKind) : sub;
+        a = { ...a, [field]: a[field] || path.join(r.dir, subdir) };
+        delete a.project;
+      }
+      const res = await d.run(a);
+      if (!d.meta.annotations.readOnlyHint && !NO_SIGNAL.has(d.name)) {
+        const ok = (res.structuredContent as any)?.ok;
+        if (ok !== false) await bumpChange(d.name);
+      }
+      return res;
+    };
+    return { ...d, meta, run };
+  };
+
+  const defs: ToolDef[] = [
     // ----- 읽기 -----
     {
       name: "get_config",
       meta: {
         title: "Get Claude Config",
-        description: "Claude 설정(MCP/hooks/skills/agents/scheduled/permissions/desktop-skills)을 정규화된 sections JSON 으로 반환. projects 지정 시 각 프로젝트 .claude 의 permissions/hooks/skills/agents 를 프로젝트 항목으로 함께 반환",
+        description: "Claude 설정 항목의 상세(카드 단위). 대화에서는 먼저 summarize_config 로 개요를 보고, 여기서는 sections/scope/query 로 범위를 좁히고 compact=true 로 받는다 - 전체 dump 는 200KB 를 넘는다. " +
+          "각 카드의 edit 에 편집 도구가 받는 경로(settings/skillsDir/dir 등)가 들어 있다. projects 를 생략하면 추적 중인 프로젝트를 자동으로 포함한다",
         inputSchema: z.object({
-          projects: z.array(z.string()).optional().describe("프로젝트 .claude 디렉토리들(추적 중인 프로젝트). 각 항목의 설정을 프로젝트 스코프로 추가"),
+          projects: z.array(z.string()).optional().describe("프로젝트 .claude 디렉토리들. 생략 시 추적 중인 프로젝트 전부"),
+          sections: z.array(z.string()).optional().describe("섹션 id 목록(예: hooks, perm, skills, agents, mcp-desktop, claude-json, plugins). summarize_config 의 id 와 같다"),
+          scope: z.enum(["global", "project"]).optional().describe("global=전역(~/.claude · Desktop)만, project=프로젝트 .claude 항목만"),
+          query: z.string().optional().describe("이름·값 부분일치(대소문자 무시)"),
+          compact: z.boolean().optional().describe("true 면 카드를 이름·배지·스코프·edit·짧은 설명으로 축약. 대화에서는 기본으로 켠다"),
+        }), annotations: READ,
+      },
+      run: async (a: { projects?: string[]; sections?: string[]; scope?: string; query?: string; compact?: boolean }) => {
+        const args = ["dump"];
+        const projects = a.projects ?? await trackedProjectDirs();
+        if (projects.length) args.push("--projects", ...projects);
+        if (a.sections && a.sections.length) args.push("--sections", ...a.sections);
+        if (a.scope) args.push("--scope", a.scope);
+        if (a.query) args.push("--query", a.query);
+        if (a.compact) args.push("--compact");
+        return jsonResult(await runPy("claude_config.py", args));
+      },
+    },
+    {
+      name: "summarize_config",
+      meta: {
+        title: "Summarize Claude Config",
+        description: "현재 Claude 설정의 개요: 섹션별 개수·적재등급(eager/lazy/never)·전역/프로젝트 분포·이름 목록, 전역-프로젝트 이름 충돌(어느 쪽이 적용되는지), 플러그인 상태 분포. " +
+          "설정을 분석·정리·불필요 항목 제거를 논의할 때 이걸 먼저 부르고, 특정 항목은 get_config(sections=[...], compact=true) 로 내려간다. 파일은 읽지 않고 상태만 요약한다",
+        inputSchema: z.object({
+          projects: z.array(z.string()).optional().describe("프로젝트 .claude 디렉토리들. 생략 시 추적 중인 프로젝트 전부"),
         }), annotations: READ,
       },
       run: async (a: { projects?: string[] }) => {
-        const args = ["dump"];
-        if (a.projects && a.projects.length) args.push("--projects", ...a.projects);
+        const args = ["summary"];
+        const projects = a.projects ?? await trackedProjectDirs();
+        if (projects.length) args.push("--projects", ...projects);
         return jsonResult(await runPy("claude_config.py", args));
       },
     },
@@ -109,7 +229,7 @@ export function buildTools(scriptDir: string): ToolDef[] {
       name: "get_prefs",
       meta: {
         title: "Get Dashboard Preferences",
-        description: "대시보드 표시 설정(섹션 프리셋/숨김 목록/빈 섹션 처리) JSON. 스토어가 없으면 기본값",
+        description: "[UI 전용] 대시보드 표시 설정(섹션 프리셋/숨김 목록/빈 섹션 처리) JSON. 설정 내용과 무관한 화면 옵션이다",
         inputSchema: z.object({}), annotations: READ,
       },
       run: async () => jsonResult(await runPy("prefs.py", ["get", "--store", STORE])),
@@ -118,7 +238,7 @@ export function buildTools(scriptDir: string): ToolDef[] {
       name: "set_prefs",
       meta: {
         title: "Set Dashboard Preferences",
-        description: "대시보드 표시 설정을 저장. 스토어 미초기화면 ok:false 와 사유를 반환(조용히 성공하지 않음)",
+        description: "[UI 전용] 대시보드 표시 설정을 저장. 스토어 미초기화면 ok:false 와 사유를 반환(조용히 성공하지 않음)",
         inputSchema: z.object({
           sections: z.object({
             preset: z.enum(["all", "common", "custom"]).optional(),
@@ -137,10 +257,18 @@ export function buildTools(scriptDir: string): ToolDef[] {
       name: "get_tracked",
       meta: {
         title: "Get Tracked File Status",
-        description: "스냅샷 추적 파일들의 변경 상태(new/modified/deleted/unchanged) JSON",
+        description: "스냅샷 추적 파일들의 변경 상태(new/modified/deleted/unchanged)와 watcher 상태, 마지막 편집 도구 호출(change.seq). 어떤 설정 파일이 스냅샷 대비 바뀌었는지 볼 때",
         inputSchema: z.object({}), annotations: READ,
       },
-      run: async () => jsonResult(await runPy("cas.py", ["status", "--json"])),
+      run: async () => {
+        const raw = await runPy("cas.py", ["status", "--json"]);
+        // 대시보드 폴링이 이 한 호출로 다른 클라이언트의 편집까지 알아야 한다(호출 하나 = 프로세스 하나).
+        try {
+          const st = JSON.parse(raw.trim().split("\n").pop() || "");
+          st.change = await readChange();
+          return jsonResult(JSON.stringify(st));
+        } catch { return jsonResult(raw); }
+      },
     },
     {
       name: "config_track",
@@ -385,14 +513,16 @@ export function buildTools(scriptDir: string): ToolDef[] {
       name: "skill_scaffold",
       meta: {
         title: "Scaffold Code Skill",
-        description: "~/.claude/skills/<name>/SKILL.md 스캐폴드 생성",
+        description: "스킬 생성: <skills>/<name>/SKILL.md. content 를 주면 그대로 설치, 없으면 desc 로 스텁. 기본 ~/.claude/skills, skillsDir 또는 project 로 프로젝트 대상",
         inputSchema: z.object({
           name: z.string(), desc: z.string().optional(),
           content: z.string().optional().describe("SKILL.md 전체 내용(frontmatter 포함). 지정 시 스텁 대신 그대로 설치"),
+          skillsDir: z.string().optional().describe("대상 skills 디렉토리(<프로젝트>/.claude/skills). 생략 시 전역"),
         }), annotations: EDIT,
       },
-      run: async (a: { name: string; desc?: string; content?: string }) => {
-        const args = ["skill-scaffold", a.name];
+      run: async (a: { name: string; desc?: string; content?: string; skillsDir?: string }) => {
+        const args = a.skillsDir ? ["--skills-dir", a.skillsDir] : [];
+        args.push("skill-scaffold", a.name);
         if (a.desc) args.push("--desc", a.desc);
         if (a.content) args.push("--content", a.content);
         return jsonResult(await runPy("config_edit.py", args));
@@ -420,15 +550,17 @@ export function buildTools(scriptDir: string): ToolDef[] {
       name: "config_agent_add",
       meta: {
         title: "Scaffold Agent",
-        description: "~/.claude/agents/<name>.md 에이전트 생성. content 로 전체 정의(frontmatter 포함) 설치 가능, 없으면 desc/tools/model 스캐폴드",
+        description: "에이전트 생성: <agents>/<name>.md. content 로 전체 정의(frontmatter 포함) 설치 가능, 없으면 desc/tools/model 스캐폴드. 기본 ~/.claude/agents, agentsDir 또는 project 로 프로젝트 대상",
         inputSchema: z.object({
           name: z.string(), desc: z.string().optional(),
           tools: z.string().optional(), model: z.string().optional(),
           content: z.string().optional().describe("에이전트 md 전체 내용(frontmatter 포함). 지정 시 desc/tools/model 무시"),
+          agentsDir: z.string().optional().describe("대상 agents 디렉토리(<프로젝트>/.claude/agents). 생략 시 전역"),
         }), annotations: EDIT,
       },
-      run: async (a: { name: string; desc?: string; tools?: string; model?: string; content?: string }) => {
-        const args = ["agent-scaffold", a.name];
+      run: async (a: { name: string; desc?: string; tools?: string; model?: string; content?: string; agentsDir?: string }) => {
+        const args = a.agentsDir ? ["--agents-dir", a.agentsDir] : [];
+        args.push("agent-scaffold", a.name);
         if (a.desc) args.push("--desc", a.desc);
         if (a.tools) args.push("--tools", a.tools);
         if (a.model) args.push("--model", a.model);
@@ -996,6 +1128,7 @@ export function buildTools(scriptDir: string): ToolDef[] {
       },
     },
   ];
+  return defs.map(decorate);
 
   // 실행 중인 watcher 프로세스를 모두 종료(좀비/중복 정리).
   // watcher.py(python) 가 대상. 구버전 watcher.ps1 상주분도 함께 정리한다.
