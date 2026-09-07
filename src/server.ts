@@ -10,13 +10,10 @@ import express from "express";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import fs from "node:fs/promises";
-import { registerAll, buildTools, langScript } from "./mcp-tools.ts";
+import { autoStartWatcher, registerAll, buildTools, langScript } from "./mcp-tools.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3002);
-
-const server = new McpServer({ name: "config-monitor", version: "0.1.0" });
-registerAll(server, __dirname);
 
 // REST 용 도구 맵 (MCP 와 동일 핸들러)
 const toolMap = Object.fromEntries(buildTools(__dirname).map((d) => [d.name, d.run]));
@@ -85,11 +82,15 @@ app.post("/api/tool/:name", async (req, res) => {
 });
 
 app.post("/mcp", async (req, res) => {
+  // stateless 패턴: 요청마다 server+transport 신규. 서버 인스턴스 하나를 재사용하면
+  // connect 가 내부 transport 를 덮어써 동시 요청의 응답이 뒤바뀌거나 유실될 수 있다.
+  const server = new McpServer({ name: "config-monitor", version: "0.1.0" });
+  registerAll(server, __dirname);
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
   });
-  res.on("close", () => transport.close());
+  res.on("close", () => { transport.close(); server.close(); });
   await server.connect(transport);
   await transport.handleRequest(req, res, req.body);
 });
@@ -99,4 +100,5 @@ app.post("/mcp", async (req, res) => {
 // 브라우저 오리진은 이걸로 못 막는다 - 그건 위의 Host/Origin 게이트가 맡는다.
 app.listen(PORT, "127.0.0.1", () => {
   console.error(`[config-monitor] HTTP at http://127.0.0.1:${PORT}/ (dashboard) · /mcp · /api/tool/:name`);
+  void autoStartWatcher(__dirname);   // CONFIG_MONITOR_WATCHER=auto 일 때만(기본 no-op)
 });

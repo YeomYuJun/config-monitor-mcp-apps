@@ -450,5 +450,19 @@ class ClaudeCliDelegation(unittest.TestCase):
         self.assertFalse(r["available"])
 
 
+class TestHookRefsRootBoundary(unittest.TestCase):
+    """경계 없는 부분문자열 매칭은 plugins/foo 가 plugins/foo-bar 의 hook 까지 지운다."""
+
+    def test_sibling_prefix_root_does_not_match(self):
+        h = {"command": r"node D:\store\m\plugins\foo-bar\h.js"}
+        self.assertFalse(plugin_units.hook_refs_root(h, r"D:\store\m\plugins\foo"))
+        self.assertTrue(plugin_units.hook_refs_root(h, r"D:\store\m\plugins\foo-bar"))
+
+    def test_quote_space_and_end_boundaries_still_match(self):
+        self.assertTrue(plugin_units.hook_refs_root(
+            {"command": 'node "D:\\x\\foo" --flag'}, "D:\\x\\foo"))
+        self.assertTrue(plugin_units.hook_refs_root({"command": "cd D:\\x\\foo"}, "D:\\x\\foo"))
+
+
 if __name__ == "__main__":
     unittest.main()

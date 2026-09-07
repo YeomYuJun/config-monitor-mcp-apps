@@ -34,7 +34,7 @@ ops:
 파괴적 삭제는 없다: JSON 편집은 스냅샷+.bak+atomic, 파일/디렉토리 삭제는 .trash 이동.
 """
 from __future__ import annotations
-import argparse, json, os, shutil, subprocess, sys, time
+import argparse, contextlib, json, os, shutil, sys, time
 
 # Windows 콘솔 기본 인코딩(cp949)에서 한글/em-dash 출력 시 UnicodeEncodeError 방지.
 for _s in (sys.stdout, sys.stderr):
@@ -44,11 +44,46 @@ for _s in (sys.stdout, sys.stderr):
         pass
 
 import paths  # read(claude_config.py) 와 동일한 해석기로 Desktop config 경로를 잡는다
+import cas    # 스냅샷은 in-process 로 찍는다(락을 편집 전후로 걸쳐 쥐기 위해 - snapshot_before 주석)
 
 HOME = os.path.expanduser("~")
 DEFAULT_SETTINGS = os.path.join(HOME, ".claude", "settings.json")
 DEFAULT_SKILLS = os.path.join(HOME, ".claude", "skills")
 DEFAULT_AGENTS = os.path.join(HOME, ".claude", "agents")
+
+# 단일 파일 항목(하위 디렉토리, 확장자). skills 는 디렉토리형이라 여기 없다 - 이쪽은 파일 하나가
+# 항목 하나라서 scaffold/remove 한 쌍이 세 종류를 다 덮는다.
+ITEM_KINDS = {
+    "rule":         ("rules", ".md"),
+    "output-style": ("output-styles", ".md"),
+    "workflow":     ("workflows", ".js"),
+}
+
+
+def item_stub(kind, name, desc, paths=""):
+    """workflow 는 meta 블록이 없으면 실행되지 않으므로 스텁도 그 형태를 지켜야 한다.
+    rule 의 paths: 는 적재 등급을 EAGER 에서 LAZY 로 바꾼다(빈 값이면 넣지 않는다)."""
+    if kind == "workflow":
+        return (f"export const meta = {{\n"
+                f"  name: '{name}',\n"
+                f"  description: '{desc}',\n"
+                f"  phases: [{{ title: 'Work' }}],\n"
+                f"}}\n\nphase('Work')\n")
+    fm = [f"name: {name}", f"description: {desc}"]
+    if kind == "rule" and paths:
+        fm.append(f"paths:\n  - {paths}")
+    return "---\n" + "\n".join(fm) + f"\n---\n\n# {name}\n\n작성 중.\n"
+
+
+def _safe_memory_dir(d):
+    """--memory-dir 검증: <...>/projects/<encoded>/memory 형태만 허용.
+    메모리는 .claude/<sub> 형태가 아니라 _safe_config_dir 을 못 쓴다. 가드 없이 두면
+    도구 파라미터로 들어온 임의 경로가 trash() 까지 도달한다."""
+    n = os.path.normpath(d)
+    nc = os.path.normcase
+    if nc(os.path.basename(n)) != nc("memory") or        nc(os.path.basename(os.path.dirname(os.path.dirname(n)))) != nc("projects"):
+        out(False, f"메모리 디렉토리가 유효하지 않음(<...>/projects/<name>/memory 형태만 허용): '{d}'")
+    return n
 DEFAULT_CLAUDE_JSON = os.path.join(HOME, ".claude.json")
 # Win32(%APPDATA%\Claude) vs MSIX/Store(...\Packages\Claude_*\LocalCache\Roaming\Claude)
 # 를 프로브해 실제 파일을 대상으로 삼는다. --desktop-config 로 명시 오버라이드 가능.
@@ -89,25 +124,82 @@ def backup(path):
     return None
 
 def save_atomic(path, data):
+    """JSON 직렬화 + 원자 교체. 개행은 기존 파일의 방식(CRLF/LF)을 따라 bytes 로 쓴다.
+    텍스트 모드면 Windows 가 \\n 을 \\r\\n 으로 바꿔 LF 파일(Claude Code 가 쓰는 형식)
+    전체가 뒤집히고, 이후 diff 가 전량 삭제+추가로 보인다. 새 파일은 LF."""
     os.makedirs(os.path.dirname(path), exist_ok=True)
+    text = json.dumps(data, ensure_ascii=False, indent=2)
+    try:
+        with open(path, "rb") as f:
+            crlf = b"\r\n" in f.read()
+    except OSError:
+        crlf = False
+    if crlf:
+        text = text.replace("\n", "\r\n")
     tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    with open(tmp, "wb") as f:
+        f.write(text.encode("utf-8"))
     with open(tmp, encoding="utf-8") as f:  # 검증
         json.load(f)
     os.replace(tmp, path)
 
+def _store_p(store):
+    return cas.store_paths(store or cas.DEFAULT_STORE)
+
+# snapshot_before 가 잡은 스냅샷 락을 snapshot_after 까지 들고 가는 스팬 상태.
+_snap_span = {"lock": None, "p": None}
+
+def _release_span():
+    lock = _snap_span["lock"]
+    _snap_span["lock"] = _snap_span["p"] = None
+    if lock is not None:
+        with contextlib.suppress(Exception):
+            lock.__exit__(None, None, None)
+
 def snapshot_before(store):
-    """cas.py 스냅샷 시도(있으면). 실패는 무시(편집 자체는 진행)."""
+    """편집 직전: 아직 스냅샷 안 된 변경(대시보드 밖 편집)을 롤백 지점으로 보존하고,
+    스냅샷 락을 잡은 채 유지한다. 락은 snapshot_after 가 op 스냅샷을 찍은 뒤 푼다 -
+    풀어 두면 파일 쓰기와 op 스냅샷 사이에 watcher tick 이 먼저 찍어 편집 결과가
+    'auto:' 메시지로 기록되고, 리비전에 작업 이름이 남지 않는다(경합 가드).
+    실패는 무시(편집 자체는 진행)."""
     try:
-        env = dict(os.environ)
-        if store:
-            env["CLAUDE_SNAPSHOT_STORE"] = store
-        subprocess.run([sys.executable, os.path.join(HERE, "cas.py"), "snapshot",
-                        "-m", "before config edit"], cwd=HERE, env=env,
-                       capture_output=True, timeout=30)
+        if _snap_span["p"] is not None:          # 이미 스팬 안 - 드리프트만 추가 캡처
+            cas._take_snapshot_locked(_snap_span["p"], "external change (before edit)")
+            return
+        p = _store_p(store)
+        lock = cas._snapshot_lock(p)
+        lock.__enter__()
+        _snap_span["lock"], _snap_span["p"] = lock, p
+        cas._take_snapshot_locked(p, "external change (before edit)")
+    except Exception:
+        _release_span()
+
+def snapshot_once(store, message):
+    """단발 스냅샷(락을 스팬으로 유지하지 않는다). 오래 걸리는 위임 작업(claude CLI 등)의
+    전/후 캡처용 - 스팬을 쓰면 60초 뒤 죽은 락으로 판정돼 회수된다(cas.LOCK_STALE_SEC).
+    실패는 무시(작업 자체는 진행)."""
+    try:
+        p = _store_p(store)
+        with cas._snapshot_lock(p):
+            cas._take_snapshot_locked(p, message)
     except Exception:
         pass
+
+def snapshot_after(store, message):
+    """편집 직후: 이 편집의 결과를 op 메시지로 스냅샷 후 락 해제. 전에는 pre-스냅샷만
+    있어서 리비전 N 의 diff 가 N-1 편집 내용을 보여주는 오프바이원 귀속이 났다.
+    snapshot_before 가 실패했으면 단독 락으로라도 찍는다."""
+    try:
+        if _snap_span["p"] is not None:
+            cas._take_snapshot_locked(_snap_span["p"], message)
+        else:
+            p = _store_p(store)
+            with cas._snapshot_lock(p):
+                cas._take_snapshot_locked(p, message)
+    except Exception:
+        pass
+    finally:
+        _release_span()
 
 def trash(path):
     """rmtree 대신 형제 .trash/<name>.<ts> 로 이동 — 디렉토리 삭제도 복구 가능하게."""
@@ -129,6 +221,8 @@ def edit_json_file(path, mutate, no_snapshot, store):
         snapshot_before(store)
     bak = backup(path)
     save_atomic(path, data)
+    if not no_snapshot:
+        snapshot_after(store, msg)
     out(True, msg, changed=True, file=path, backup=bak)
 
 # ── ops (settings 딕셔너리를 받아 (settings, msg) 반환) ──
@@ -254,6 +348,8 @@ def main():
     ap.add_argument("--settings", default=DEFAULT_SETTINGS)
     ap.add_argument("--skills-dir", default=DEFAULT_SKILLS)
     ap.add_argument("--agents-dir", default=DEFAULT_AGENTS)
+    ap.add_argument("--items-dir", default=None, help="item-* 대상 디렉토리(<...>/.claude/<sub>). 미지정 시 전역")
+    ap.add_argument("--memory-dir", default=None, help="memory-remove 대상(<...>/projects/<name>/memory)")
     ap.add_argument("--claude-json", default=DEFAULT_CLAUDE_JSON)
     ap.add_argument("--desktop-config", default=DEFAULT_DESKTOP_CONFIG)
     ap.add_argument("--store", default=os.environ.get("CLAUDE_SNAPSHOT_STORE"))
@@ -271,6 +367,12 @@ def main():
     p.add_argument("--tools", default=""); p.add_argument("--model", default="")
     p.add_argument("--content", default=None, help="에이전트 md 전체 내용(frontmatter 포함). 지정 시 desc/tools/model 무시")
     p = sub.add_parser("agent-remove");   p.add_argument("name")
+    p = sub.add_parser("item-scaffold"); p.add_argument("kind", choices=list(ITEM_KINDS)); p.add_argument("name")
+    p.add_argument("--desc", default="TODO"); p.add_argument("--paths", default="", help="rule 전용: 지정하면 LAZY 가 된다")
+    p.add_argument("--content", default=None, help="파일 전체 내용. 지정 시 스텁 대신 그대로 기록")
+    p = sub.add_parser("item-remove");   p.add_argument("kind", choices=list(ITEM_KINDS)); p.add_argument("name")
+    p = sub.add_parser("memory-remove"); p.add_argument("name")
+    p = sub.add_parser("outputstyle-set"); p.add_argument("name", help="빈 문자열이면 선택 해제")
     p = sub.add_parser("plugin-toggle"); p.add_argument("id"); p.add_argument("state", choices=["on", "off"])
     p = sub.add_parser("mcp-add");    p.add_argument("name"); p.add_argument("--json", dest="server_json", required=True)
     p.add_argument("--scope", choices=["user", "desktop"], default="user")
@@ -285,6 +387,69 @@ def main():
         a.skills_dir = _safe_config_dir(a.skills_dir, "skills")
     elif a.op in ("agent-scaffold", "agent-remove"):
         a.agents_dir = _safe_config_dir(a.agents_dir, "agents")
+    elif a.op in ("item-scaffold", "item-remove"):
+        sub_dir, _ext = ITEM_KINDS[a.kind]
+        a.items_dir = _safe_config_dir(a.items_dir or os.path.join(HOME, ".claude", sub_dir), sub_dir)
+    elif a.op == "memory-remove":
+        if not a.memory_dir:
+            out(False, "memory-remove 는 --memory-dir 이 필요합니다")
+        a.memory_dir = _safe_memory_dir(a.memory_dir)
+
+    # ── 단일 파일 항목 ops (rules / output-styles / workflows) ──
+    if a.op == "item-scaffold":
+        name = _safe_name(a.name)
+        _sub, ext = ITEM_KINDS[a.kind]
+        f_path = os.path.join(a.items_dir, name + ext)
+        if os.path.exists(f_path):
+            out(False, f"이미 존재: {f_path}")
+        if not a.no_snapshot:
+            snapshot_before(a.store)
+        os.makedirs(a.items_dir, exist_ok=True)
+        body = a.content if a.content else item_stub(a.kind, name, a.desc, a.paths)
+        with open(f_path, "w", encoding="utf-8", newline="\n") as f:
+            f.write(body)
+        msg = f"{a.kind} {'설치' if a.content else '스캐폴드 생성'}: {f_path}"
+        if not a.no_snapshot:
+            snapshot_after(a.store, msg)
+        out(True, msg, path=f_path)
+
+    if a.op == "item-remove":
+        name = _safe_name(a.name)
+        _sub, ext = ITEM_KINDS[a.kind]
+        f_path = os.path.join(a.items_dir, name + ext)
+        if not os.path.exists(f_path):
+            out(False, f"{a.kind} 없음: {f_path}")
+        if not a.no_snapshot:
+            snapshot_before(a.store)
+        dst = trash(f_path)
+        msg = f"{a.kind} 제거됨(.trash 이동): {name}"
+        if not a.no_snapshot:
+            snapshot_after(a.store, msg)
+        out(True, msg, trashed=dst)
+
+    if a.op == "memory-remove":
+        name = _safe_name(a.name)
+        f_path = os.path.join(a.memory_dir, name + ".md")
+        if not os.path.exists(f_path):
+            out(False, f"메모리 없음: {f_path}")
+        if not a.no_snapshot:
+            snapshot_before(a.store)
+        dst = trash(f_path)
+        msg = f"메모리 제거됨(.trash 이동): {name}"
+        if not a.no_snapshot:
+            snapshot_after(a.store, msg)
+        out(True, msg, trashed=dst)
+
+    if a.op == "outputstyle-set":
+        # 파일을 만드는 게 아니라 '무엇이 EAGER 인가'를 바꾸는 유일한 스위치다.
+        def _mut(d):
+            cur = d.get("outputStyle")
+            if a.name:
+                d["outputStyle"] = a.name
+                return d, f"output style 활성화: {a.name}", cur != a.name
+            d.pop("outputStyle", None)
+            return d, "output style 선택 해제", cur is not None
+        edit_json_file(a.settings, _mut, a.no_snapshot, a.store)
 
     # ── 파일/디렉토리 기반 ops (skills / agents) ──
     if a.op == "skill-scaffold":
@@ -300,7 +465,10 @@ def main():
             f"---\nname: {name}\ndescription: {a.desc}\n---\n\n# {name}\n\n작성 중.\n"
         with open(md, "w", encoding="utf-8", newline="\n") as f:
             f.write(body)
-        out(True, f"스킬 {'설치' if a.content else '스캐폴드 생성'}: {md}", path=md)
+        msg = f"스킬 {'설치' if a.content else '스캐폴드 생성'}: {md}"
+        if not a.no_snapshot:
+            snapshot_after(a.store, msg)
+        out(True, msg, path=md)
 
     if a.op == "skill-remove":
         name = _safe_name(a.name)
@@ -310,7 +478,10 @@ def main():
         if not a.no_snapshot:
             snapshot_before(a.store)
         dst = trash(d)
-        out(True, f"스킬 제거됨(.trash 이동): {name}", trashed=dst)
+        msg = f"스킬 제거됨(.trash 이동): {name}"
+        if not a.no_snapshot:
+            snapshot_after(a.store, msg)
+        out(True, msg, trashed=dst)
 
     if a.op == "agent-scaffold":
         name = _safe_name(a.name)
@@ -331,7 +502,10 @@ def main():
             body = "---\n" + "\n".join(fm) + f"\n---\n\n# {name}\n\n작성 중.\n"
         with open(md, "w", encoding="utf-8", newline="\n") as f:
             f.write(body)
-        out(True, f"에이전트 {'설치' if a.content else '스캐폴드 생성'}: {md}", path=md)
+        msg = f"에이전트 {'설치' if a.content else '스캐폴드 생성'}: {md}"
+        if not a.no_snapshot:
+            snapshot_after(a.store, msg)
+        out(True, msg, path=md)
 
     if a.op == "agent-remove":
         name = _safe_name(a.name)
@@ -343,7 +517,10 @@ def main():
         if not a.no_snapshot:
             snapshot_before(a.store)
         dst = trash(target)
-        out(True, f"에이전트 제거됨(.trash 이동): {name}", trashed=dst)
+        msg = f"에이전트 제거됨(.trash 이동): {name}"
+        if not a.no_snapshot:
+            snapshot_after(a.store, msg)
+        out(True, msg, trashed=dst)
 
     # ── mcpServers ops: scope 에 따라 대상 파일 선택 ──
     if a.op in ("mcp-add", "mcp-remove"):
@@ -376,7 +553,17 @@ def main():
         snapshot_before(a.store)
     bak = backup(a.settings)
     save_atomic(a.settings, s)
+    if not a.no_snapshot:
+        snapshot_after(a.store, msg)
     out(True, msg, changed=True, settings=a.settings, backup=bak)
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except SystemExit:
+        raise
+    except Exception as e:
+        # stdout 한 줄 JSON 계약 유지: 예기치 못한 실패(권한/디스크 등)도 트레이스백 대신 사유로.
+        _release_span()
+        print(json.dumps({"ok": False, "message": f"{type(e).__name__}: {e}"}, ensure_ascii=False))
+        sys.exit(1)

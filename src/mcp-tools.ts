@@ -60,7 +60,7 @@ export function buildTools(scriptDir: string): ToolDef[] {
   // Windows 콘솔 기본 인코딩(cp949)은 한글/em-dash 출력 시 UnicodeEncodeError 로 Python 을 죽인다.
   // 자식 stdout/stderr 를 UTF-8 로 강제(PYTHONUTF8=1, PYTHONIOENCODING=utf-8).
   const PY_ENV = { ...process.env, PYTHONUTF8: "1", PYTHONIOENCODING: "utf-8" };
-  // watcher.ps1 기본값과 동일한 스토어를 가리키도록.
+  // watcher.py 기본값과 동일한 스토어를 가리키도록.
   const STORE = process.env.CLAUDE_SNAPSHOT_STORE ||
     (process.platform === "win32" ? "D:\\.claude-snapshot" : path.join(process.env.HOME || "", ".claude-snapshot"));
   const runPy = async (script: string, args: string[]): Promise<string> => {
@@ -88,31 +88,203 @@ export function buildTools(scriptDir: string): ToolDef[] {
     }
   };
 
-  return [
+  // 추적 중인 프로젝트 .claude 디렉토리(전역 기본 추적분 제외). 대시보드가 get_tracked 로 같은
+  // 목록을 만들어 넘기던 것을 서버가 스스로 구해, 대화에서 projects 를 몰라도 되게 한다.
+  const trackedProjectDirs = async (): Promise<string[]> => {
+    try {
+      const st = JSON.parse((await runPy("cas.py", ["status", "--json"])).trim().split("\n").pop() || "{}");
+      const defaults = new Set<string>(st.defaults || []);
+      const out: string[] = [];
+      for (const k of ["modified", "new", "unchanged"]) {
+        for (const p of st[k] || []) {
+          if (defaults.has(p)) continue;
+          const d = path.dirname(p);
+          if (path.basename(d).toLowerCase() === ".claude" && !out.includes(d)) out.push(d);
+        }
+      }
+      return out;
+    } catch { return []; }
+  };
+
+  // 편집 도구가 project(이름 또는 경로)만 받아도 되게 .claude 디렉토리로 푼다. 후보는 추적 중인
+  // 프로젝트와 ~/.claude.json 의 projects. 이름은 폴더 마지막 세그먼트를 대소문자 무시로 맞춘다.
+  const resolveProject = async (ref: string): Promise<{ dir?: string; error?: string; candidates?: string[] }> => {
+    const norm = (p: string) => p.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+    const dirs = new Set<string>(await trackedProjectDirs());
+    try {
+      const pj = JSON.parse(await runPy("claude_config.py", ["projects"]));
+      for (const p of pj.projects || []) if (p.has_claude) dirs.add(p.claude_dir);
+    } catch { /* projects 목록이 없어도 추적분만으로 푼다 */ }
+    const all = [...dirs];
+    const r = norm(ref);
+    const byPath = all.filter((d) => norm(d) === r || norm(d) === r + "/.claude");
+    if (byPath.length) return { dir: byPath[0] };
+    const byName = all.filter((d) => path.basename(path.dirname(d)).toLowerCase() === r);
+    if (byName.length === 1) return { dir: byName[0] };
+    if (byName.length > 1) return { error: `프로젝트 이름 '${ref}' 이 여러 개에 해당합니다. 경로로 지정해 주세요`, candidates: byName };
+    return { error: `프로젝트 '${ref}' 을 찾을 수 없습니다(추적 중이거나 ~/.claude.json 에 있는 프로젝트만 가능)`, candidates: all };
+  };
+
+  // 마지막 편집 도구 호출 표식. 파일에 두는 이유: Desktop 위젯과 대화 중인 Claude 가 서로 다른
+  // 서버 프로세스를 쓸 수 있어(Cowork 별도 인스턴스 등) 메모리 카운터로는 서로를 못 본다.
+  const CHANGE_FILE = path.join(STORE, "changes.json");
+  const readChange = async (): Promise<{ seq: number; tool?: string; at?: string }> => {
+    try { return JSON.parse(await fs.readFile(CHANGE_FILE, "utf-8")); } catch { return { seq: 0 }; }
+  };
+  const bumpChange = async (tool: string): Promise<void> => {
+    try {
+      const prev = await readChange();
+      await fs.mkdir(STORE, { recursive: true });
+      await fs.writeFile(CHANGE_FILE, JSON.stringify({ seq: Math.max(Date.now(), prev.seq + 1), tool, at: new Date().toISOString() }));
+    } catch { /* 표식 실패는 편집 결과를 바꾸지 않는다 */ }
+  };
+
+  // project 인자를 받는 편집 도구와, 풀린 .claude 디렉토리를 채워 넣을 필드.
+  const PROJECT_FIELDS: Record<string, [string, string]> = {
+    config_perm_add: ["settings", "settings.json"], config_perm_remove: ["settings", "settings.json"],
+    config_hook_add: ["settings", "settings.json"], config_hook_remove: ["settings", "settings.json"],
+    config_outputstyle_set: ["settings", "settings.json"], config_plugin_toggle: ["settings", "settings.json"],
+    skill_scaffold: ["skillsDir", "skills"], config_skill_remove: ["skillsDir", "skills"],
+    config_agent_add: ["agentsDir", "agents"], config_agent_remove: ["agentsDir", "agents"],
+    config_item_add: ["dir", "*item"], config_item_remove: ["dir", "*item"],
+  };
+  const ITEM_DIRS: Record<string, string> = { rule: "rules", "output-style": "output-styles", workflow: "workflows" };
+  // set_prefs 는 화면 옵션이라 다른 위젯을 다시 그릴 이유가 없다 - 보던 자리 저장이 매 클릭마다 전체 refresh 를 부르면 안 된다.
+  const NO_SIGNAL = new Set(["open_in_browser", "watcher_start", "watcher_stop", "set_prefs"]);
+
+  // 두 가지 공통 처리를 도구 정의 밖에서 한 번에 건다:
+  //  1) project -> 경로 해석(PROJECT_FIELDS 에 있는 도구만; 명시한 경로 인자가 있으면 그것이 우선)
+  //  2) 읽기 전용이 아닌 도구가 성공하면 변경 표식을 올려 열려 있는 대시보드가 다시 그리게 한다.
+  const decorate = (d: ToolDef): ToolDef => {
+    const pf = PROJECT_FIELDS[d.name];
+    const meta = pf ? {
+      ...d.meta,
+      inputSchema: d.meta.inputSchema.extend({
+        project: z.string().optional().describe("대상 프로젝트(폴더 이름 또는 경로). 지정하면 그 프로젝트의 .claude 를 대상으로 하고 경로 인자를 대신 채운다. 생략 시 전역"),
+      }),
+    } : d.meta;
+    const run = async (a: any) => {
+      if (pf && a?.project) {
+        const [field, sub] = pf;
+        const r = await resolveProject(String(a.project));
+        if (!r.dir) return jsonResult(JSON.stringify({ ok: false, message: r.error, candidates: r.candidates }));
+        const subdir = sub === "*item" ? (ITEM_DIRS[a.itemKind] || a.itemKind) : sub;
+        a = { ...a, [field]: a[field] || path.join(r.dir, subdir) };
+        delete a.project;
+      }
+      const res = await d.run(a);
+      if (!d.meta.annotations.readOnlyHint && !NO_SIGNAL.has(d.name)) {
+        const ok = (res.structuredContent as any)?.ok;
+        if (ok !== false) await bumpChange(d.name);
+      }
+      return res;
+    };
+    return { ...d, meta, run };
+  };
+
+  const defs: ToolDef[] = [
     // ----- 읽기 -----
     {
       name: "get_config",
       meta: {
         title: "Get Claude Config",
-        description: "Claude 설정(MCP/hooks/skills/agents/scheduled/permissions/desktop-skills)을 정규화된 sections JSON 으로 반환. projects 지정 시 각 프로젝트 .claude 의 permissions/hooks/skills/agents 를 프로젝트 항목으로 함께 반환",
+        description: "Claude 설정 항목의 상세(카드 단위). 대화에서는 먼저 summarize_config 로 개요를 보고, 여기서는 sections/scope/query 로 범위를 좁히고 compact=true 로 받는다 - 전체 dump 는 200KB 를 넘는다. " +
+          "각 카드의 edit 에 편집 도구가 받는 경로(settings/skillsDir/dir 등)가 들어 있다. projects 를 생략하면 추적 중인 프로젝트를 자동으로 포함한다",
         inputSchema: z.object({
-          projects: z.array(z.string()).optional().describe("프로젝트 .claude 디렉토리들(추적 중인 프로젝트). 각 항목의 설정을 프로젝트 스코프로 추가"),
+          projects: z.array(z.string()).optional().describe("프로젝트 .claude 디렉토리들. 생략 시 추적 중인 프로젝트 전부"),
+          sections: z.array(z.string()).optional().describe("섹션 id 목록(예: hooks, perm, skills, agents, mcp-desktop, claude-json, plugins). summarize_config 의 id 와 같다"),
+          scope: z.enum(["global", "project"]).optional().describe("global=전역(~/.claude · Desktop)만, project=프로젝트 .claude 항목만"),
+          query: z.string().optional().describe("이름·값 부분일치(대소문자 무시)"),
+          compact: z.boolean().optional().describe("true 면 카드를 이름·배지·스코프·edit·짧은 설명으로 축약. 대화에서는 기본으로 켠다"),
+        }), annotations: READ,
+      },
+      run: async (a: { projects?: string[]; sections?: string[]; scope?: string; query?: string; compact?: boolean }) => {
+        const args = ["dump"];
+        const projects = a.projects ?? await trackedProjectDirs();
+        if (projects.length) args.push("--projects", ...projects);
+        if (a.sections && a.sections.length) args.push("--sections", ...a.sections);
+        if (a.scope) args.push("--scope", a.scope);
+        if (a.query) args.push("--query", a.query);
+        if (a.compact) args.push("--compact");
+        return jsonResult(await runPy("claude_config.py", args));
+      },
+    },
+    {
+      name: "summarize_config",
+      meta: {
+        title: "Summarize Claude Config",
+        description: "현재 Claude 설정의 개요: 섹션별 개수·적재등급(eager/lazy/never)·전역/프로젝트 분포·이름 목록, 전역-프로젝트 이름 충돌(어느 쪽이 적용되는지), 플러그인 상태 분포. " +
+          "설정을 분석·정리·불필요 항목 제거를 논의할 때 이걸 먼저 부르고, 특정 항목은 get_config(sections=[...], compact=true) 로 내려간다. 파일은 읽지 않고 상태만 요약한다",
+        inputSchema: z.object({
+          projects: z.array(z.string()).optional().describe("프로젝트 .claude 디렉토리들. 생략 시 추적 중인 프로젝트 전부"),
         }), annotations: READ,
       },
       run: async (a: { projects?: string[] }) => {
-        const args = ["dump"];
-        if (a.projects && a.projects.length) args.push("--projects", ...a.projects);
+        const args = ["summary"];
+        const projects = a.projects ?? await trackedProjectDirs();
+        if (projects.length) args.push("--projects", ...projects);
         return jsonResult(await runPy("claude_config.py", args));
       },
+    },
+    {
+      name: "get_prefs",
+      meta: {
+        title: "Get Dashboard Preferences",
+        description: "[UI 전용] 대시보드 표시 설정(섹션 프리셋/숨김 목록/빈 섹션 처리) JSON. 설정 내용과 무관한 화면 옵션이다",
+        inputSchema: z.object({}), annotations: READ,
+      },
+      run: async () => jsonResult(await runPy("prefs.py", ["get", "--store", STORE])),
+    },
+    {
+      name: "set_prefs",
+      meta: {
+        title: "Set Dashboard Preferences",
+        description: "[UI 전용] 대시보드 표시 설정을 저장. 스토어 미초기화면 ok:false 와 사유를 반환(조용히 성공하지 않음)",
+        inputSchema: z.object({
+          sections: z.object({
+            preset: z.enum(["all", "common", "custom"]).optional(),
+            hidden: z.array(z.string()).optional(),
+            hideEmpty: z.boolean().optional(),
+            groupsCollapsed: z.array(z.string()).optional(),
+          }).optional().describe("덮어쓸 키만 보낸다"),
+          view: z.object({
+            selectedPath: z.string().optional(),
+            detailOpen: z.boolean().optional(),
+            scope: z.string().optional(),
+            libTarget: z.string().optional(),
+          }).optional().describe("보던 자리(선택 파일·패널·필터). 위젯이 다시 올라올 때 복원한다"),
+        }), annotations: WRITE,
+      },
+      // execFile 은 셸을 거치지 않으므로 JSON 을 argv 한 칸으로 넘겨도 인용 문제가 없다.
+      run: async (a: { sections?: Record<string, unknown>; view?: Record<string, unknown> }) =>
+        jsonResult(await runPy("prefs.py",
+          ["set", "--store", STORE, "--json", JSON.stringify({ sections: a.sections || {}, view: a.view || {} })])),
     },
     {
       name: "get_tracked",
       meta: {
         title: "Get Tracked File Status",
-        description: "스냅샷 추적 파일들의 변경 상태(new/modified/deleted/unchanged) JSON",
-        inputSchema: z.object({}), annotations: READ,
+        description: "스냅샷 추적 파일들의 변경 상태(new/modified/deleted/unchanged)와 watcher 상태, 마지막 편집 도구 호출(change.seq). 어떤 설정 파일이 스냅샷 대비 바뀌었는지 볼 때",
+        inputSchema: z.object({
+          phase: z.enum(["boot", "refresh", "poll"]).optional().describe("[UI 전용] 위젯이 왜 부르는지. 스토어의 widget.log 에 남는다"),
+          instance: z.string().optional().describe("[UI 전용] 위젯 인스턴스 id"),
+        }), annotations: READ,
       },
-      run: async () => jsonResult(await runPy("cas.py", ["status", "--json"])),
+      run: async (a: { phase?: string; instance?: string }) => {
+        // 호스트가 위젯을 몇 번 다시 올리는지, 동시에 몇 개가 살아 있는지는 서버 밖에서 알 길이 없다.
+        // 폴링은 양이 많아 남기지 않고, 부트·전체 refresh 만 한 줄씩 적는다.
+        if (a?.phase && a.phase !== "poll") {
+          const line = `${new Date().toISOString()} ${a.phase} ${a.instance || "-"}\n`;
+          await fs.mkdir(STORE, { recursive: true }).then(() => fs.appendFile(path.join(STORE, "widget.log"), line)).catch(() => {});
+        }
+        const raw = await runPy("cas.py", ["status", "--json"]);
+        // 대시보드 폴링이 이 한 호출로 다른 클라이언트의 편집까지 알아야 한다(호출 하나 = 프로세스 하나).
+        try {
+          const st = JSON.parse(raw.trim().split("\n").pop() || "");
+          st.change = await readChange();
+          return jsonResult(JSON.stringify(st));
+        } catch { return jsonResult(raw); }
+      },
     },
     {
       name: "config_track",
@@ -150,7 +322,7 @@ export function buildTools(scriptDir: string): ToolDef[] {
       name: "get_file_history",
       meta: {
         title: "Get File History",
-        description: "특정 파일의 스냅샷 리비전 이력(git log 스타일). 내용이 바뀐 스냅샷만 추림",
+        description: "특정 파일의 스냅샷 리비전 이력(git log 스타일). 내용이 바뀐 스냅샷만 추리고, 무시 키 프로필이 있는 파일은 무시 키만 다른 리비전을 접는다",
         inputSchema: z.object({ path: z.string().describe("추적 중인 파일의 절대경로") }), annotations: READ,
       },
       run: async (a: { path: string }) => jsonResult(await runPy("cas.py", ["history", a.path, "--json"])),
@@ -168,17 +340,19 @@ export function buildTools(scriptDir: string): ToolDef[] {
       name: "get_diff",
       meta: {
         title: "Get File Diff",
-        description: "파일의 두 리비전(또는 스냅샷 vs 현재) 간 unified diff. from/to 미지정 시 최신 스냅샷 vs 작업본",
+        description: "파일의 두 리비전(또는 스냅샷 vs 현재) 간 unified diff. 무시 키 프로필이 있는 파일은 무시 키를 뺀 diff 에 '무시 목록 항목도 바뀜' 각주가 붙는다(raw=true 면 원문). from/to 미지정 시 최신 스냅샷 vs 작업본",
         inputSchema: z.object({
           path: z.string(),
           from: z.string().optional().describe("스냅샷 id (생략 시 최신 스냅샷)"),
           to: z.string().optional().describe("스냅샷 id 또는 'work'(기본=현재 파일)"),
+          raw: z.boolean().optional().describe("true 면 무시 키 프로필을 적용하지 않은 원문 diff"),
         }), annotations: READ,
       },
-      run: async (a: { path: string; from?: string; to?: string }) => {
+      run: async (a: { path: string; from?: string; to?: string; raw?: boolean }) => {
         const args = ["diff", a.path];
         if (a.from) args.push("--from", a.from);
         if (a.to) args.push("--to", a.to);
+        if (a.raw) args.push("--raw");
         return text(await runPy("cas.py", args));
       },
     },
@@ -190,6 +364,22 @@ export function buildTools(scriptDir: string): ToolDef[] {
         inputSchema: z.object({ message: z.string().optional() }), annotations: WRITE,
       },
       run: async (a: { message?: string }) => text(await runPy("cas.py", ["snapshot", "-m", a.message || "manual"])),
+    },
+    {
+      name: "snapshot_gc",
+      meta: {
+        title: "Snapshot GC",
+        description: "보존 기한(기본 90일)이 지난 스냅샷과 미참조 객체를 정리. dryRun=true 면 계산만 하고 지우지 않음. 최신 스냅샷과 현재 index 참조 객체는 항상 보존",
+        inputSchema: z.object({
+          keepDays: z.number().optional().describe("보존 일수(기본 90)"),
+          dryRun: z.boolean().optional().describe("true 면 정리 대상 계산만"),
+        }), annotations: WRITE,
+      },
+      run: async (a: { keepDays?: number; dryRun?: boolean }) => {
+        const args = ["gc", "--json", "--keep-days", String(a.keepDays ?? 90)];
+        if (a.dryRun) args.push("--dry-run");
+        return jsonResult(await runPy("cas.py", args));
+      },
     },
     {
       name: "config_restore",
@@ -210,7 +400,7 @@ export function buildTools(scriptDir: string): ToolDef[] {
       name: "watcher_status",
       meta: {
         title: "Watcher Status",
-        description: "상주 watcher(FileSystemWatcher 자동 스냅샷)의 실행 여부/heartbeat 조회",
+        description: "상주 watcher(폴링 자동 스냅샷)의 실행 여부/heartbeat 조회",
         inputSchema: z.object({}), annotations: READ,
       },
       run: async () => jsonResult(await runPy("cas.py", ["watcher-status"])),
@@ -219,7 +409,7 @@ export function buildTools(scriptDir: string): ToolDef[] {
       name: "watcher_start",
       meta: {
         title: "Start Watcher",
-        description: "watcher.ps1 을 백그라운드로 기동(추적 디렉토리 변경 시 자동 스냅샷). 이미 실행 중이면 no-op",
+        description: "watcher.py 를 백그라운드로 기동(추적 파일 변경 시 자동 스냅샷). 이미 실행 중이면 no-op",
         inputSchema: z.object({}), annotations: WRITE,
       },
       run: async () => {
@@ -228,12 +418,11 @@ export function buildTools(scriptDir: string): ToolDef[] {
         // 좀비/중복 watcher 정리(상태 신뢰성과 무관하게 단일 인스턴스 보장) 후 새로 기동.
         await killWatchers();
         await fs.rm(path.join(STORE, "watcher.json"), { force: true }).catch(() => {});
-        // Node 가 powershell 을 직접 detached spawn 하면 (1) 인자 백슬래시가 먹혀 -File 경로가 깨지고
-        // (2) detached 자식이 즉사한다. 검증 패턴: 일회성 powershell 이 Start-Process 로 독립 기동.
-        const ps1 = path.join(scriptDir, "watcher.ps1").replace(/\\/g, "/");
+        // Node 가 detached spawn 하면 (1) 인자 백슬래시가 먹혀 경로가 깨지고 (2) detached 자식이
+        // 즉사한다. 검증 패턴: 일회성 powershell 이 Start-Process 로 독립 기동.
+        const wpy = path.join(scriptDir, "watcher.py").replace(/\\/g, "/");
         const storeFwd = STORE.replace(/\\/g, "/");
-        const cmd = "Start-Process powershell -WindowStyle Hidden -ArgumentList @(" +
-          `'-NoProfile','-ExecutionPolicy','Bypass','-File','${ps1}','-Store','${storeFwd}','-Python','${PY}')`;
+        const cmd = `Start-Process '${PY}' -WindowStyle Hidden -ArgumentList @('${wpy}','--store','${storeFwd}')`;
         spawn("powershell.exe", ["-NoProfile", "-Command", cmd], { stdio: "ignore", windowsHide: true, env: PY_ENV });
         // heartbeat 가 쓰일 때까지 폴링(최대 ~5.6s) 후 실제 상태를 반환(허위 ok 방지).
         let st: any = {};
@@ -253,11 +442,11 @@ export function buildTools(scriptDir: string): ToolDef[] {
       name: "watcher_stop",
       meta: {
         title: "Stop Watcher",
-        description: "실행 중인 watcher 프로세스를 모두 종료(watcher.ps1 커맨드라인 매칭). Windows 전용",
+        description: "실행 중인 watcher 프로세스를 모두 종료(watcher.py 커맨드라인 매칭). Windows 전용",
         inputSchema: z.object({}), annotations: WRITE,
       },
       run: async () => {
-        // pid 하나가 아니라 모든 watcher.ps1 을 종료(좀비 누적 정리).
+        // pid 하나가 아니라 모든 watcher 를 종료(좀비 누적 정리).
         await killWatchers();
         await fs.rm(path.join(STORE, "watcher.json"), { force: true }).catch(() => {});
         return jsonResult(JSON.stringify({ ok: true, message: "watcher 종료", changed: true }));
@@ -340,14 +529,16 @@ export function buildTools(scriptDir: string): ToolDef[] {
       name: "skill_scaffold",
       meta: {
         title: "Scaffold Code Skill",
-        description: "~/.claude/skills/<name>/SKILL.md 스캐폴드 생성",
+        description: "스킬 생성: <skills>/<name>/SKILL.md. content 를 주면 그대로 설치, 없으면 desc 로 스텁. 기본 ~/.claude/skills, skillsDir 또는 project 로 프로젝트 대상",
         inputSchema: z.object({
           name: z.string(), desc: z.string().optional(),
           content: z.string().optional().describe("SKILL.md 전체 내용(frontmatter 포함). 지정 시 스텁 대신 그대로 설치"),
+          skillsDir: z.string().optional().describe("대상 skills 디렉토리(<프로젝트>/.claude/skills). 생략 시 전역"),
         }), annotations: EDIT,
       },
-      run: async (a: { name: string; desc?: string; content?: string }) => {
-        const args = ["skill-scaffold", a.name];
+      run: async (a: { name: string; desc?: string; content?: string; skillsDir?: string }) => {
+        const args = a.skillsDir ? ["--skills-dir", a.skillsDir] : [];
+        args.push("skill-scaffold", a.name);
         if (a.desc) args.push("--desc", a.desc);
         if (a.content) args.push("--content", a.content);
         return jsonResult(await runPy("config_edit.py", args));
@@ -375,15 +566,17 @@ export function buildTools(scriptDir: string): ToolDef[] {
       name: "config_agent_add",
       meta: {
         title: "Scaffold Agent",
-        description: "~/.claude/agents/<name>.md 에이전트 생성. content 로 전체 정의(frontmatter 포함) 설치 가능, 없으면 desc/tools/model 스캐폴드",
+        description: "에이전트 생성: <agents>/<name>.md. content 로 전체 정의(frontmatter 포함) 설치 가능, 없으면 desc/tools/model 스캐폴드. 기본 ~/.claude/agents, agentsDir 또는 project 로 프로젝트 대상",
         inputSchema: z.object({
           name: z.string(), desc: z.string().optional(),
           tools: z.string().optional(), model: z.string().optional(),
           content: z.string().optional().describe("에이전트 md 전체 내용(frontmatter 포함). 지정 시 desc/tools/model 무시"),
+          agentsDir: z.string().optional().describe("대상 agents 디렉토리(<프로젝트>/.claude/agents). 생략 시 전역"),
         }), annotations: EDIT,
       },
-      run: async (a: { name: string; desc?: string; tools?: string; model?: string; content?: string }) => {
-        const args = ["agent-scaffold", a.name];
+      run: async (a: { name: string; desc?: string; tools?: string; model?: string; content?: string; agentsDir?: string }) => {
+        const args = a.agentsDir ? ["--agents-dir", a.agentsDir] : [];
+        args.push("agent-scaffold", a.name);
         if (a.desc) args.push("--desc", a.desc);
         if (a.tools) args.push("--tools", a.tools);
         if (a.model) args.push("--model", a.model);
@@ -408,6 +601,74 @@ export function buildTools(scriptDir: string): ToolDef[] {
         args.push("agent-remove", a.name);
         return jsonResult(await runPy("config_edit.py", args));
       },
+    },
+    {
+      name: "config_item_add",
+      meta: {
+        title: "Scaffold Rule / Output Style / Workflow",
+        description: "단일 파일 항목(rule/output-style/workflow) 스텁 생성. rule 에 paths 를 주면 적재가 EAGER 대신 LAZY 가 됨",
+        inputSchema: z.object({
+          itemKind: z.enum(["rule", "output-style", "workflow"]),
+          name: z.string().describe("단일 세그먼트 이름(경로 구분자 불가)"),
+          desc: z.string().optional(),
+          paths: z.string().optional().describe("rule 전용. 지정하면 매칭 파일을 읽을 때만 적재(LAZY)"),
+          dir: z.string().optional().describe("프로젝트 대상 디렉토리(<...>/.claude/<sub>). 미지정 시 전역"),
+        }), annotations: WRITE,
+      },
+      run: async (a: { itemKind: string; name: string; desc?: string; paths?: string; dir?: string }) => {
+        const args = ["item-scaffold", a.itemKind, a.name];
+        if (a.desc) args.push("--desc", a.desc);
+        if (a.paths) args.push("--paths", a.paths);
+        if (a.dir) args.unshift("--items-dir", a.dir);
+        return jsonResult(await runPy("config_edit.py", args));
+      },
+    },
+    {
+      name: "config_item_remove",
+      meta: {
+        title: "Remove Rule / Output Style / Workflow",
+        description: "단일 파일 항목을 .trash 로 이동(복구 가능). dir 지정 시 그 프로젝트에서만 제거",
+        inputSchema: z.object({
+          itemKind: z.enum(["rule", "output-style", "workflow"]),
+          name: z.string(),
+          dir: z.string().optional().describe("프로젝트 대상 디렉토리. 미지정 시 전역"),
+        }), annotations: EDIT,
+      },
+      run: async (a: { itemKind: string; name: string; dir?: string }) => {
+        const args = ["item-remove", a.itemKind, a.name];
+        if (a.dir) args.unshift("--items-dir", a.dir);
+        return jsonResult(await runPy("config_edit.py", args));
+      },
+    },
+    {
+      name: "config_outputstyle_set",
+      meta: {
+        title: "Activate Output Style",
+        description: "settings 의 outputStyle 을 지정(빈 이름이면 해제). 어떤 스타일이 세션 시작에 적재될지를 바꾸는 스위치",
+        inputSchema: z.object({
+          name: z.string().describe("활성화할 스타일 이름. 빈 문자열이면 선택 해제"),
+          settings: z.string().optional().describe("프로젝트 settings.json 경로. 미지정 시 전역"),
+        }), annotations: WRITE,
+      },
+      run: async (a: { name: string; settings?: string }) => {
+        const args = ["outputstyle-set", a.name];
+        if (a.settings) args.unshift("--settings", a.settings);
+        return jsonResult(await runPy("config_edit.py", args));
+      },
+    },
+    {
+      name: "config_memory_remove",
+      meta: {
+        title: "Remove Memory Topic",
+        description: "프로젝트 메모리 토픽 파일을 .trash 로 이동(복구 가능). MEMORY.md 색인은 대상이 아님",
+        inputSchema: z.object({
+          name: z.string().describe("토픽 이름(확장자 제외)"),
+          memoryDir: z.string().describe("<...>/projects/<name>/memory 경로"),
+        }), annotations: EDIT,
+      },
+      run: async (a: { name: string; memoryDir: string }) =>
+        jsonResult(await runPy("config_edit.py",
+          ["--memory-dir", a.memoryDir, "memory-remove", a.name])),
     },
     {
       name: "config_mcp_add",
@@ -836,24 +1097,10 @@ export function buildTools(scriptDir: string): ToolDef[] {
 
     // ----- 브라우저 열기 -----
     {
-      name: "open_report",
-      meta: {
-        title: "Open Static Report in Browser",
-        description: "현재 설정 상태를 데이터 인라인 정적 HTML 로 생성해 기본 브라우저에서 연다(읽기 전용 스냅샷)",
-        inputSchema: z.object({}), annotations: WRITE,
-      },
-      run: async () => {
-        const out = path.join(scriptDir, "config-report.html");
-        await runPy("claude_config.py", ["report", "-o", out]);
-        openInBrowser(out.replace(/\\/g, "/"));
-        return jsonResult(JSON.stringify({ ok: true, message: "정적 리포트 생성 + 브라우저 열기", path: out }));
-      },
-    },
-    {
       name: "open_in_browser",
       meta: {
         title: "Open Live Dashboard in Browser",
-        description: "라이브 대시보드 HTTP 서버(기본 3002)를 필요시 기동하고 기본 브라우저에서 연다(편집/복원/watcher 동작)",
+        description: "[UI 전용] 라이브 대시보드 HTTP 서버(기본 3002)를 필요시 기동하고 사용자의 기본 브라우저에서 연다. 대화에서 설정을 읽거나 고칠 때는 쓰지 않는다",
         inputSchema: z.object({ port: z.number().optional() }), annotations: WRITE,
       },
       run: async (a: { port?: number }) => {
@@ -861,41 +1108,57 @@ export function buildTools(scriptDir: string): ToolDef[] {
         // 서버가 127.0.0.1 에만 바인딩하므로 주소도 맞춘다. 'localhost' 는 Windows 에서 ::1 로
         // 먼저 해석될 수 있어, IPv4 전용 리스너에 프로브/브라우저가 못 붙는 경우가 생긴다.
         const url = `http://127.0.0.1:${port}/`;
+        const log = path.join(STORE, "dashboard-server.log");
         let up = await fetch(url).then((r) => r.ok).catch(() => false);
         if (!up) {
-          // server.ts(HTTP) 를 detached 로 기동. watcher 와 동일한 Start-Process 패턴.
-          const srv = path.join(scriptDir, "server.ts").replace(/\\/g, "/");
-          const dir = scriptDir.replace(/\\/g, "/");
-          if (process.platform === "win32") {
-            // 주의: `Start-Process npx` 는 npx.ps1 을 찾아 기본앱(메모장)으로 '편집' 연다.
-            // cmd.exe /c 로 npx 를 '실행'해야 한다. -WorkingDirectory 로 local tsx 해결, PORT 는 env.
-            const cmd = `Start-Process cmd -WindowStyle Hidden -WorkingDirectory '${dir}' -ArgumentList '/c','npx tsx ${srv}'`;
-            spawn("powershell.exe", ["-NoProfile", "-Command", cmd],
-              { stdio: "ignore", windowsHide: true, env: { ...process.env, PORT: String(port) } });
-          } else {
-            spawn("npx", ["tsx", srv], { cwd: scriptDir, stdio: "ignore", detached: true, env: { ...process.env, PORT: String(port) } }).unref();
-          }
-          // 기동 대기(최대 ~6s).
-          for (let i = 0; i < 12; i++) {
+          // 이 프로세스를 띄운 node 로 tsx 를 직접 실행한다(npx·cmd·PowerShell 을 거치지 않음).
+          // Claude Desktop 은 MCP 서버에 PATHEXT 없는 최소 환경만 넘기는데, 그 환경에서 PowerShell 은
+          // PATHEXT=.CPL 을 채워 넣고 자식 cmd 는 npx.cmd 를 못 찾는다("'npx'은(는) ... 아닙니다").
+          // 실행 파일 경로를 직접 주면 확장자 탐색 자체가 없어 환경에 좌우되지 않는다.
+          // stderr 는 스토어의 로그로 받는다 - 안 뜨는 이유가 어디에도 남지 않던 것이 진단을 막았다.
+          const tsx = path.join(scriptDir, "..", "node_modules", "tsx", "dist", "cli.mjs");
+          const srv = path.join(scriptDir, "server.ts");
+          let fh: fs.FileHandle | null = null;
+          try {
+            await fs.mkdir(STORE, { recursive: true });
+            fh = await fs.open(log, "a");
+          } catch { /* 로그를 못 열어도 기동은 시도한다 */ }
+          const out: number | "ignore" = fh ? fh.fd : "ignore";
+          const child = spawn(process.execPath, [tsx, srv], {
+            cwd: scriptDir, detached: true, windowsHide: true,
+            stdio: ["ignore", out, out], env: { ...process.env, PORT: String(port) },
+          });
+          child.unref();
+          await fh?.close();   // 자식은 자기 핸들을 물려받았으므로 부모 쪽은 닫아도 된다
+          // 기동 대기(최대 ~15s). tsx 콜드 스타트는 이 PC 에서 4초 안팎이지만 여유를 둔다.
+          for (let i = 0; i < 30; i++) {
             await new Promise((r) => setTimeout(r, 500));
             if (await fetch(url).then((r) => r.ok).catch(() => false)) { up = true; break; }
           }
         }
         // 이 도구는 spawn 도 브라우저 실행도 fire-and-forget 이라, 프로브 결과가 실패를 담을 수 있는
         // 유일한 신호다. 버리면 서버가 안 떠도 ok:true 가 나가 호출부의 어떤 가드로도 잡을 수 없다.
+        if (!up) return jsonResult(JSON.stringify({ ok: false, message: `대시보드 서버가 ${port} 에서 응답하지 않습니다. 기동 로그: ${log}`, url, log }));
         openInBrowser(url);
-        if (!up) return jsonResult(JSON.stringify({ ok: false, message: `대시보드 서버가 ${port} 에서 응답하지 않습니다`, url }));
         return jsonResult(JSON.stringify({ ok: true, message: "라이브 대시보드 브라우저 열기", url }));
       },
     },
   ];
+  return defs.map(decorate);
 
-  // 실행 중인 watcher.ps1 프로세스를 모두 종료(좀비/중복 정리).
-  // '-File ...watcher.ps1' 로 기동된 실제 watcher 만 대상(이 명령 자신/-Command 류는 제외하고, $PID 도 제외해 자기 종료 방지).
+  // 실행 중인 watcher 프로세스를 모두 종료(좀비/중복 정리).
+  // watcher.py(python) 가 대상. 구버전 watcher.ps1 상주분도 함께 정리한다.
+  // 커맨드라인 매칭만 쓰면 'watcher.py' 를 인자 문자열로 품은 무관한 셸(이 kill 명령 자신을
+  // 감싼 셸 포함)까지 죽는다 - 프로세스 이름(python/py, powershell)을 함께 걸고, python 쪽은
+  // **이 설치본의 watcher.py 전체 경로**로만 매칭한다(다른 프로젝트의 동명 스크립트 오살 방지.
+  // watcher_start 가 같은 forward-slash 경로로 기동하므로 커맨드라인에 그대로 남는다).
   async function killWatchers(): Promise<void> {
     if (process.platform !== "win32") return;
-    const cmd = "Get-CimInstance Win32_Process -Filter \"Name='powershell.exe'\" | " +
-      "Where-Object { $_.CommandLine -like '*-File*watcher.ps1*' -and $_.ProcessId -ne $PID } | " +
+    const wpy = path.join(scriptDir, "watcher.py").replace(/\\/g, "/").replace(/'/g, "''");
+    const cmd = "Get-CimInstance Win32_Process | Where-Object { " +
+      `((($_.Name -like 'python*') -or ($_.Name -eq 'py.exe')) -and $_.CommandLine -like '*${wpy}*') -or ` +
+      "(($_.Name -eq 'powershell.exe') -and $_.CommandLine -like '*-File*watcher.ps1*') } | " +
+      "Where-Object { $_.ProcessId -ne $PID } | " +
       "ForEach-Object { Stop-Process -Id $_.ProcessId -Force }";
     await pexec("powershell.exe", ["-NoProfile", "-Command", cmd]).catch(() => {});
   }
@@ -908,6 +1171,20 @@ export function buildTools(scriptDir: string): ToolDef[] {
     } else {
       spawn("xdg-open", [target], { stdio: "ignore", detached: true }).unref();
     }
+  }
+}
+
+// CONFIG_MONITOR_WATCHER=auto 일 때 서버 기동 시 watcher 를 함께 올린다(옵트인, 기본 꺼짐).
+// watcher_start 도구를 그대로 재사용한다 - 단일 인스턴스 보장/heartbeat 확인까지 같은 경로.
+// 실패해도 서버는 정상 기동해야 하므로 로그만 남긴다.
+export async function autoStartWatcher(scriptDir: string): Promise<void> {
+  if ((process.env.CONFIG_MONITOR_WATCHER || "").toLowerCase() !== "auto") return;
+  const tool = buildTools(scriptDir).find((d) => d.name === "watcher_start");
+  try {
+    const r = await tool!.run({});
+    console.error("[config-monitor] watcher auto-start:", r.content?.[0]?.text ?? "");
+  } catch (e) {
+    console.error("[config-monitor] watcher auto-start failed:", e);
   }
 }
 

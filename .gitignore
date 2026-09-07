@@ -7,9 +7,7 @@ dist/
 __pycache__/
 *.pyc
 
-# generated outputs (regenerate via CLI / MCP tools)
-claude-status.html
-config-report.html
+# generated outputs
 *.export.html
 
 # local snapshot store (default D:\.claude-snapshot; override via CLAUDE_SNAPSHOT_STORE)

@@ -43,6 +43,7 @@ for _s in (sys.stdout, sys.stderr):
         pass
 
 import marketplace   # safe_segment - 매니페스트에서 온 이름은 신뢰할 수 없는 입력이다
+import config_edit   # snapshot_once - CLI 가 settings.json 을 직접 쓰므로 전/후를 이력에 남긴다
 
 TIMEOUT = 600        # 설치/갱신은 네트워크 + git 이다. hooks 설치보다 넉넉히 준다.
 
@@ -184,11 +185,13 @@ def main():
     p.add_argument("--scope", choices=["user", "project", "local"], default=None,
                    help="생략하면 모든 스코프에서 제거(claude 기본)")
 
-    # 모든 op 이 공유하는 두 옵션. 서브파서마다 따로 달아야 하위 파서가 인식한다.
+    # 모든 op 이 공유하는 옵션. 서브파서마다 따로 달아야 하위 파서가 인식한다.
     for sp in made:
         sp.add_argument("--cwd", default=None,
                         help="scope=project/local 기준 디렉토리(claude 는 cwd 로 프로젝트를 정한다)")
         sp.add_argument("--dry-run", action="store_true", help="실행할 명령만 돌려준다")
+        sp.add_argument("--store", default=os.environ.get("CLAUDE_SNAPSHOT_STORE"))
+        sp.add_argument("--no-snapshot", action="store_true", help="전/후 cas 스냅샷 생략")
 
     a = ap.parse_args()
     tail, target = _build(a)
@@ -205,11 +208,19 @@ def main():
         out(False, "claude 를 PATH 에서 찾을 수 없습니다 - 플러그인/마켓 조작은 Claude Code CLI 에 위임합니다",
             target=target, command=argv)
 
+    # CLI 는 추적 대상(settings.json 의 enabledPlugins 등)을 직접 쓴다 - 편집 경로처럼
+    # 전/후를 스냅샷해 이력 공백을 막는다. 단, 위임은 최대 600초라 락을 걸쳐 쥘 수 없어
+    # (60초 뒤 죽은 락으로 회수됨) 단발 2회로 하고, 그 사이 watcher 가 중간 상태를
+    # auto: 로 찍을 수 있는 건 수용한다.
+    if not a.no_snapshot:
+        config_edit.snapshot_once(a.store, "external change (before edit)")
     rc, so, se = _run(argv, cwd)
     if rc != 0:
         out(False, se or so or f"claude {' '.join(tail)} 실패 (rc={rc})",
             target=target, command=argv, cwd=cwd, stdout=so, stderr=se, code=rc)
     tail_msg = " (다음 세션부터 적용)" if a.op in NEEDS_RESTART else ""
+    if not a.no_snapshot:
+        config_edit.snapshot_once(a.store, f"{DONE[a.op]}: {target} (claude CLI)")
     out(True, f"{DONE[a.op]}: {target}{tail_msg}",
         target=target, command=argv, cwd=cwd, stdout=so, stderr=se,
         scope=getattr(a, "scope", None))

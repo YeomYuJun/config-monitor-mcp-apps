@@ -1,17 +1,57 @@
 // src/ui/config.ts - 설정 카드(8분류) 렌더와 인라인 편집(권한 · hooks · mcp · skill · agent · plugin).
 // 밖으로 나가는 건 renderConfig 하나뿐이고, 재렌더는 refreshApp 훅으로 엔트리에 되묻는다.
 import { t } from "./i18n";
+import { persistView } from "./view";
 import { callTool, jparse } from "./bridge";
 import { $, esc, setPending, clearPending, mkNotice, openReasonModal, flashToast } from "./widgets";
 import { valClass, basename, safeSegment, looksLikePermRule } from "./helpers";
 import {
-  collapsed, ccPlugins, secTitles, collapsedInit, showPlugin, showBuiltin, refreshApp,
+  collapsed, ccPlugins, secIds, collapsedInit, showPlugin, showBuiltin, refreshApp,
   scopeFilter, srcOpen, lastConfigSections, setKnownProjects, setCollapsedInit,
   setShowPlugin, setShowBuiltin, setScopeFilter, setLastConfigSections,
+  sectionPrefs, setSectionPrefs, COMMON_GROUPS, SectionPrefs,
 } from "./state";
 
 // 섹션 표시 이름(제목에서 ' · <개수>' 를 뗀 앞부분). 개수가 바뀌어도 정렬이 흔들리지 않게.
 const secName = (title: string) => String(title).split(" · ")[0];
+
+// Python 의 GROUPS 와 같은 순서. 라벨만 UI 가 현지화한다(섹션 제목은 영어로 둔다).
+const GROUP_ORDER = ["instructions", "extensions", "connect", "exec", "memory", "env"];
+const GROUP_LABEL: Record<string, string> = {
+  instructions: "grpInstructions", extensions: "grpExtensions", connect: "grpConnect",
+  exec: "grpExec", memory: "grpMemory", env: "grpEnv",
+};
+
+// 이 섹션의 카드 중 현재 필터(스코프/출처)를 통과하는 것들.
+function visibleCards(sec: any): any[] {
+  const cards = sec.cards || [];
+  // Plugins 섹션은 플러그인 **관리** 화면이라 출처 토글의 대상이 아니다. 여기까지 숨기면
+  // 다시 켤 자리가 사라지고, 무엇을 껐는지도 확인할 수 없게 된다.
+  const isPluginSec = sec.id === "plugins";
+  const inScope = (c: any) =>
+    scopeFilter === "all" ? true
+      : scopeFilter === "global" ? c.scope !== "project"
+        : (c.scope === "project" && c.project === scopeFilter);
+  return cards.filter((c: any) =>
+    (showPlugin || !c.plugin || isPluginSec) && (showBuiltin || !c.builtin) && inScope(c));
+}
+
+// 프리셋이 이 섹션을 대상에 넣는가. hideEmpty 와는 다른 축이다.
+function sectionAllowed(sec: any): boolean {
+  const p = sectionPrefs;
+  if (p.preset === "custom") return !p.hidden.includes(sec.id);
+  if (p.preset === "common") return COMMON_GROUPS.includes(sec.group);
+  return true;   // all
+}
+
+function sectionShown(sec: any): boolean {
+  if (!sectionAllowed(sec)) return false;
+  // '＋ 새 …' 카드만 남은 섹션은 비어 있는 것이다 - 그걸 1개로 세면 빈 섹션 숨기기가 안 걸린다.
+  if (visibleCards(sec).some((c: any) => !isAddCard(c))) return true;
+  if (sectionPrefs.hideEmpty) return false;
+  // 필터 모드에서 결과 0개 섹션은 통째로 스킵. 아무 필터도 안 걸렸으면 항상 렌더.
+  return !(scopeFilter !== "all" || !showPlugin || !showBuiltin);
+}
 
 // 스코프 필터/출처 그룹/재정의 배지 지원. 설정 섹션은 #config 안의 #cfg-scoped 래퍼에 렌더.
 // Library 섹션은 래퍼 밖 #config 에 append 되므로 칩/그룹 즉시 재렌더가 Library 를 지우지 않는다.
@@ -26,14 +66,14 @@ export function renderConfig(sections: any[]): void {
     wrap = document.createElement("div");
     wrap.id = "cfg-scoped";
     host.appendChild(wrap);
-    secTitles.clear();   // 전체 새로고침 때만 초기화(재렌더 시엔 Library 타이틀 보존)
+    secIds.clear();   // 전체 새로고침 때만 초기화(재렌더 시엔 Library id 보존)
   } else {
     wrap!.innerHTML = "";
   }
   const w = wrap!;
   // 첫 렌더는 전부 접은 상태로 연다 - 8개 분류가 한꺼번에 펼쳐지면 훑을 수가 없다.
   if (!collapsedInit) {
-    for (const sec of sections) collapsed.add(sec.title);
+    for (const sec of sections) collapsed.add(sec.id);
     setCollapsedInit(true);
   }
   // 스캔 결과의 distinct 프로젝트 경로(등장 순), 칩/필터의 유일 원천(카드 project 값과 동일 소스).
@@ -50,16 +90,150 @@ export function renderConfig(sections: any[]): void {
   // 플러그인 상세의 project/local 설치가 cwd 로 쓸 후보. 스코프 칩과 같은 원천이다.
   setKnownProjects(projects);
   if (scopeFilter !== "all" && scopeFilter !== "global" && !projSeen.has(scopeFilter)) setScopeFilter("all");
-  if (projects.length) w.appendChild(buildScopeChips(projects));
+  // 숨긴 섹션이 있으면 그 사실을 드러낸다. 줄이는 건 기본값이어도 되지만 침묵은 안 된다
+  // (출처 토글이 기본 '표시'인 것과 같은 근거) - 여기가 다시 켜러 가는 입구다.
+  const hiddenCount = sections.filter((sec: any) => !sectionShown(sec)).length;
+  if (projects.length || hiddenCount) w.appendChild(buildPillRow(projects, hiddenCount));
   w.appendChild(buildOriginToggles());   // 스코프 칩과 달리 프로젝트가 없어도 항상 의미가 있다
-  // 표시 순서만 이름 A-Z(원본 배열은 그대로 - lastConfigSections 캐시를 건드리지 않는다).
-  const ordered = [...sections].sort((a, b) => secName(a.title).localeCompare(secName(b.title)));
-  for (const sec of ordered) renderConfigSection(w, sec);
+  // 그룹 밴드로 묶어 그린다 - 섹션이 20개가 되면 A-Z 평면으로는 훑을 수가 없다.
+  // 그룹 안에서만 이름 A-Z(원본 배열은 그대로 - lastConfigSections 캐시를 건드리지 않는다).
+  const byGroup = new Map<string, any[]>();
+  for (const sec of sections) {
+    if (!sectionShown(sec)) continue;
+    const g = String(sec.group || "env");
+    if (!byGroup.has(g)) byGroup.set(g, []);
+    byGroup.get(g)!.push(sec);
+  }
+  for (const gid of GROUP_ORDER) {
+    const secs = byGroup.get(gid);
+    if (!secs || !secs.length) continue;
+    secs.sort((a, b) => secName(a.title).localeCompare(secName(b.title)));
+    const open = !sectionPrefs.groupsCollapsed.includes(gid);
+    w.appendChild(buildGroupBand(gid, secs.length, open));
+    if (open) for (const sec of secs) renderConfigSection(w, sec);
+  }
+  syncSectionPicker(sections);
 }
 
-// 스코프 필터 칩: 전체 / 전역 / 프로젝트별. 클릭 시 캐시 섹션으로 즉시 재렌더(서버 왕복 없음).
+// 숨긴 섹션 수 + 표시 설정 열기. 팝오버 개폐는 엔트리(wireSettings)가 쥐고 있으므로
+// 그 버튼을 눌러 준다 - 개폐 로직을 두 곳에 두지 않는다.
+function buildHiddenNotice(n: number): HTMLElement {
+  const row = document.createElement("button");
+  row.className = "hidnotice";
+  row.title = t("hiddenSecsTip");
+  row.innerHTML = `<span>${esc(t("hiddenSecs"))}</span><span class="hidcount">${n}</span>`;
+  row.addEventListener("click", () => document.getElementById("settings")?.click());
+  return row;
+}
+
+// 기능 그룹 밴드. 클릭하면 그 그룹을 통째로 접고, 접힘 상태는 스토어에 남는다.
+function buildGroupBand(gid: string, count: number, open: boolean): HTMLElement {
+  const band = document.createElement("div");
+  band.className = "grpband" + (open ? "" : " collapsed");
+  band.innerHTML =
+    `<span class="grpchev">▼</span><span class="grplbl">${esc(t(GROUP_LABEL[gid] || gid))}</span>` +
+    `<span class="grpcount">${count}</span><span class="srcline"></span>`;
+  band.addEventListener("click", () => {
+    const next = sectionPrefs.groupsCollapsed.filter((x) => x !== gid);
+    if (open) next.push(gid);
+    setSectionPrefs({ ...sectionPrefs, groupsCollapsed: next });
+    void persistPrefs();
+    renderConfig(lastConfigSections);
+  });
+  return band;
+}
+
+// ----- 섹션 표시 설정(#setpop 안) -----
+// 저장은 스토어로 간다. 실패하면 이유를 띄우고 세션 한정 상태로 남는다 - 저장된 척하지 않는다.
+export async function persistPrefs(): Promise<void> {
+  try {
+    const r = jparse(await callTool("set_prefs", { sections: sectionPrefs }));
+    if (r && r.ok === false) flashToast(t("prefsSaveFail"));
+  } catch { flashToast(t("prefsSaveFail")); }
+}
+
+export function applySectionPrefs(ui: any): void {
+  const s0 = (ui && ui.sections) || {};
+  setSectionPrefs({
+    preset: s0.preset === "common" || s0.preset === "custom" ? s0.preset : "all",
+    hidden: Array.isArray(s0.hidden) ? s0.hidden : [],
+    hideEmpty: s0.hideEmpty !== false,
+    groupsCollapsed: Array.isArray(s0.groupsCollapsed) ? s0.groupsCollapsed : [],
+  });
+  syncPrefControls();
+}
+
+function syncPrefControls(): void {
+  const sel = document.getElementById("opt-preset") as HTMLSelectElement | null;
+  if (sel) sel.value = sectionPrefs.preset;
+  const he = document.getElementById("opt-hide-empty") as HTMLInputElement | null;
+  if (he) he.checked = sectionPrefs.hideEmpty;
+  const box = document.getElementById("opt-sections");
+  if (box) box.hidden = sectionPrefs.preset !== "custom";
+}
+
+export function wireSectionPrefs(): void {
+  const sel = document.getElementById("opt-preset") as HTMLSelectElement | null;
+  sel?.addEventListener("change", () => {
+    setSectionPrefs({ ...sectionPrefs, preset: sel.value as SectionPrefs["preset"] });
+    syncPrefControls();
+    void persistPrefs();
+    renderConfig(lastConfigSections);
+  });
+  const he = document.getElementById("opt-hide-empty") as HTMLInputElement | null;
+  he?.addEventListener("change", () => {
+    setSectionPrefs({ ...sectionPrefs, hideEmpty: he.checked });
+    void persistPrefs();
+    renderConfig(lastConfigSections);
+  });
+}
+
+// '직접 선택' 체크박스 목록. 그룹 순으로 그리고, 끈 섹션만 hidden 에 남긴다.
+function syncSectionPicker(sections: any[]): void {
+  const box = document.getElementById("opt-sections");
+  if (!box) return;
+  box.hidden = sectionPrefs.preset !== "custom";
+  if (box.hidden) return;
+  box.innerHTML = "";
+  const byGroup = new Map<string, any[]>();
+  for (const sec of sections) {
+    const g = String(sec.group || "env");
+    if (!byGroup.has(g)) byGroup.set(g, []);
+    byGroup.get(g)!.push(sec);
+  }
+  for (const gid of GROUP_ORDER) {
+    const secs = byGroup.get(gid);
+    if (!secs || !secs.length) continue;
+    const head = document.createElement("div");
+    head.className = "spg";
+    head.textContent = t(GROUP_LABEL[gid] || gid);
+    box.appendChild(head);
+    for (const sec of secs) {
+      const row = document.createElement("label");
+      row.className = "spsec";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = !sectionPrefs.hidden.includes(sec.id);
+      cb.addEventListener("change", () => {
+        const next = sectionPrefs.hidden.filter((x) => x !== sec.id);
+        if (!cb.checked) next.push(sec.id);
+        setSectionPrefs({ ...sectionPrefs, hidden: next });
+        void persistPrefs();
+        renderConfig(lastConfigSections);
+      });
+      const tx = document.createElement("span");
+      // 괄호 숫자는 실카드만 - 스캐폴드 카드를 세면 빈 섹션이 (1)로 보인다(제목의 · N 과 같은 기준).
+      tx.textContent = `${secName(sec.title)} (${(sec.cards || []).filter((c: any) => !isAddCard(c)).length})`;
+      row.append(cb, tx);
+      box.appendChild(row);
+    }
+  }
+}
+
+// pill 한 행: 스코프 필터 칩(전체 / 전역 / 프로젝트별) + '숨긴 섹션'. 모양이 같은 것끼리 모은다.
+// 클릭 시 캐시 섹션으로 즉시 재렌더(서버 왕복 없음).
 // TODO: 프로젝트가 수십 개가 되면 이 칩 행을 검색형 select 로 교체.
-function buildScopeChips(projects: string[]): HTMLElement {
+function buildPillRow(projects: string[], hiddenCount: number): HTMLElement {
   const row = document.createElement("div");
   row.className = "scopechips";
   const mk = (val: string, label: string, title?: string): HTMLElement => {
@@ -67,12 +241,15 @@ function buildScopeChips(projects: string[]): HTMLElement {
     chip.className = "scopechip" + (scopeFilter === val ? " on" : "");
     chip.textContent = label;
     if (title) chip.title = title;
-    chip.addEventListener("click", () => { setScopeFilter(val); renderConfig(lastConfigSections); });
+    chip.addEventListener("click", () => { setScopeFilter(val); renderConfig(lastConfigSections); persistView(); });
     return chip;
   };
-  row.appendChild(mk("all", t("scopeAll")));
-  row.appendChild(mk("global", t("kindGlobal")));
-  for (const p of projects) row.appendChild(mk(p, basename(p), p));
+  if (projects.length) {
+    row.appendChild(mk("all", t("scopeAll")));
+    row.appendChild(mk("global", t("kindGlobal")));
+    for (const p of projects) row.appendChild(mk(p, basename(p), p));
+  }
+  if (hiddenCount) row.appendChild(buildHiddenNotice(hiddenCount));
   return row;
 }
 
@@ -104,6 +281,16 @@ function buildOriginToggles(): HTMLElement {
   return row;
 }
 
+// 적재등급 배지. 섹션은 등급이 균일할 때만(load), 카드는 섹션이 카드별 판정일 때 자기 등급을 든다.
+const LOAD_LBL: Record<string, string> = { eager: "loadEager", lazy: "loadLazy", never: "loadNever" };
+const LOAD_TIP: Record<string, string> = { eager: "loadEagerTip", lazy: "loadLazyTip", never: "loadNeverTip" };
+function loadBadge(v: string, note?: string): string {
+  const lbl = LOAD_LBL[v];
+  if (!lbl) return "";
+  const tip = t(LOAD_TIP[v]);
+  return `<span class="loadbadge ${esc(v)}" title="${esc(note ? `${tip} · ${note}` : tip)}">${esc(t(lbl))}</span>`;
+}
+
 const isAddCard = (c: any): boolean => !!(c.edit && String(c.edit.kind || "").endsWith("-add"));
 
 // 이름 충돌로 실제 적용되지 않는 카드에 붙일 배지. 어느 쪽이 가려지는지는 섹션마다 다르므로
@@ -130,7 +317,7 @@ function renderConfigCard(c: any, shadowOf: ((c: any) => Shadow | null) | null):
   const badgeTip = c.plugin ? (plgTip[c.badge] || "") : "";
   card.innerHTML =
     `<div class="cname"><span class="nm">${esc(c.name)}</span>` +
-    `<span class="cbadges">${shadowBadge}` +
+    `<span class="cbadges">${shadowBadge}${loadBadge(c.load)}` +
     (c.badge ? `<span class="badge ${badgeCls}"${badgeTip ? ` title="${esc(badgeTip)}"` : ""}>${esc(c.badge)}</span>` : "") +
     `</span></div>` +
     (c.kv || [])
@@ -159,26 +346,17 @@ function buildSrcGroupHeader(key: string, isGlobal: boolean, pathTxt: string, co
 function renderConfigSection(host: HTMLElement, sec: any): void {
   const cards = sec.cards || [];
   const hasProject = cards.some((c: any) => c.scope === "project");
-  // Plugins 섹션은 플러그인 **관리** 화면이라 출처 토글의 대상이 아니다. 여기까지 숨기면
-  // 다시 켤 자리가 사라지고, 무엇을 껐는지도 확인할 수 없게 된다.
-  const isPluginSec = String(sec.title || "").startsWith("Plugins");
-  const inScope = (c: any) =>
-    scopeFilter === "all" ? true
-      : scopeFilter === "global" ? c.scope !== "project"
-        : (c.scope === "project" && c.project === scopeFilter);
-  const visible = cards.filter((c: any) =>
-    (showPlugin || !c.plugin || isPluginSec) && (showBuiltin || !c.builtin) && inScope(c));
-  // 필터 모드에서 결과 0개 섹션은 통째로 스킵. 아무 필터도 안 걸렸으면 항상 렌더.
-  const filtering = scopeFilter !== "all" || !showPlugin || !showBuiltin;
-  if (filtering && !visible.length) return;
-
-  secTitles.add(sec.title);
+  const visible = visibleCards(sec);
+  const counted = visible.filter((c: any) => !isAddCard(c));
+  secIds.add(sec.id);
   const secEl = document.createElement("div");
-  secEl.className = "sec" + (collapsed.has(sec.title) ? " collapsed" : "");
+  secEl.className = "sec" + (collapsed.has(sec.id) ? " collapsed" : "");
   secEl.dataset.col = "1";
 
-  const gCount = cards.filter((c: any) => c.scope !== "project").length;
-  const pCount = cards.length - gCount;
+  // 요약도 그룹 헤더와 같은 근거(visible)로 센다 - 전체 카드로 세면 플러그인/기본제공을
+  // 끈 화면에서 보이는 수(seccount)와 요약이 서로 다른 말을 한다.
+  const gCount = counted.filter((c: any) => c.scope !== "project").length;
+  const pCount = counted.length - gCount;
   const summary = (scopeFilter === "all" && pCount)
     ? `<span class="secsum">${esc(t("kindGlobal"))} ${gCount} · ${esc(t("kindProject"))} ${pCount}</span>` : "";
   const srcHtml = sec.source
@@ -189,9 +367,10 @@ function renderConfigSection(host: HTMLElement, sec: any): void {
   head.innerHTML =
     `<div class="secrow"><span class="chev2">▾</span>` +
     `<span class="sectitle">${esc(sec.title)}</span>` +
-    `<span class="seccount">${visible.length}</span>${summary}</div>` + srcHtml;
+    `<span class="seccount" title="${esc(t("cntShown"))} ${counted.length} · ${esc(t("cntTotal"))} ${cards.filter((c: any) => !isAddCard(c)).length}">${counted.length}</span>` +
+    loadBadge(sec.load, sec.note) + `${summary}</div>` + srcHtml;
   head.addEventListener("click", () => {
-    if (collapsed.has(sec.title)) collapsed.delete(sec.title); else collapsed.add(sec.title);
+    if (collapsed.has(sec.id)) collapsed.delete(sec.id); else collapsed.add(sec.id);
     secEl.classList.toggle("collapsed");
   });
   secEl.appendChild(head);
@@ -203,7 +382,7 @@ function renderConfigSection(host: HTMLElement, sec: any): void {
   //   skills : personal(전역)이 project 를 덮어씀 -> 가려지는 쪽은 프로젝트 카드
   // 판정은 필터와 무관하게 전체 카드 기준(전역 필터에서도 배지가 유지되어야 함).
   let shadowOf: ((c: any) => Shadow | null) | null = null;
-  if (hasProject && /^Agents/.test(sec.title)) {
+  if (hasProject && sec.id === "agents") {
     const byName = new Map<string, string[]>();
     for (const c of cards) if (c.scope === "project" && c.project) {
       byName.set(c.name, (byName.get(c.name) || []).concat(c.project));
@@ -217,7 +396,7 @@ function renderConfigSection(host: HTMLElement, sec: any): void {
         tip: t("shadowedTip") + ps.join(" · "),
       };
     };
-  } else if (hasProject && /^Skills/.test(sec.title)) {
+  } else if (hasProject && sec.id === "skills") {
     const globalNames = new Set(cards.filter((c: any) => c.scope !== "project" && !isAddCard(c))
                                      .map((c: any) => c.name));
     shadowOf = (c: any) => {
@@ -237,7 +416,7 @@ function renderConfigSection(host: HTMLElement, sec: any): void {
   for (const c of visible) {
     const isGlobal = c.scope !== "project";
     const label = srcOf(c);
-    const key = `${sec.title}::${isGlobal ? "g" : "p"}::${label}`;
+    const key = `${sec.id}::${isGlobal ? "g" : "p"}::${label}`;
     let i = gidx.get(key);
     if (i === undefined) {
       i = groups.length;
@@ -251,7 +430,9 @@ function renderConfigSection(host: HTMLElement, sec: any): void {
   if (scopeFilter === "all" && (groups.length > 1 || groups.some((g) => !g.isGlobal))) {
     // 그룹 모드: 출처별 그룹(등장 순 - 백엔드가 전역 카드를 앞에 둔다). 접힌 그룹은 카드 렌더 스킵(DOM 제외).
     for (const g of groups) {
-      body.appendChild(buildSrcGroupHeader(g.key, g.isGlobal, g.label, g.cards.length));
+      // 헤더 숫자는 실카드만 - 스캐폴드 카드까지 세면 전역 20개가 21로 보인다.
+      body.appendChild(buildSrcGroupHeader(g.key, g.isGlobal, g.label,
+        g.cards.filter((c) => !isAddCard(c)).length));
       if ((g.key in srcOpen) ? srcOpen[g.key] : g.isGlobal) {
         for (const c of g.cards) body.appendChild(renderConfigCard(c, shadowOf));
       }
@@ -272,8 +453,9 @@ function renderConfigSection(host: HTMLElement, sec: any): void {
 // removal uses inline confirm (window.confirm may be blocked in iframe sandbox).
 function buildEditUI(edit: any): HTMLElement {
   if (edit.kind === "plugin") return buildPluginToggleUI(edit);
-  if (["mcp", "skill", "agent"].includes(edit.kind)) return buildRemoveUI(edit);
-  if (["mcp-add", "skill-add", "agent-add"].includes(edit.kind)) return buildAddUI(edit);
+  if (edit.kind === "item" && edit.itemKind === "output-style") return buildStyleUI(edit);
+  if (["mcp", "skill", "agent", "item", "memory"].includes(edit.kind)) return buildRemoveUI(edit);
+  if (["mcp-add", "skill-add", "agent-add", "item-add"].includes(edit.kind)) return buildAddUI(edit);
   const isPerm = edit.kind === "perm";
   const tgt = edit.settings ? { settings: edit.settings } : {};   // 프로젝트 카드면 그 프로젝트 settings 파일 대상
   const doRemove = (it: string) =>
@@ -486,12 +668,50 @@ function mkPluginCliBtn(label: string, tip: string, tool: string, args: any,
 }
 
 // 카드 단위 제거(mcp/skill/agent): 제거 버튼 -> 인라인 확인 -> 해당 remove 도구 호출.
+// output style 카드. 제거만 있으면 반쪽이다 - 어느 스타일이 세션 시작에 적재될지를
+// 바꾸는 스위치가 여기 말고는 없다. 활성 카드에는 해제를, 나머지에는 활성화를 준다.
+function buildStyleUI(edit: any): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "edit";
+  const notice = mkNotice();
+  const btn = document.createElement("button");
+  btn.className = "addbtn" + (edit.active ? " on" : "");
+  btn.textContent = edit.active ? t("styleDeactivate") : t("styleActivate");
+  btn.title = edit.active ? t("styleDeactivateTip") : t("styleActivateTip");
+  btn.addEventListener("click", async () => {
+    setPending(btn);
+    try {
+      const res = jparse(await callTool("config_outputstyle_set", {
+        name: edit.active ? "" : edit.name,
+        ...(edit.settings ? { settings: edit.settings } : {}),
+      }));
+      if (res && (res.ok === false || res.changed === false)) {
+        clearPending(btn, t("failed"));
+        notice.show(res.message || t("failed"), res.ok === false ? "err" : "warn");
+        return;
+      }
+      flashToast((edit.active ? t("styleDeactivate") : t("styleActivate")) + " · " + edit.name);
+      await refreshApp?.();
+    } catch (e) { notice.show(String(e)); clearPending(btn, t("failed")); }
+  });
+  const row = document.createElement("div");
+  row.className = "adder";
+  row.append(btn);
+  wrap.append(row, buildRemoveUI(edit), notice.el);
+  return wrap;
+}
+
 function buildRemoveUI(edit: any): HTMLElement {
   // edit.dir = 프로젝트-로컬 항목의 skills/agents 디렉토리. 전역 카드는 미부여 -> 도구 기본값(~/.claude).
   const doRemove = () => {
     if (edit.kind === "mcp") return callTool("config_mcp_remove", { name: edit.name, scope: edit.scope });
     if (edit.kind === "skill")
       return callTool("config_skill_remove", { name: edit.name, ...(edit.dir ? { skillsDir: edit.dir } : {}) });
+    if (edit.kind === "item")
+      return callTool("config_item_remove",
+        { itemKind: edit.itemKind, name: edit.name, ...(edit.dir ? { dir: edit.dir } : {}) });
+    if (edit.kind === "memory")
+      return callTool("config_memory_remove", { name: edit.name, memoryDir: edit.memoryDir });
     return callTool("config_agent_remove", { name: edit.name, ...(edit.dir ? { agentsDir: edit.dir } : {}) });
   };
   const wrap = document.createElement("div");
@@ -575,6 +795,9 @@ function buildAddUI(edit: any): HTMLElement {
         res = jparse(await callTool("config_mcp_add", { name, serverJson: rest, scope: edit.scope }));
       } else if (edit.kind === "skill-add") {
         res = jparse(await callTool("skill_scaffold", { name, desc: rest || undefined }));
+      } else if (edit.kind === "item-add") {
+        res = jparse(await callTool("config_item_add",
+          { itemKind: edit.itemKind, name, desc: rest || undefined }));
       } else {
         res = jparse(await callTool("config_agent_add", { name, desc: rest || undefined }));
       }

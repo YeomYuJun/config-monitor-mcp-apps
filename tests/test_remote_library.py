@@ -457,7 +457,10 @@ class ScanEnumerationErrors(unittest.TestCase):
         row = res["libraries"][0]
         self.assertNotIn("error", row,
                          "진짜 빈 라이브러리는 error 를 달면 안 된다(나열 실패와 혼동 금지)")
-        self.assertEqual(row["categories"], {"agents": [], "skills": [], "commands": []})
+        # 카테고리 목록은 CATEGORIES 에서 끌어온다 - 표면이 늘 때마다 이 테스트가 깨지면 안 된다.
+        import library
+        self.assertEqual(sorted(row["categories"]), sorted(library.CATEGORIES))
+        self.assertTrue(all(v == [] for v in row["categories"].values()))
 
 
 class ComponentCounting(unittest.TestCase):

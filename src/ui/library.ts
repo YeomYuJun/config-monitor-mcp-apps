@@ -2,11 +2,12 @@
 // 그리고 그것들의 설치 · 동기화 · 제거. 설치 대상(전역 / 프로젝트 .claude)은 state 의 libTarget 이 정한다.
 // 등록 모달은 libmarket.ts 가 갖는다 - Marketplace 쪽과 공유하므로 여기 두면 순환이 된다.
 import { t } from "./i18n";
+import { persistView } from "./view";
 import { callTool, jparse } from "./bridge";
 import { $, esc, setPending, clearPending, openReasonModal, flashToast } from "./widgets";
 import { basename, originShort, mkSrcTag } from "./helpers";
 import {
-  collapsed, secTitles, libGroupOpen, ROOT_GROUP_KEY, libChecked, libOpen,
+  collapsed, secIds, libGroupOpen, ROOT_GROUP_KEY, libChecked, libOpen,
   libProjectTargets, libTarget, libSelBarUpdate, refreshApp, setLibTarget, setLibSelBarUpdate,
 } from "./state";
 import { openLibAdd } from "./libmarket";
@@ -297,7 +298,7 @@ function buildTargetBar(allItems: any[]): HTMLElement {
     `<option value="">${esc(t("targetGlobal"))}</option>` +
     libProjectTargets.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join("");
   sel.value = libTarget;
-  sel.addEventListener("change", async () => { setLibTarget(sel.value); await refreshApp?.(); });
+  sel.addEventListener("change", async () => { setLibTarget(sel.value); persistView(); await refreshApp?.(); });
   const selBtn = document.createElement("button");
   selBtn.className = "addbtn selbtn";
   const update = () => {
@@ -421,11 +422,11 @@ function renderLibrary(host: HTMLElement, res: any): void {
   // 등록된 라이브러리가 없으면 접힌 채로 두지 않는다: "라이브러리 등록"은 이 섹션 본문
   // 안에만 있어서, 기본 접힘(기동 시 전 섹션 접힘)과 겹치면 처음 쓰는 사람에게 진입점이
   // 아예 안 보인다. Marketplace 가 같은 이유로 같은 처리를 한다.
-  if (!libs.length) collapsed.delete("Library");
+  if (!libs.length) collapsed.delete("library");
   const secEl = document.createElement("div");
-  secEl.className = "sec" + (collapsed.has("Library") ? " collapsed" : "");
+  secEl.className = "sec" + (collapsed.has("library") ? " collapsed" : "");
   secEl.dataset.col = "1";
-  secTitles.add("Library");
+  secIds.add("library");
   // 카테고리별 수집(agents/commands/skills). allItems 는 상단 "선택 설치" 카운트/설치 대상용.
   const byCat: Record<string, any[]> = { agents: [], commands: [], skills: [] };
   for (const l of libs) {
@@ -444,7 +445,7 @@ function renderLibrary(host: HTMLElement, res: any): void {
     `<span class="seccount">${allItems.length}</span></div>` +
     (libs.length ? `<div class="secsrc"><span class="lbl">${esc(t("source"))}</span><span class="val">${esc(libs.map((l: any) => l.lib).join(" · "))}</span></div>` : "");
   head.addEventListener("click", () => {
-    if (collapsed.has("Library")) collapsed.delete("Library"); else collapsed.add("Library");
+    if (collapsed.has("library")) collapsed.delete("library"); else collapsed.add("library");
     secEl.classList.toggle("collapsed");
   });
   secEl.appendChild(head);

@@ -11,7 +11,7 @@ export let toRev = "work";
 export let detailOpen = false;
 // 기동 시 전 섹션 접힘. Library/Marketplace 는 renderConfig 이후에 그려져 아래 collapsedInit
 // 루프가 못 잡으므로 여기서 미리 넣어 둔다(사용자가 펼치면 그 상태가 세션 내내 유지된다).
-export const collapsed = new Set<string>(["Library", "Marketplace"]);   // 접힌 섹션 title
+export const collapsed = new Set<string>(["library", "marketplace"]);   // 접힌 섹션 id
 // Claude Code 쪽 상태 캐시. 카탈로그 행이 "이 플러그인을 통째로 설치할 수 있는가"를 판정한다.
 //   ccPlugins  이미 Claude Code 에 설치된 플러그인 id (renderConfig 이 Plugins 카드에서 채움)
 //   ccMarkets  Claude Code 가 아는 마켓 이름 (buildCatalog 이 market-discover 로 채움).
@@ -42,7 +42,7 @@ export const normUrl = (u: string): string => {
   const s = String(u || "").trim().replace(/\/+$/, "").toLowerCase();
   return s.endsWith(".git") ? s.slice(0, -4) : s;
 };
-export const secTitles = new Set<string>();         // 접기 가능한 섹션 title (전부 접기 대상)
+export const secIds = new Set<string>();            // 접기 가능한 섹션 id (전부 접기 대상)
 export let collapsedInit = false;                    // 기본 접힘 1회만 적용
 // 출처 표시 토글(스코프 필터와 독립). 기본은 둘 다 표시 - buildOriginToggles 주석 참고.
 export let showPlugin = true;                        // 플러그인이 넣은 항목
@@ -62,10 +62,24 @@ export let libSelBarUpdate: (() => void) | null = null; // 체크박스 -> 상�
 // 섹션은 이것만 부른다(libSelBarUpdate 와 같은 규율).
 export let refreshApp: (() => Promise<void>) | null = null;
 export let scopeFilter = "all";                      // 설정 스코프 필터: 'all' | 'global' | <projectPath>
-export const srcOpen: Record<string, boolean> = {};  // 출처 그룹 접힘 상태(키: `${secTitle}::g` | `${secTitle}::${project}`)
+export const srcOpen: Record<string, boolean> = {};  // 출처 그룹 접힘 상태(키: `${secId}::g` | `${secId}::${project}`)
 export const catOpen = new Set<string>();     // 펼친 마켓 id(기본 접힘 - 마켓 하나가 278개다)
 export let catSecEl: HTMLElement | null = null; // 제자리 교체용 현재 카탈로그 섹션 노드(refresh 가 무효화한다)
 export let lastConfigSections: any[] = [];           // 스코프 칩/그룹 즉시 재렌더용 최신 섹션 캐시
+// 섹션 표시 설정. 스토어(store/config.json 의 ui 블록)가 정본이고 여기는 그 사본이다.
+// preset 은 '어느 범주를 볼까'만, hideEmpty 는 '빈 섹션을 감출까'만 정한다. 서로 건드리지 않는다
+// - 한쪽이 다른 쪽을 써주면 preset 은 X 라고 표시되는데 화면은 Y 인 상태가 저장된다.
+export interface SectionPrefs {
+  preset: "all" | "common" | "custom";
+  hidden: string[];          // custom 에서만 의미
+  hideEmpty: boolean;
+  groupsCollapsed: string[];
+}
+export let sectionPrefs: SectionPrefs =
+  { preset: "all", hidden: [], hideEmpty: true, groupsCollapsed: [] };
+export const setSectionPrefs = (v: SectionPrefs): void => { sectionPrefs = v; };
+// '주로 쓰는 것' 이 포함하는 그룹. 나머지(connect/memory/env)는 한 번 맞춰두면 잘 안 건드린다.
+export const COMMON_GROUPS = ["instructions", "extensions", "exec"];
 
 export const setSelectedPath       = (v: string): void => { selectedPath = v; };
 export const setCurrentRevs        = (v: any[]): void => { currentRevs = v; };

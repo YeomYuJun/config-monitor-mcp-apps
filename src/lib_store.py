@@ -37,7 +37,8 @@ def load_cfg(store: str) -> dict:
     p = store_config_path(store)
     if not os.path.exists(p):
         return {}
-    with open(p, encoding="utf-8") as f:
+    # utf-8-sig: 윈도우에서 만들어진 config.json 에는 BOM 이 붙어 온다(BOM 없는 파일도 동일 처리).
+    with open(p, encoding="utf-8-sig") as f:
         return json.load(f)
 
 

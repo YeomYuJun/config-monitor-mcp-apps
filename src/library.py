@@ -28,7 +28,7 @@ for _s in (sys.stdout, sys.stderr):
     except (AttributeError, ValueError):
         pass
 
-from config_edit import (backup, snapshot_before, trash, out, load, save_atomic,
+from config_edit import (backup, snapshot_before, snapshot_after, trash, out, load, save_atomic,
                          op_mcp_add, op_mcp_remove, _safe_settings_path)  # 동일 안전 규율 재사용
 import lib_store
 import marketplace
@@ -46,10 +46,15 @@ DEFAULT_CLAUDE_JSON = os.path.join(HOME, ".claude.json")
 DEFAULT_DESKTOP_CONFIG = paths.desktop_config_path()
 
 # 카테고리 -> (라이브러리 하위경로, 항목 종류)
+# 카테고리 -> (하위경로, 항목 종류, 파일 확장자). dir 종류는 확장자를 쓰지 않는다.
+# 표면이 늘면 여기 한 줄만 더한다 - 설치/제거/sync/conflict/원장이 전부 이 표를 탄다.
 CATEGORIES = {
-    "agents":   ("agents", "file"),      # *.md
-    "skills":   ("skills", "dir"),       # <name>/ (SKILL.md 포함)
-    "commands": ("commands", "file"),    # *.md
+    "agents":        ("agents", "file", ".md"),
+    "skills":        ("skills", "dir", ""),          # <name>/ (SKILL.md 포함)
+    "commands":      ("commands", "file", ".md"),
+    "rules":         ("rules", "file", ".md"),
+    "output-styles": ("output-styles", "file", ".md"),
+    "workflows":     ("workflows", "file", ".js"),
 }
 
 # 라이브러리 바깥을 가리키는 상대참조 탐지 휴리스틱: CLAUDE_PROJECT_DIR 또는 형제 디렉토리
@@ -186,7 +191,7 @@ def _iter_items(lib, category, cmap=None):
     relpath 는 base(카테고리 루트) 기준 상대경로 - 그룹 표시·설치 지정에 사용.
     _walk_strict 를 쓰므로 나열 도중 OSError 가 나면(예: 깊은 경로가 Windows 길이 제한을
     넘음) 이 제너레이터가 그대로 raise 한다 - 호출부(cmd_scan)가 카테고리 단위로 잡는다."""
-    sub, kind = CATEGORIES[category]
+    sub, kind, ext = CATEGORIES[category]
     if cmap and cmap.get(category):
         sub = cmap[category]
     base = os.path.join(lib, sub)
@@ -197,8 +202,9 @@ def _iter_items(lib, category, cmap=None):
             if name.startswith("."):
                 continue
             full = os.path.join(base, name)
-            if name.lower().endswith(".md") and os.path.isfile(full):
-                yield name[:-3], full, kind, name[:-3]
+            if name.lower().endswith(ext) and os.path.isfile(full):
+                stem = name[:-len(ext)]
+                yield stem, full, kind, stem
         return
     for root, dirs, names in _walk_strict(base):
         dirs[:] = sorted(d for d in dirs if not d.startswith("."))
@@ -209,8 +215,8 @@ def _iter_items(lib, category, cmap=None):
 
 
 def _target_path(target_root, category, name, kind):
-    sub, _ = CATEGORIES[category]
-    return os.path.join(target_root, sub, name if kind == "dir" else f"{name}.md")
+    sub, _, ext = CATEGORIES[category]
+    return os.path.join(target_root, sub, name if kind == "dir" else f"{name}{ext}")
 
 
 def _status(lib_path, tgt, kind):
@@ -476,7 +482,7 @@ def _resolve_item(a):
     seg_bad = any(p in ("", ".", "..") or ":" in p or p != os.path.basename(p) for p in parts)
     if not parts or os.path.isabs(a.path) or seg_bad:
         out(False, f"경로가 유효하지 않음: '{a.path}'")
-    sub, kind = CATEGORIES[a.category]
+    sub, kind, ext = CATEGORIES[a.category]
     if kind == "file" and len(parts) != 1:
         out(False, f"경로는 단일 이름이어야 함: '{a.path}'")
     leaf = parts[-1]
@@ -490,7 +496,7 @@ def _resolve_item(a):
         cmap = r.get("map") or {}
         src = os.path.join(r["lib"], cmap.get(a.category) or sub, *parts)
         if kind == "file":
-            src += ".md"
+            src += ext
         if os.path.exists(src):
             hits.append((src, kind, _target_path(a.target, a.category, leaf, kind), r["origin"]))
     if not hits:
@@ -536,14 +542,16 @@ def cmd_install(a):
         # 파일은 이미 설치됐다. 원장만 못 남긴 상태를 숨기지 않는다 -
         # 이 항목은 다음 scan 에서 하위호환(해시 비교) 경로로 흐른다.
         warn = "스토어 미초기화로 출처를 기록하지 못했습니다(설치 자체는 완료)"
-    out(True, f"{'동기화' if existed else '설치'}됨: {a.category}/{a.path}",
-        target=tgt, backup=bak, synced=existed, origin=origin, warning=warn)
+    msg = f"{'동기화' if existed else '설치'}됨: {a.category}/{a.path}"
+    if not a.no_snapshot:
+        snapshot_after(a.store, msg)
+    out(True, msg, target=tgt, backup=bak, synced=existed, origin=origin, warning=warn)
 
 
 def cmd_uninstall(a):
     if a.name != os.path.basename(a.name) or a.name in (".", "..") or ":" in a.name or any(c in a.name for c in "\\/"):
         out(False, f"이름이 유효하지 않음: '{a.name}'")
-    sub, kind = CATEGORIES[a.category]
+    _sub, kind, _ext = CATEGORIES[a.category]
     tgt = _target_path(a.target, a.category, a.name, kind)
     if not os.path.exists(tgt):
         out(True, f"이미 없음: {a.category}/{a.name} (no-op)", changed=False)
@@ -561,7 +569,10 @@ def cmd_uninstall(a):
         lib_store.save_cfg(a.store, cfg)
     except lib_store.StoreNotInitialized:
         pass          # 원장이 애초에 없었다는 뜻 - 지울 것도 없다
-    out(True, f"제거됨(.trash 이동): {a.category}/{a.name}", trashed=dst, owner=owner)
+    msg = f"제거됨(.trash 이동): {a.category}/{a.name}"
+    if not a.no_snapshot:
+        snapshot_after(a.store, msg)
+    out(True, msg, trashed=dst, owner=owner)
 
 
 def _lib_cache(store, *parts):
@@ -1175,6 +1186,8 @@ def cmd_hooks_install(a):
     except lib_store.StoreNotInitialized:
         warn = "스토어 미초기화로 출처를 기록하지 못했습니다 - 제거 시 --root 로 경로를 직접 지정해야 합니다"
 
+    if not a.no_snapshot:
+        snapshot_after(a.store, f"hooks 설치됨: {name} ({added}건)")
     print(json.dumps({"ok": True, "origin": a.origin, "root": root, "settings": sp,
                       "removed": removed, "added": added, "backup": bak,
                       "warnings": warns, "warning": warn,
@@ -1237,6 +1250,8 @@ def cmd_hooks_uninstall(a):
             snapshot_before(a.store)
         backup(sp)
         save_atomic(sp, s)
+        if not a.no_snapshot:
+            snapshot_after(a.store, f"hooks 제거됨: {name} ({removed}건)")
     try:
         lib_store.ledger_del(cfg, a.target, "hooks", name)
         lib_store.save_cfg(a.store, cfg)
@@ -1301,6 +1316,8 @@ def cmd_mcp_install(a):
         lib_store.save_cfg(a.store, cfg)
     except lib_store.StoreNotInitialized:
         warn = "스토어 미초기화로 출처를 기록하지 못했습니다(설치 자체는 완료)"
+    if not a.no_snapshot:
+        snapshot_after(a.store, f"MCP 서버 설치됨: {name} ({len(servers)}개, scope={a.scope})")
     print(json.dumps({"ok": True, "origin": a.origin, "target": tgt, "backup": bak,
                       "servers": sorted(servers), "warning": warn,
                       "message": f"MCP 서버 설치됨: {name} ({len(servers)}개, scope={a.scope})"},
@@ -1327,6 +1344,8 @@ def cmd_mcp_uninstall(a):
             snapshot_before(a.store)
         backup(tgt)
         save_atomic(tgt, d)
+        if not a.no_snapshot:
+            snapshot_after(a.store, f"MCP 서버 제거됨: {name} ({removed}개)")
     try:
         if a.server and rec.get("servers"):
             rec["servers"] = [s for s in rec["servers"] if s != a.server]
@@ -1414,4 +1433,11 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except SystemExit:
+        raise
+    except Exception as e:
+        # stdout 한 줄 JSON 계약 유지: 예기치 못한 실패(권한/디스크 등)도 트레이스백 대신 사유로.
+        print(json.dumps({"ok": False, "message": f"{type(e).__name__}: {e}"}, ensure_ascii=False))
+        sys.exit(1)

@@ -12,10 +12,11 @@ git 과 다른 점:
   1) stat fast-path: size + mtime_ns 가 index 와 같으면 내용을 안 읽고 unchanged.
   2) 다르면 내용을 해싱해 hash 비교 (touch 등 내용 무변경 케이스 제거).
   3) index 에 없는 경로 = 신규, 워킹트리에 없는데 index 에 있으면 = 삭제.
+  4) 해시가 달라도 파일별 무시 키 프로필(DEFAULT_IGNORE_KEYS)로 걸러 같으면 unchanged.
 """
 from __future__ import annotations
-import argparse, contextlib, json, os, re, sys, time, zlib, hashlib, glob as globmod, difflib
-from datetime import datetime
+import argparse, contextlib, fnmatch, json, os, re, sys, time, zlib, hashlib, glob as globmod, difflib
+from datetime import datetime, timedelta
 
 # Windows 콘솔 기본 인코딩(cp949)에서 한글/em-dash 출력 시 UnicodeEncodeError 방지.
 # newline="" 필수: 기본 텍스트 모드는 쓰기 시 \n 을 \r\n 으로 바꾸는데, cat/diff 처럼
@@ -81,7 +82,7 @@ def load_json(path, default):
 
 def save_json(path, data):
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = path + ".tmp"
+    tmp = f"{path}.{os.getpid()}.tmp"   # 잠금 없는 쓰기(sig 캐시)가 두 프로세스에서 겹쳐도 서로의 임시 파일을 밟지 않게
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     os.replace(tmp, path)
@@ -104,6 +105,189 @@ def write_object(p, content: bytes) -> str:
 def read_object(p, h) -> bytes:
     with open(object_path(p, h), "rb") as f:
         return zlib.decompress(f.read())
+
+# ---- 의미 변경 판정 ----
+# .claude.json 은 설정과 기계 상태(캐시·카운터·타임스탬프)가 한 파일에 섞여 있어 바이트 비교로는 매 세션이
+# 리비전이 된다(2026-09 실측: 리비전 434개 중 실변경 10개). 파일별 무시 키 프로필로 판정과 기본 diff 표시에서만
+# 그 키들을 뺀다. blob 은 원문 그대로 저장·복원되고 diff --raw 는 전부 보여준다.
+# 규칙: 점 구분 경로, 세그먼트별 glob, 매칭된 경로의 하위 전체. 기본 규칙은 실제 스냅샷에서 관측된 키만 담았다.
+DEFAULT_IGNORE_KEYS = {
+    ".claude.json": [
+        "cached*", "*Cache", "*CacheSlots", "*Count", "*At", "last*", "hasSeen*", "*Migration*",
+        "numStartups", "migrationVersion", "tipsHistory", "tipLifetimeShownCounts", "pluginUsage",
+        "skillUsage", "replBridgePlaceholders", "changelogLastFetched", "closedIssuesLastChecked",
+        "announcementImpressions", "feedbackSurveyState", "seenNotifications", "fleetViewPeakConcurrent",
+        "githubRepoPaths", "rcLongTurnNudgeSeenKey", "oauthAccount.profileFetchedAt",
+        "projects.*.last*", "projects.*.projectOnboardingSeenCount", "projects.*.hasCompletedProjectOnboarding",
+        "projects.*.hasUnseenTeamArtifacts", "projects.*.loggedAuthoredArtifactPaths",
+    ],
+    "settings.json": ["feedbackDrafts"],
+    "claude_desktop_config.json": ["preferences.sidebarMode", "preferences.epitaxyPrefs"],
+}
+# 새 프로젝트 폴더에서 Claude Code 를 처음 열면 생기는, 값이 전부 기본값인 projects 항목의 등장·소멸.
+PROJECT_DEFAULTS = {
+    "allowedTools": [], "mcpContextUris": [], "mcpServers": {}, "enabledMcpjsonServers": [],
+    "disabledMcpjsonServers": [], "disabledMcpServers": [], "hasTrustDialogAccepted": False,
+    "hasClaudeMdExternalIncludesApproved": False, "hasClaudeMdExternalIncludesWarningShown": False,
+}
+
+def ignore_profile(config, path):
+    """path 의 무시 프로필(None = 원문 해시 판정). config.ignore_keys 는 basename/절대경로 키로 기본 규칙에
+    더해진다. '!경로' 는 규칙에 걸려도 그 경로(와 하위)를 남기는 예외 - '!last*' 는 기본 규칙 하나를 끄고
+    '!lastCost' 는 키 하나만 살린다. fp 는 판정 지문(sig 캐시 키) - 바뀌면 sig 를 다시 계산한다."""
+    name = os.path.basename(path)
+    user = config.get("ignore_keys") or {}
+    rules, keep = list(DEFAULT_IGNORE_KEYS.get(name, [])), []
+    for r in list(user.get(name, [])) + list(user.get(path, [])):
+        (keep if r.startswith("!") else rules).append(r.lstrip("!"))
+    empty_projects = name == ".claude.json" and bool(config.get("ignore_empty_projects", True))
+    if not rules and not empty_projects:
+        return None
+    fp = hash_bytes(json.dumps([sorted(set(rules)), sorted(set(keep)), empty_projects and PROJECT_DEFAULTS],
+                               sort_keys=True).encode())[:16]
+    return {"rules": [r.split(".") for r in rules], "keep": [r.split(".") for r in keep],
+            "empty_projects": empty_projects, "fp": fp}
+
+def _rule_hits(segs, rules):
+    return any(len(r) <= len(segs) and all(fnmatch.fnmatchcase(s, pat) for s, pat in zip(segs, r)) for r in rules)
+
+def _keep_below(segs, keep):
+    """segs 아래 어딘가를 살리는 예외가 있으면 통째로 지우지 말고 내려가야 한다."""
+    return any(len(r) > len(segs) and all(fnmatch.fnmatchcase(s, pat) for s, pat in zip(segs, r)) for r in keep)
+
+def _strip(obj, rules, keep, prefix=()):
+    if not isinstance(obj, dict):
+        return obj
+    out = {}
+    for k, v in obj.items():
+        kp = prefix + (k,)
+        if _rule_hits(kp, rules) and not _rule_hits(kp, keep) and not _keep_below(kp, keep):
+            continue
+        out[k] = _strip(v, rules, keep, kp)
+    return out
+
+def _is_default_project(v):
+    return isinstance(v, dict) and all(PROJECT_DEFAULTS.get(k, object()) == x for k, x in v.items())
+
+def significant(data, profile):
+    """무시 경로를 뺀 파싱 결과. JSON 이 아니면 None."""
+    try:
+        obj = json.loads(data.decode("utf-8-sig"))
+    except (UnicodeDecodeError, ValueError):
+        return None
+    obj = _strip(obj, profile["rules"], profile["keep"])
+    if profile["empty_projects"] and isinstance(obj, dict) and isinstance(obj.get("projects"), dict):
+        obj["projects"] = {k: v for k, v in obj["projects"].items() if not _is_default_project(v)}
+    return obj
+
+def sig_of(data, profile):
+    obj = significant(data, profile)
+    if obj is None:
+        return "raw:" + hash_bytes(data)
+    return "json:" + hash_bytes(json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8"))
+
+def _changed_paths(a, b, prefix=()):
+    """두 JSON 값 사이에 값이 다른 리프 경로(튜플) 집합."""
+    if isinstance(a, dict) and isinstance(b, dict):
+        out = set()
+        for k in set(a) | set(b):
+            if k in a and k in b:
+                out |= _changed_paths(a[k], b[k], prefix + (k,))
+            else:
+                out.add(prefix + (k,))
+        return out
+    return set() if a == b else {prefix}
+
+def _ignored_summary(a, b, profile):
+    """원문 두 내용 사이에서 무시 규칙에 걸려 diff 본문에 안 나온 변경의 요약(최상위 키별 개수). 없으면 ''."""
+    try:
+        ra, rb = json.loads(a.decode("utf-8-sig")), json.loads(b.decode("utf-8-sig"))
+    except (UnicodeDecodeError, ValueError):
+        return ""
+    # 걸러진 diff 가 조상 경로에서 이미 보여주는 변경(빈 프로젝트 항목이 한쪽에서만 빠져 깊이가 달라지는 경우)은
+    # 숨은 것이 아니다 - 걸러진 변경 경로를 접두로 갖지 않는 원문 변경 경로만 센다.
+    shown = _changed_paths(significant(a, profile), significant(b, profile))
+    hidden = {pth for pth in _changed_paths(ra, rb) if not any(pth[:len(s)] == s for s in shown)}
+    counts = {}
+    for path in hidden:
+        top = path[0] if path else "<root>"
+        counts[top] = counts.get(top, 0) + 1
+    top = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+    parts = [f"{k}({n})" if n > 1 else k for k, n in top[:6]]
+    if len(top) > 6:
+        parts.append(f"(+{len(top) - 6})")
+    return ", ".join(parts)
+
+def _filtered_text(data, profile):
+    """diff 표시용: 무시 경로를 뺀 JSON 을 2칸 들여쓰기로 다시 직렬화(키 순서 보존). JSON 이 아니면 None."""
+    if not data:
+        return ""
+    obj = significant(data, profile)
+    return None if obj is None else json.dumps(obj, indent=2, ensure_ascii=False)
+
+# sig 캐시: blob 하나의 sig 계산이 20ms 라 타임라인(수백 blob)을 매번 계산하면 클릭이 초 단위로 멈춘다.
+def _sig_cache_path(p):
+    return os.path.join(p["store"], "sig-cache.json")
+
+def load_sig_cache(p):
+    """{"sigs": {fp: {blob hash: sig}}, "warmed": [fp...]}. 깨졌으면 빈 캐시(다시 계산하면 된다)."""
+    try:
+        c = load_json(_sig_cache_path(p), {})
+    except ValueError:
+        c = {}
+    return {"sigs": c.get("sigs") or {}, "warmed": c.get("warmed") or []}
+
+def save_sig_cache(p, cache):
+    save_json(_sig_cache_path(p), cache)
+
+def blob_sig(p, cache, profile, h):
+    """blob h 의 sig(캐시 우선, 없으면 계산해 cache 에 넣는다 - 저장은 호출자 몫). blob 이 없으면 None."""
+    bucket = cache["sigs"].setdefault(profile["fp"], {})
+    if h not in bucket:
+        try:
+            bucket[h] = sig_of(read_object(p, h), profile)
+        except OSError:
+            return None
+    return bucket[h]
+
+def _sig_cached(p, profile, h, persist):
+    cache = load_sig_cache(p)
+    known = h in cache["sigs"].get(profile["fp"], {})
+    s = blob_sig(p, cache, profile, h)
+    if persist and not known and s is not None:
+        save_sig_cache(p, cache)
+    return s
+
+def _remember_sig(p, profile, h, s):
+    cache = load_sig_cache(p)
+    cache["sigs"].setdefault(profile["fp"], {})[h] = s
+    save_sig_cache(p, cache)
+
+def warm_sig_cache(p, config, budget=8):
+    """스냅샷 blob 의 sig 를 미리 계산해 둔다(watcher 유휴 틱이 조금씩 부른다). 남은 개수를 반환."""
+    profiles = {}
+    for path in expand_tracked(config.get("tracked", [])):
+        pr = ignore_profile(config, path)
+        if pr:
+            profiles[path] = pr
+    fps = sorted({pr["fp"] for pr in profiles.values()})
+    cache = load_sig_cache(p)
+    if not fps or cache["warmed"] == fps:
+        return 0
+    todo = {}
+    for sid in _snapshot_ids(p):
+        entries = _manifest(p, sid).get("entries", {})
+        for path, pr in profiles.items():
+            h = (entries.get(path) or {}).get("hash")
+            if h and h not in cache["sigs"].get(pr["fp"], {}):
+                todo[h] = pr
+    for h, pr in list(todo.items())[:budget]:
+        blob_sig(p, cache, pr, h)
+    cache["sigs"] = {fp: v for fp, v in cache["sigs"].items() if fp in fps}
+    if len(todo) <= budget:
+        cache["warmed"] = fps
+    save_sig_cache(p, cache)
+    return max(0, len(todo) - budget)
 
 def expand_tracked(tracked):
     """config.tracked 항목(파일/디렉토리/glob)을 실제 파일 절대경로 집합으로 전개."""
@@ -152,15 +336,27 @@ def scan(p, config, index, rehash=True):
             new_index[path] = prev
             result["unchanged"].append(path)
             continue
-        h = hash_bytes(open(path, "rb").read())
+        # 한 번 읽은 내용으로 해시와 blob 을 함께 만든다 - 두 번 따로 읽으면 그 사이 파일이
+        # 또 바뀌었을 때 index 의 해시가 가리키는 blob 이 존재하지 않게 된다(복원 불가).
+        data = open(path, "rb").read()
+        h = hash_bytes(data)
         if h == prev.get("hash"):
             new_index[path] = {**stt, "hash": h}
             result["unchanged"].append(path)
-        else:
-            if rehash:
-                write_object(p, open(path, "rb").read())
-            new_index[path] = {**stt, "hash": h}
-            result["modified"].append(path)
+            continue
+        profile = ignore_profile(config, path)
+        cur_sig = sig_of(data, profile) if profile else None
+        if profile and prev.get("hash") and cur_sig == _sig_cached(p, profile, prev["hash"], persist=rehash):
+            # 무시 키만 바뀜: 새 blob 없이 stat 만 따라간다(index 가 저장되면 다음 스캔은 fast-path)
+            new_index[path] = {**stt, "hash": prev["hash"]}
+            result["unchanged"].append(path)
+            continue
+        if rehash:
+            write_object(p, data)
+            if profile:
+                _remember_sig(p, profile, h, cur_sig)
+        new_index[path] = {**stt, "hash": h}
+        result["modified"].append(path)
     for path in index:
         if path not in current:
             result["deleted"].append(path)
@@ -294,6 +490,11 @@ def cmd_status(args):
         # 전역(기본 추적) 대상 분류용. UI 가 전역(editable) vs 프로젝트(view-only) 행 구분에 사용.
         # 버킷 문자열과 동일 정규화(norm_entry)로 내보내야 UI 의 정확 매칭이 성립.
         out["defaults"] = [norm_entry(t) for t in config.get("tracked", []) if t in DEFAULT_TRACKED]
+        # UI 폴링이 status 한 번으로 watcher 생존과 새 스냅샷 여부까지 아는 데 쓴다
+        # (별도 watcher_status/log 호출 = 폴링마다 프로세스 하나씩 추가라 여기 얹는다).
+        out["watcher"] = _watcher_state(args.store)
+        ids = _snapshot_ids(p)
+        out["last_snapshot"] = ids[-1] if ids else None
         print(json.dumps(out, ensure_ascii=False))
         return
     def show(key, sym):
@@ -359,6 +560,8 @@ def _take_snapshot_locked(p, message, force=False):
     result, new_index = scan(p, config, index, rehash=True)
     changed = sum(len(result[k]) for k in ("new", "modified", "deleted"))
     if changed == 0 and not force:
+        if new_index != index:
+            save_json(p["index"], new_index)   # 무시 키만 바뀐 파일의 stat 을 따라가 다음 스캔은 fast-path
         return None, result
     snaps = sorted(os.listdir(p["snapshots"])) if os.path.isdir(p["snapshots"]) else []
     parent = snaps[-1] if snaps else None
@@ -373,6 +576,16 @@ def _take_snapshot_locked(p, message, force=False):
     save_json(os.path.join(p["snapshots"], ts + ".json"), manifest)
     save_json(p["index"], new_index)
     return ts, result
+
+def refresh_index(p):
+    """변경은 없는데 stat 만 바뀐 파일(무시 키만 저장된 경우)의 index 를 락 안에서 따라가게 한다.
+    락을 잡고 다시 봤을 때 진짜 변경이 있으면 손대지 않는다 - 다음 틱이 제 메시지로 스냅샷한다."""
+    with _snapshot_lock(p):
+        config = load_config(p)
+        index = load_json(p["index"], {})
+        result, new_index = scan(p, config, index, rehash=False)
+        if not any(result[k] for k in ("new", "modified", "deleted")) and new_index != index:
+            save_json(p["index"], new_index)
 
 def cmd_snapshot(args):
     p = store_paths(args.store)
@@ -391,39 +604,47 @@ def cmd_restore(args):
     p = store_paths(args.store)
     target = os.path.abspath(os.path.expanduser(args.path))
     sid = args.frm
-    # 복원 전 현재 상태를 스냅샷으로 보존(복원도 되돌릴 수 있게).
-    pre_snapshot = None
-    if not args.no_snapshot:
-        # 되돌릴 지점을 못 만들면 복원을 하지 않는다 - 조용히 진행하면 롤백 불가 상태가 된다.
-        try:
-            pre_snapshot, _ = _take_snapshot(p, f"before restore of {os.path.basename(target)}")
-        except TimeoutError as e:
-            print(json.dumps({"ok": False, "message": f"복원 전 스냅샷 실패: {e}"}, ensure_ascii=False))
-            sys.exit(1)
     blob = _content_at(p, sid, target)
     if blob is None:
         print(json.dumps({"ok": False, "message": f"스냅샷 {sid} 에 '{target}' 내용 없음(추적 안 됨/삭제됨)"},
                          ensure_ascii=False))
         sys.exit(1)
-    bak = None
-    if os.path.exists(target) and not args.no_backup:
-        bak = f"{target}.{datetime.now().strftime('%Y%m%d%H%M%S')}.bak"
-        with open(bak, "wb") as f:
-            f.write(open(target, "rb").read())
-    os.makedirs(os.path.dirname(target), exist_ok=True)
-    tmp = target + ".restore.tmp"
-    with open(tmp, "wb") as f:
-        f.write(blob)
-    os.replace(tmp, target)
+    # 전/후 스냅샷과 파일 쓰기를 한 락 안에서 - 사이가 벌어지면 watcher tick 이 먼저 찍어
+    # 복원 결과가 'auto:' 메시지로 기록되고, 리비전에 복원이라는 사실이 남지 않는다.
+    pre_snapshot = post_snapshot = bak = None
+    try:
+        with (contextlib.nullcontext() if args.no_snapshot else _snapshot_lock(p)):
+            if not args.no_snapshot:
+                # 되돌릴 지점을 못 만들면 복원을 하지 않는다 - 조용히 진행하면 롤백 불가 상태가 된다.
+                pre_snapshot, _ = _take_snapshot_locked(p, f"before restore of {os.path.basename(target)}")
+            if os.path.exists(target) and not args.no_backup:
+                bak = f"{target}.{datetime.now().strftime('%Y%m%d%H%M%S')}.bak"
+                with open(bak, "wb") as f:
+                    f.write(open(target, "rb").read())
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            tmp = target + ".restore.tmp"
+            with open(tmp, "wb") as f:
+                f.write(blob)
+            os.replace(tmp, target)
+            # 복원 결과도 즉시 스냅샷: 안 찍으면 다음 편집의 pre-스냅샷이 이 상태를 제 이름 없이
+            # 흡수해, 리비전 행의 메시지와 실제 diff 내용이 한 칸 어긋난다(편집 후행 스냅샷과 동일 원칙).
+            if not args.no_snapshot:
+                post_snapshot, _ = _take_snapshot_locked(p, f"restore: {os.path.basename(target)} <- {sid}")
+    except TimeoutError as e:
+        print(json.dumps({"ok": False, "message": f"복원 전 스냅샷 실패: {e}"}, ensure_ascii=False))
+        sys.exit(1)
     print(json.dumps({"ok": True, "message": f"복원 완료: {os.path.basename(target)} <- {sid}",
-                      "path": target, "from": sid, "backup": bak, "pre_snapshot": pre_snapshot},
+                      "path": target, "from": sid, "backup": bak, "pre_snapshot": pre_snapshot,
+                      "post_snapshot": post_snapshot},
                      ensure_ascii=False))
 
 def cmd_log(args):
     p = store_paths(args.store)
     if not os.path.isdir(p["snapshots"]):
         print("스냅샷 없음"); return
-    for name in sorted(os.listdir(p["snapshots"]), reverse=True)[: args.limit]:
+    # _snapshot_ids 와 같은 필터: 저장 중단이 남긴 .tmp 등을 스냅샷으로 세지 않는다.
+    names = [n for n in sorted(os.listdir(p["snapshots"]), reverse=True) if n.endswith(".json")]
+    for name in names[: args.limit]:
         m = load_json(os.path.join(p["snapshots"], name), {})
         c = m.get("changes", {})
         print(f"{name[:-5]}  +{len(c.get('new',[]))} ~{len(c.get('modified',[]))} -{len(c.get('deleted',[]))}  {m.get('message','')}")
@@ -446,9 +667,11 @@ def _hash_in_snapshot(p, sid, target):
     return e.get("hash") if e else None
 
 def _content_at(p, ref, target):
-    """ref: 'work'/None -> 현재 파일, 그 외 -> 스냅샷 id 의 blob."""
+    """ref: 'work'/None -> 현재 파일, 'empty' -> 빈 내용, 그 외 -> 스냅샷 id 의 blob."""
     if ref in (None, "work", "WORK"):
         return open(target, "rb").read() if os.path.exists(target) else None
+    if ref == "empty":
+        return b""   # 직전 리비전이 없는 첫 리비전과의 비교용 - 전체가 추가로 표시된다
     h = _hash_in_snapshot(p, ref, target)
     if not h:
         return None
@@ -458,25 +681,42 @@ def _content_at(p, ref, target):
         return None
 
 def cmd_history(args):
-    """파일별 리비전 이력: 해시가 바뀐 스냅샷만 추려 git log 처럼."""
+    """파일별 리비전 이력: 내용이 바뀐 스냅샷만 추려 git log 처럼. 무시 프로필이 있는 파일은 해시가 아니라
+    sig 전환으로 행을 만들어, 무시 키만 다른 연속 리비전은 한 행으로 접힌다(이미 쌓인 blob 포함)."""
     p = store_paths(args.store)
-    target = os.path.abspath(args.path)
+    target = os.path.abspath(os.path.expanduser(args.path))   # restore/cat 과 같은 해석
+    profile = ignore_profile(load_config(p), target)
+    cache = load_sig_cache(p) if profile else None
+    computed = 0
     rows = []
     last = "__init__"
     for sid in _snapshot_ids(p):
         m = _manifest(p, sid)
         e = m.get("entries", {}).get(target)
         h = e.get("hash") if e else None
-        if h != last:
+        key = h
+        if profile and h:
+            computed += h not in cache["sigs"].get(profile["fp"], {})
+            key = blob_sig(p, cache, profile, h) or h
+        if key != last:
             rows.append({"snapshot": sid, "time": m.get("time"), "message": m.get("message", ""),
                          "hash": (h[:12] if h else None), "present": e is not None})
-            last = h
+            last = key
+    if computed:
+        save_sig_cache(p, cache)
     print(json.dumps({"path": target, "revisions": rows}, ensure_ascii=False,
                      indent=None if args.json else 2))
 
+def _diff_lines(b: bytes):
+    """diff 비교용 줄 목록: 개행 방식(CRLF/LF/CR)과 선두 BOM 을 정규화한다.
+    keepends 로 비교하면 저장 주체가 바뀔 때 EOL 이 뒤집힌 파일이 전량 삭제+추가로
+    보인다(내용은 그대로인데). blob 은 원본 바이트 그대로 두고 표기만 불감으로."""
+    t = b.decode("utf-8", "replace")
+    return t.lstrip("﻿").splitlines()
+
 def cmd_diff(args):
     p = store_paths(args.store)
-    target = os.path.abspath(args.path)
+    target = os.path.abspath(os.path.expanduser(args.path))
     ids = _snapshot_ids(p)
     frm = args.frm or (ids[-1] if ids else None)
     to = args.to or "work"
@@ -486,17 +726,34 @@ def cmd_diff(args):
     b = _content_at(p, to, target)
     if a is None and b is None:
         print("양쪽 모두 내용 없음(추적 안 됨/삭제됨)"); return
-    try:
-        at = (a or b"").decode("utf-8", "replace").splitlines(keepends=True)
-        bt = (b or b"").decode("utf-8", "replace").splitlines(keepends=True)
-    except Exception:
-        print("바이너리/판독 불가 — 텍스트 diff 생략"); return
-    diff = "".join(difflib.unified_diff(at, bt, fromfile=str(frm), tofile=str(to)))
-    print(diff if diff else "텍스트 변경 없음")
+    a, b = a or b"", b or b""
+    lines_a, lines_b = _diff_lines(a), _diff_lines(b)
+    note = ""
+    filtered = False
+    profile = None if args.raw else ignore_profile(load_config(p), target)
+    if profile:
+        fa, fb = _filtered_text(a, profile), _filtered_text(b, profile)
+        if fa is not None and fb is not None:       # 한쪽이라도 JSON 이 아니면 원문 diff
+            hidden = _ignored_summary(a, b, profile) if a and b else ""
+            if fa == fb and hidden:
+                print(f"무시 목록 항목만 다름: {hidden}")
+                return
+            lines_a, lines_b, filtered = fa.splitlines(), fb.splitlines(), True
+            if hidden:
+                note = f"\n# 무시 목록 항목도 바뀜: {hidden}"
+    diff = "\n".join(difflib.unified_diff(lines_a, lines_b, fromfile=str(frm), tofile=str(to), lineterm=""))
+    if diff:
+        print(diff + note)
+    elif a == b:
+        print("텍스트 변경 없음")
+    elif not filtered or _diff_lines(a) == _diff_lines(b):
+        print("줄 내용 동일 — 개행 방식(CRLF/LF)이나 BOM 만 다름")
+    else:
+        print("표기만 다름 (들여쓰기·공백 등, 의미 있는 내용은 동일)")
 
 def cmd_show(args):
     p = store_paths(args.store)
-    h = _latest_hash_for(p, os.path.abspath(args.path))
+    h = _latest_hash_for(p, os.path.abspath(os.path.expanduser(args.path)))
     if not h:
         print("index 에 없음"); return
     sys.stdout.buffer.write(read_object(p, h))
@@ -513,16 +770,20 @@ def cmd_cat(args):
     with open(target, "rb") as f:
         sys.stdout.write(f.read().decode("utf-8", "replace"))
 
-def cmd_watcher_status(args):
-    """watcher.ps1 가 쓰는 watcher.json(heartbeat) 을 읽어 상주 여부를 판정.
-    heartbeat 가 debounce 의 3배 + 5초 안이면 running, 아니면 stale(죽었거나 멈춤)."""
-    state_path = os.path.join(args.store, "watcher.json")
+def _watcher_state(store):
+    """watcher.py 가 쓰는 watcher.json(heartbeat) 을 읽어 상주 여부를 판정.
+    heartbeat 가 폴링 간격의 3배 + 5초 안이면 running, 아니면 stale(죽었거나 멈춤).
+    watcher-status 와 status --json(watcher 블록) 공용."""
+    state_path = os.path.join(store, "watcher.json")
     if not os.path.exists(state_path):
-        print(json.dumps({"running": False, "reason": "watcher.json 없음 (watcher 미실행)"},
-                         ensure_ascii=False))
-        return
-    with open(state_path, encoding="utf-8-sig") as f:  # PS 가 BOM 을 붙여도 견디게
-        st = json.load(f)
+        return {"running": False, "reason": "watcher.json 없음 (watcher 미실행)"}
+    try:
+        with open(state_path, encoding="utf-8-sig") as f:  # 다른 도구가 BOM 을 붙여도 견디게
+            st = json.load(f)
+    except (OSError, ValueError) as e:
+        # exists 확인과 open 사이에 watcher 종료가 파일을 지울 수 있고(폴링과 겹침),
+        # 깨진 JSON 도 있을 수 있다. 여기서 죽으면 status --json 전체(추적 목록)가 죽는다.
+        return {"running": False, "reason": f"watcher.json 판독 실패: {type(e).__name__}: {e}"}
     age = None
     stale = True
     err = None
@@ -534,11 +795,72 @@ def cmd_watcher_status(args):
         stale = age > thresh
     except Exception as e:  # 어떤 파싱 이상도 null 대신 원인 보고
         err = f"{type(e).__name__}: {e}"
-    print(json.dumps({
+    return {
         "running": (not stale), "stale": stale, "age_sec": age, "error": err,
         "pid": st.get("pid"), "started": st.get("started"), "heartbeat": st.get("heartbeat"),
         "dirs": st.get("dirs", []), "lastEvent": st.get("lastEvent", ""),
-    }, ensure_ascii=False))
+    }
+
+def cmd_watcher_status(args):
+    print(json.dumps(_watcher_state(args.store), ensure_ascii=False))
+
+def cmd_gc(args):
+    """보존 기한이 지난 스냅샷 정리 + 미참조 객체 sweep. 가장 최신 스냅샷과 현재 index 가
+    참조하는 객체는 어떤 경우에도 지우지 않는다(현재 상태의 복원 지점 보장)."""
+    p = store_paths(args.store)
+    cutoff = datetime.now() - timedelta(days=args.keep_days)
+    with _snapshot_lock(p):
+        ids = _snapshot_ids(p)
+        drop = []
+        for sid in ids:
+            m = _manifest(p, sid)
+            try:
+                if _parse_iso(m.get("time")) < cutoff:
+                    drop.append(sid)
+            except Exception:
+                pass                       # 시간을 못 읽는 매니페스트는 지우지 않는다
+        if ids and ids[-1] in drop:
+            drop.remove(ids[-1])           # 전부 기한을 넘겼어도 최신 하나는 남긴다
+        keep = [sid for sid in ids if sid not in drop]
+        marked = set()
+        for e in load_json(p["index"], {}).values():
+            if e.get("hash"):
+                marked.add(e["hash"])
+        for sid in keep:
+            for e in _manifest(p, sid).get("entries", {}).values():
+                if e.get("hash"):
+                    marked.add(e["hash"])
+        sweep = []
+        if os.path.isdir(p["objects"]):
+            for root, _dirs, names in os.walk(p["objects"]):
+                for n in names:
+                    if os.path.basename(root) + n not in marked:
+                        sweep.append(os.path.join(root, n))
+        freed = 0
+        for f in sweep:
+            with contextlib.suppress(OSError):
+                freed += os.path.getsize(f)
+        tmps = [os.path.join(p["snapshots"], n) for n in os.listdir(p["snapshots"])
+                if not n.endswith(".json")] if os.path.isdir(p["snapshots"]) else []
+        if not args.dry_run:
+            for sid in drop:
+                with contextlib.suppress(OSError):
+                    os.unlink(os.path.join(p["snapshots"], sid + ".json"))
+            for f in sweep + tmps:
+                with contextlib.suppress(OSError):
+                    os.unlink(f)
+            if os.path.isdir(p["objects"]):     # 비게 된 버킷 폴더 정리(비어있지 않으면 무시)
+                for d in os.listdir(p["objects"]):
+                    with contextlib.suppress(OSError):
+                        os.rmdir(os.path.join(p["objects"], d))
+    res = {"ok": True, "dry_run": bool(args.dry_run), "keep_days": args.keep_days,
+           "removed_snapshots": len(drop), "kept_snapshots": len(keep),
+           "removed_objects": len(sweep), "freed_bytes": freed, "tmp_removed": len(tmps)}
+    if args.json:
+        print(json.dumps(res, ensure_ascii=False))
+    else:
+        act = "정리 예정" if args.dry_run else "정리 완료"
+        print(f"{act}: 스냅샷 {len(drop)}개 · 객체 {len(sweep)}개 · {freed / 1048576:.1f} MB (보존 {args.keep_days:g}일)")
 
 def main():
     ap = argparse.ArgumentParser(prog="cas", description="Custom CAS snapshot engine")
@@ -557,10 +879,15 @@ def main():
     sp = sub.add_parser("history"); sp.add_argument("path"); sp.add_argument("--json", action="store_true")
     sp.set_defaults(func=cmd_history)
     sp = sub.add_parser("diff"); sp.add_argument("path")
-    sp.add_argument("--from", dest="frm"); sp.add_argument("--to", dest="to"); sp.set_defaults(func=cmd_diff)
+    sp.add_argument("--from", dest="frm"); sp.add_argument("--to", dest="to")
+    sp.add_argument("--raw", action="store_true", help="무시 키 프로필을 적용하지 않은 원문 diff")
+    sp.set_defaults(func=cmd_diff)
     sp = sub.add_parser("show"); sp.add_argument("path"); sp.set_defaults(func=cmd_show)
     sp = sub.add_parser("cat"); sp.add_argument("path"); sp.set_defaults(func=cmd_cat)
     sub.add_parser("watcher-status").set_defaults(func=cmd_watcher_status)
+    sp = sub.add_parser("gc"); sp.add_argument("--keep-days", type=float, default=90)
+    sp.add_argument("--dry-run", action="store_true"); sp.add_argument("--json", action="store_true")
+    sp.set_defaults(func=cmd_gc)
     sp = sub.add_parser("restore"); sp.add_argument("path")
     sp.add_argument("--from", dest="frm", required=True, help="복원할 스냅샷 id")
     sp.add_argument("--no-snapshot", action="store_true", help="복원 전 스냅샷 생략")

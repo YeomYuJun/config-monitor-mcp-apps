@@ -33,6 +33,9 @@ PLUGIN_JSON_REL = os.path.join(".claude-plugin", "plugin.json")
 
 # 컴포넌트 디렉토리. Claude Code 가 읽는 이름 그대로.
 SKILLS_DIR, AGENTS_DIR, COMMANDS_DIR = "skills", "agents", "commands"
+# 플러그인이 이 표면들을 내놓는 사례는 아직 실측되지 않았다. 나올 때 어느 섹션에도
+# 안 잡히는 상황을 막으려고 미리 걷는다 - 없으면 빈 리스트라 비용이 없다.
+RULES_DIR, STYLES_DIR, WORKFLOWS_DIR = "rules", "output-styles", "workflows"
 
 
 def _load(path):
@@ -149,6 +152,18 @@ def _walk_md(root):
     return items
 
 
+def _js_items(d):
+    """workflows 는 *.js 라 _walk_md 를 못 쓴다. 한 단계만 본다(Claude 가 읽는 단위와 동일)."""
+    out = []
+    try:
+        for name in sorted(os.listdir(d)):
+            if name.endswith(".js") and os.path.isfile(os.path.join(d, name)):
+                out.append((name[:-3], os.path.join(d, name)))
+    except OSError:
+        return []
+    return [{"name": n, "path": p} for n, p in out]
+
+
 def _skills(root):
     """<root>/skills/<name>/SKILL.md. 한 단계만 본다(claude_config._skill_cards 와 동일)."""
     d = os.path.join(root, SKILLS_DIR)
@@ -198,6 +213,9 @@ def scan_items(root: str) -> dict:
         "skills": _skills(root),
         "agents": [{"name": r, "path": p} for r, p in _walk_md(os.path.join(root, AGENTS_DIR))],
         "commands": [{"name": r, "path": p} for r, p in _walk_md(os.path.join(root, COMMANDS_DIR))],
+        "rules": [{"name": r, "path": p} for r, p in _walk_md(os.path.join(root, RULES_DIR))],
+        "output-styles": [{"name": r, "path": p} for r, p in _walk_md(os.path.join(root, STYLES_DIR))],
+        "workflows": _js_items(os.path.join(root, WORKFLOWS_DIR)),
         "hooks": sorted(hooks, key=lambda h: h["event"]),
         "mcp": sorted(mcp, key=lambda m: m["name"]),
     }

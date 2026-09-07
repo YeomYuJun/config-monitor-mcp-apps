@@ -10,7 +10,7 @@
 
 As you accumulate skills, MCP servers, hooks, and agents — plus a separate `.claude` folder for each project — those settings scatter across files that live in different locations and follow different rules. It becomes hard to answer simple questions like *what is actually applied right now, and where does it come from?*
 
-Every change is reversible by design. Edits take an automatic snapshot before they run, and overwrites or deletes are backed up first (`.bak` for files, `.trash` for folders), so you can always get the previous state back.
+Every change is reversible by design. Edits are snapshotted automatically — the result of each edit is recorded under the operation's own message, and any outside change found right before an edit is captured as its own rollback point — and overwrites or deletes are backed up first (`.bak` for files, `.trash` for folders), so you can always get the previous state back.
 
 Sources can be local folders, remote git repos, or plugin marketplaces. Remote ones are cached locally and pinned to a commit, so the same snapshot, diff, and rollback machinery applies to them unchanged — and nothing is fetched or updated unless you ask for it.
 
@@ -32,6 +32,8 @@ Sources can be local folders, remote git repos, or plugin marketplaces. Remote o
   - [Plugins](#plugins)
   - [History / Diff](#history--diff)
   - [Safety](#safety)
+- [Talking to Claude](#talking-to-claude)
+- [Coverage Map](#coverage-map)
 - [What It Reads](#what-it-reads)
 - [Notes](#notes)
 
@@ -43,8 +45,11 @@ Cowork supports both inline and fullscreen; Code supports inline only (following
 
 ## Features
 
+- **The whole config surface, not just to look at** — beyond MCP/hooks/skills/agents: `CLAUDE.md` and `CLAUDE.local.md`, `rules/`, `output-styles/`, `workflows/`, `themes/`, `.worktreeinclude`, agent memory, and per-project `memory/`. Rules, output styles, and workflows can be scaffolded, removed, and installed from a library like any other item.
+- **Context load class, and a switch for it** — every section and card is badged `EAGER` / `LAZY` / `NEVER`, so you can see what actually costs you context at session start. A rule with `paths:` frontmatter is LAZY and one without it is EAGER; only the selected output style is EAGER — and you can **activate a different one from its card**, which is the one control that changes what loads next session.
+- **Grouped, filterable sections** — the ~20 sections are banded into six functional groups (instructions, extensions, connections, execution, memory, environment), with a preset (*all* / *commonly used* / *choose*) and a hide-empty switch, both saved to the store.
 - **One view across sources** — Claude Code, Claude Desktop, and each tracked project side by side, with scope badges (`global` / `project`).
-- **Snapshots & diffs** — track any config file, browse its snapshot timeline, compare two versions, and restore an earlier one.
+- **Snapshots & diffs** — track any config file, browse its snapshot timeline, compare two versions, and restore an earlier one. Machine-state churn in `~/.claude.json` (feature-flag caches, usage counters, timestamps) is filtered out of revisions and diffs, so the timeline shows configuration changes only.
 - **Direct editing, global or per-project** — add or remove `allow` / `deny` / `ask` permissions, hooks, and MCP servers; scaffold or remove skills and agents. A project-scoped card always edits that project's own `.claude/`, never the global one.
 - **Library install** — install/remove a library (agents / commands / skills) into the global config or a specific project. Additive, not an overwrite, so existing settings stay intact.
 - **Remote libraries & marketplaces** — register any git repo as a library, or a repo carrying `.claude-plugin/marketplace.json` as a browsable catalog. Plugins are fetched one at a time, pinned to a commit, and only then join the Library.
@@ -54,12 +59,13 @@ Cowork supports both inline and fullscreen; Code supports inline only (following
 - **Provenance tracking** — the dashboard records which source owns each installed item, so a second plugin shipping the same name shows as `conflict` instead of silently overwriting the first.
 - **Override badges** — when two items share a name, the one that is *not* actually applied is flagged, following the real precedence rules (project wins for agents, global wins for skills).
 - **Reversible by default** — auto-snapshot before every edit; `.bak` / `.trash` backups before every overwrite or delete.
+- **Works in conversation, too** — every read and edit is an ordinary MCP tool, so Claude can summarize your setup, look up one section, or remove a skill when you ask in chat. Edits made that way show up in the open dashboard within a few seconds.
 
 ## Requirements
 
 - **Node.js** (LTS) — verify with `node -v`
 - **Python 3.10+** on `PATH` — verify with `python --version`
-- **Windows** with **Claude Desktop** — the widget probes Windows desktop config paths and the file watcher runs on PowerShell.
+- **Windows** with **Claude Desktop** — the widget probes Windows desktop config paths; the file watcher is a Python polling process.
 - **git** on `PATH` — only for remote libraries and marketplaces. Everything else works without it, and the Library panel keeps working offline either way.
 - **`claude` on `PATH`** — only for the actions that install, update, or remove a *whole plugin* or a Claude Code marketplace, which are delegated to the CLI. Viewing plugins, toggling them on and off, and the entire Library side work without it; the delegated buttons report that `claude` was not found instead of failing silently.
 
@@ -91,6 +97,7 @@ npm run build
 - `CLAUDE_SNAPSHOT_STORE` → where snapshots are stored (must be an existing drive; defaults to `D:\.claude-snapshot` if unset).
 - *(optional)* to use a library, add `"CLAUDE_CONFIG_LIBRARIES": "C:/.../my-library/.claude"` to `env`.
 - *(optional)* to start the dashboard in English, add `"CONFIG_MONITOR_LANG": "en"` to `env`. Accepted values are case-insensitive and ignore the region suffix — `en` / `EN` / `en-US` start in English, `ko` / `KO` / `ko-KR` in Korean. **Unset, empty, or an unrecognized value starts in Korean.**
+- *(optional)* add `"CONFIG_MONITOR_WATCHER": "auto"` to `env` and the file watcher starts together with the MCP server, so out-of-dashboard changes are captured without pressing the toolbar toggle. Default (unset) keeps the watcher manual. The watcher is a detached process, so it keeps running after Claude Desktop quits — stop it from the toolbar.
 
 > **Config file location varies by install type.** Standard installs use `%APPDATA%\Claude\claude_desktop_config.json`; Microsoft Store / MSIX installs use `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\claude_desktop_config.json`. The most recently modified one is the config your running Claude reads.
 
@@ -104,7 +111,7 @@ npm run build
 
 The toolbar runs the global actions: **watcher** (a resident file watcher that auto-snapshots on change), **snapshot** (capture the current state once), and **refresh** (re-read tracking, config, and library).
 
-**Report** builds a static, data-baked HTML page and opens it in the browser for read-only/offline viewing; **Open in browser** opens the live dashboard in a tab. **Display settings** control the accent color, source-path visibility, and card description line count, alongside **KO / EN** language and **fullscreen** toggles.
+**Open in browser** opens the live dashboard in a browser tab, starting the local HTTP server if it is not already running. **Display settings** control the accent color, source-path visibility, and card description line count, alongside **KO / EN** language and **fullscreen** toggles. The same popover also carries **snapshot cleanup**: one click computes what a cleanup would remove (snapshots past the retention window, default 90 days, plus objects nothing references anymore), and only a second click actually deletes — the newest snapshot and everything the current state needs are always kept.
 
 ### Tracked Files
 
@@ -118,7 +125,13 @@ The list of config files under snapshot watch, each showing a status badge (`new
 
 <img src="assets/img/settings-section.png" width="560" alt="Config panel">
 
-Cards for each category — MCP Servers, Claude Code (`.claude.json`), Permissions, Hooks, Skills, Agents, Scheduled Tasks, and Desktop Skills. Items are grouped by source (global expanded, per-project collapsed), with a `global N · project M` summary where projects contribute.
+Cards for each category, banded into six functional groups — **instructions** (`CLAUDE.md`, Rules, Output Styles), **extensions** (Skills, Agents, Commands, Workflows, Plugins), **connections** (MCP servers, Desktop Skills), **execution** (Permissions, Hooks), **memory** (project memory, agent memory), and **environment** (Keybindings, Themes, `.worktreeinclude`, Scheduled Tasks). Click a band to collapse the whole group. Items inside are grouped by source (global expanded, per-project collapsed), with a `global N · project M` summary where projects contribute.
+
+Each section header carries a **load badge** — `EAGER` (in context at session start), `LAZY` (only when its condition is met), or `NEVER` (runtime only, never in context). Where the class differs per file the badge moves to the card: a rule with `paths:` frontmatter is LAZY and one without it is EAGER; of the output styles only the one named by `outputStyle` is EAGER; `MEMORY.md` is EAGER while its topic files are LAZY.
+
+Most machines have only a handful of these surfaces, so the gear menu carries two independent controls. **섹션 표시 / Sections** picks *which categories* are candidates — `all` (default), `commonly used` (instructions, extensions, execution), or `choose` for a per-section checkbox list. **빈 섹션 숨기기 / Hide empty sections** (on by default) decides whether candidates with nothing in them still render; turn it off to see every surface Claude supports, including the ones you have none of.
+
+The two are deliberately not folded into one setting: "commonly used, but show me the empty ones so I know what I could add" is a real state, and a single enum that quietly wrote the other axis would let the menu claim one thing while the screen showed another. Both are saved to the store and survive a restart. Whenever sections are hidden, a **Hidden sections N** chip appears above the list and opens the menu — the dashboard reduces the list but never does it silently.
 
 **Override badges** mark items that share a name but are *not* actually applied, with a dashed border and an amber tag. Precedence runs opposite ways: for **Agents** the project wins, so the **global** card is badged; for **Skills** the global (personal) config wins, so the **project** card is badged.
 
@@ -202,16 +215,109 @@ Registering a marketplace also reads the ones Claude Code already knows about an
 
 Opens when you click a tracked-file row. It shows the snapshot timeline (time, message, hash), the diff between two selected versions, and the current file contents (read-only).
 
-**Restore** rolls the file back to a chosen version. Because the current state is auto-snapshotted (plus a `.bak`) before restoring, you can undo the undo.
+**How to read a revision**: each edit, install, and restore records its result as a revision under the operation's own message, so a revision *is* one operation. Clicking a revision therefore shows **what that operation changed** — the diff against the previous revision — by default; the compare selector switches to the working copy or any specific revision. A revision labeled *external change* holds edits made outside the dashboard (hand edits, Claude Code itself) that were captured just before the next operation. The first revision of a file is shown as the whole file appearing. Within changed lines, the exact changed span is highlighted, so a one-value JSON edit reads at a glance.
+
+**What counts as a change**: files that mix configuration with machine state are judged by their *significant* content. `~/.claude.json` is rewritten on every Claude Code session with fresh feature-flag caches, usage counters, and timestamps; byte comparison would make each of those a revision (434 of 457 revisions in one store were exactly that). A per-file list of ignored key paths is stripped before comparing, so a save that only touches ignored keys creates no revision, the watcher stays quiet, and the timeline folds older revisions that differ only in those keys. The stored snapshot is always the full file, so restore is byte-exact. The default diff shows the significant keys and ends with a note naming the ignored keys that also changed; the **raw diff** toggle shows everything. The defaults cover only keys observed to churn (`cached*`, `*Count`, `last*`, `pluginUsage`, per-project session stats, and the like, plus `feedbackDrafts` in `settings.json` and the sidebar state in the desktop config). Add rules with `ignore_keys` in the store's `config.json`; a `"!path"` entry keeps that path even when a rule matches it, so `"!last*"` switches a default off and `"!lastCost"` exempts one key. Set `ignore_empty_projects` to `false` if first-run project entries should count.
+
+**Restore** rolls the file back to a chosen version. Because the current state is auto-snapshotted (plus a `.bak`) before restoring, you can undo the undo. Revisions at which the file did not exist have their restore button disabled — there is nothing to restore to.
 
 ### Safety
 
-- An automatic snapshot is taken before every edit, install, and restore.
+- Every edit, install, and restore is snapshotted automatically: the result is recorded under the operation's own message, so a revision's diff shows exactly the change its label names; un-snapshotted outside changes are captured separately right before the edit. Operations delegated to the `claude` CLI (plugin install / update / uninstall, marketplace changes) are wrapped the same way, so nothing that touches your settings escapes the timeline.
+- Snapshot cleanup (in Display settings) is the one deliberately destructive control, and it is two-step: the first click only reports what would be removed; the newest snapshot and every object the current state references survive any cleanup.
 - Before an overwrite, files are kept as `.bak` and directories are moved to `.trash`.
 - Removal is a move to `.trash`, not a real delete — it can be recovered.
 - Untracking only removes an entry from the watch list; the file is left in place.
 
 <img src="assets/img/fullscreen.png" width="720" alt="Fullscreen dashboard">
+
+## Talking to Claude
+
+The dashboard is one client of this server. Claude in the same conversation is another: every tool the widget uses is a normal MCP tool, so you can ask *"what hooks do I have?"* or *"remove the `foo` skill from project bar"* and Claude will call the same handlers, with the same snapshot-before-edit and `.bak` / `.trash` protection.
+
+Two tools exist only for that use:
+
+- **`summarize_config`** returns an overview instead of the full state: per section, the item count, the load class (`eager` / `lazy` / `never`), how many items are global versus per-project, and the item names; plus same-name collisions between global and project items (and which side actually wins) and the plugin state distribution. It is the natural first call when you want Claude to review, tidy, or explain the current setup.
+- **`get_config`** with filters drills into one part: `sections` (ids such as `hooks`, `perm`, `skills`, `agents`, `mcp-desktop`, `plugins`), `scope` (`global` or `project`), `query` (substring match on names and values), and `compact` (identity fields plus a short description instead of every key). A full dump is over 200 KB on a machine with a hundred skills; a compact hooks-only view is under 10 KB. Each card keeps its `edit` block, which carries the exact paths the edit tools accept.
+
+Edit tools that touch a project's `.claude` accept a **`project`** argument (the folder name or its path) instead of the raw `settings` / `skillsDir` / `dir` paths the widget passes. The server resolves it against the tracked projects and the projects Claude Code knows about; an unknown or ambiguous name is refused with the candidate list before anything is written.
+
+Edits Claude makes are reflected in the dashboard without a manual refresh. Every successful non-read tool call records a change marker in the snapshot store, the widget's regular status poll reads it, and a new marker triggers a full re-render — so a skill removed in chat disappears from the Skills card on the next tick (about five seconds). The widget's own edits absorb the marker on their follow-up refresh and do not re-render twice.
+
+Tools that only serve the widget (`open_in_browser`, `get_prefs`, `set_prefs`) say so in their descriptions, so Claude does not reach for them when asked about configuration.
+
+A companion skill named `config-monitor` (a single `SKILL.md`, kept in the `Skills/` folder of the my-tools library) makes summoning the widget a one-liner: `/config-monitor` in Claude Code, or the same skill uploaded to Claude Desktop through Customize > Skills. It does one thing, call `show_config_monitor`, and defers every configuration question to the tools above.
+
+If the widget seems to reload on its own, the server keeps a small diagnostic log at `widget.log` in the snapshot store: one line per widget boot or full refresh with a per-instance id, so you can tell a host remount (repeated `boot` lines) from several live widgets polling at once (many different ids). Polls are not logged. The widget also remembers the file, panel state, scope filter, and library target you were looking at, and restores them after a remount.
+
+## Coverage Map
+
+Where each file Claude reads lands in the dashboard. `→` is the section it becomes; `✗` means the dashboard deliberately leaves it alone.
+
+### Project scope
+
+```
+your-project/
+├── CLAUDE.md                    → CLAUDE.md                EAGER
+├── CLAUDE.local.md              → CLAUDE.md                EAGER · gitignored, personal
+├── .mcp.json                    → MCP Servers (project)    LAZY · committed, affects the team
+├── .worktreeinclude             → .worktreeinclude         LAZY · listed, contents not parsed
+└── .claude/
+    ├── CLAUDE.md                → CLAUDE.md                EAGER · alternate location
+    ├── settings.json            → Permissions · Hooks      only permissions / hooks / outputStyle
+    ├── settings.local.json      → Permissions · Hooks      both files read, shown as separate cards
+    ├── rules/**/*.md            → Rules                    EAGER, or LAZY when paths: is present
+    ├── skills/<name>/SKILL.md   → Skills (code)            EAGER (name+description only)
+    ├── commands/<name>.md       → Commands                 LAZY
+    ├── agents/<name>.md         → Agents                   EAGER (description only)
+    ├── agent-memory/<agent>/    → Agent Memory             LAZY
+    ├── agent-memory-local/      → Agent Memory             LAZY · gitignored
+    ├── output-styles/<name>.md  → Output Styles            EAGER only for the selected one
+    └── workflows/*.js           → Workflows                LAZY · each file becomes /<name>
+```
+
+### User scope
+
+```
+~/
+├── .claude.json                 → Claude Code              global MCP · projects · trust
+└── .claude/
+    ├── CLAUDE.md                → CLAUDE.md                EAGER · applies to every project
+    ├── settings.json            → Permissions · Hooks
+    ├── settings.local.json      → Permissions · Hooks
+    ├── keybindings.json         ✗ not tracked              one opaque file, nothing to report
+    ├── themes/*.json            → Themes                   NEVER · /theme list
+    ├── rules/*.md               → Rules                    loaded before project rules
+    ├── skills/<name>/SKILL.md   → Skills (code)
+    ├── commands/<name>.md       → Commands
+    ├── agents/<name>.md         → Agents                   recursive; name field is the identity
+    ├── agent-memory/<agent>/    → Agent Memory
+    ├── output-styles/<name>.md  → Output Styles
+    ├── workflows/*.js           → Workflows
+    ├── plugins/                 → Plugins                  contributed items also join their own sections
+    │   └── cache/ · data/       ✗ not tracked              plugin internals
+    └── projects/<project>/memory/
+        ├── MEMORY.md            → Project Memory           EAGER · first 200 lines or 25KB
+        └── <topic>.md           → Project Memory           LAZY
+```
+
+### Claude Desktop
+
+Outside the Claude Code tree above, and not part of it:
+
+```
+<Desktop>/claude_desktop_config.json                        → MCP Servers (desktop)
+<Desktop>/local-agent-mode-sessions/skills-plugin/**/manifest.json
+                                                            → Desktop Skills
+~/Claude/Scheduled/<name>/SKILL.md                          → Scheduled Tasks
+```
+
+### Read but not surfaced
+
+- **`settings.json` keys other than `permissions`, `hooks`, and `outputStyle`** — `model`, `effortLevel`, `statusLine`, `enabledPlugins`, and the rest are not turned into cards. `enabledPlugins` is written when you toggle a plugin, and `outputStyle` when you activate a style, but neither is browsable on its own.
+- **`~/.claude/keybindings.json`** — a keymap is an editor's job. A card could only repeat its size and path.
+- **Conversation history in `~/.claude.json`** — deliberately skipped; it is the bulk of that file and none of it is configuration.
+- **Plugin internals** (`plugins/cache/`, `plugins/data/`) — the managed unit is the plugin, and that is what the Plugins section shows.
 
 ## What It Reads
 
@@ -229,12 +335,19 @@ The dashboard does not dump whole files — it extracts only the fields it needs
 | Skills (code) | `~/.claude/skills/` | immediate subfolders; `SKILL.md` `description` |
 | Agents | `~/.claude/agents/` | frontmatter `name`, `description`, `tools` |
 | Commands | `~/.claude/commands/` | frontmatter `description` (subfolders are namespaces) |
-| Plugins | `~/.claude/plugins/{installed_plugins,known_marketplaces}.json` + each plugin's `.claude-plugin/plugin.json` | per-plugin market, version, install path, enabled state, and the components it contributes |
+| Plugins | `~/.claude/plugins/{installed_plugins,known_marketplaces}.json` + each plugin's `.claude-plugin/plugin.json` | per-plugin market, version, install path, enabled state, and the components it contributes — skills, agents, commands, hooks, MCP servers, and (if a plugin ever ships them) rules, output styles, and workflows, each merged into its own section with a `plugin` badge |
 | Plugin inventory | `~/.claude/plugins/plugin-catalog-cache.json` | pre-install component list, projected token cost, install count, homepage (official marketplace only) |
+| CLAUDE.md | `~/.claude/CLAUDE.md` | file size and path (contents are not parsed) |
+| Rules | `~/.claude/rules/**/*.md` | frontmatter `description`; presence of `paths:` decides EAGER vs LAZY |
+| Output Styles | `~/.claude/output-styles/**/*.md` | frontmatter `description`; `settings.outputStyle` decides which one is active |
+| Workflows | `~/.claude/workflows/*.js` | file name (becomes `/<name>`), size, path |
+| Themes | `~/.claude/themes/*.json` | theme name, size, path |
+| Agent Memory | `~/.claude/agent-memory/**/*.md` | frontmatter `description` |
+| Project Memory | `~/.claude/projects/<encoded>/memory/*.md` | frontmatter `description`; `MEMORY.md` is the EAGER index |
 | Scheduled Tasks | `~/Claude/Scheduled/*/SKILL.md` | `description`, `cron`/`schedule`/`fireAt` |
 | Desktop Skills | `<Desktop>/.../skills-plugin/**/manifest.json` | `description`, `creatorType`, `enabled`, `updatedAt` |
 
-When a project is tracked, the Permissions / Hooks / Skills / Agents / Commands sections also read that project's `.claude/{settings.json,settings.local.json}`, `.claude/skills/`, `.claude/agents/`, and `.claude/commands/` and append them as project items. A project's `.mcp.json` gets its own **MCP Servers (project)** section, since it is committed and affects the whole team.
+When a project is tracked, the Permissions / Hooks / Skills / Agents / Commands / Rules / Output Styles / Workflows / Agent Memory sections also read that project's `.claude/` equivalents and append them as project items. A project additionally contributes its `CLAUDE.md`, `CLAUDE.local.md`, and `.claude/CLAUDE.md` to the **CLAUDE.md** section, its `.worktreeinclude`, and its `~/.claude/projects/<encoded>/memory/` entries. A project's `.mcp.json` gets its own **MCP Servers (project)** section, since it is committed and affects the whole team.
 
 </details>
 
@@ -242,12 +355,19 @@ When a project is tracked, the Permissions / Hooks / Skills / Agents / Commands 
 <summary>Known limits</summary>
 
 - `settings.json` and `settings.local.json` are **both** read, but shown as separate cards (not merged), each labeled with its source.
-- `skills` is read one level deep; `agents` and `commands` recurse into subfolders (nested items are view-only, global and project alike, because the remove operation takes a single-segment name).
-- **Commands** and a project's **`.mcp.json`** are shown but read-only at every scope — no remove operation exists for them yet.
+- `skills` is read one level deep; `agents` and `commands` recurse into subfolders.
 - The `＋ new skill` / `＋ new agent` scaffold cards are global-only; to add one to a project, install it from the Library panel.
 - Remote sources are never fetched automatically — registration persists, but updates are always an explicit refresh.
+- The first time a long timeline is opened after upgrading, the significant-content signature of every older snapshot is computed once (a few seconds for several hundred revisions) and cached in the store; a running watcher fills that cache in the background, so the wait usually never shows.
 - Keep `CLAUDE_SNAPSHOT_STORE` short. Marketplace plugins nest a few levels deep inside it, and Windows still caps most paths at 260 characters; a deep store can leave a plugin fetched but unreadable. That case is reported rather than silently counted as zero items.
 - Project cards are capped at 20.
+- **Rules**, **Output Styles**, and **Workflows** are editable: scaffold, remove (to `.trash`), and library install/sync. Output styles additionally offer **activate / deactivate**, which writes `outputStyle` into `settings.json`.
+- Project **memory topics** can be removed (to `.trash`). `MEMORY.md` itself cannot — it is the index, and deleting it cuts the path to every topic it links.
+- **Themes**, **CLAUDE.md**, and **`.worktreeinclude`** stay view-only, listed by size and path. A color table and a prose document are an editor's job, not a card's. `keybindings.json` is not surfaced at all — see [Coverage Map](#coverage-map).
+- **Commands** and a project's **`.mcp.json`** remain view-only at every scope, as before.
+- Nested items (in subfolders) are view-only everywhere, because the remove operation takes a single-segment name.
+- A project's active output style follows the real cascade — the global `settings.json` chain first, then the project's own, with the project winning. A style set only globally still badges `EAGER` on that project's card.
+- The **Library** and **Marketplace** panels are not part of the section picker and are always shown.
 - Long values are truncated — descriptions at 600 chars, everything else at 160.
 - Only what appears as a card is editable; keys that aren't parsed can't be changed from the dashboard.
 

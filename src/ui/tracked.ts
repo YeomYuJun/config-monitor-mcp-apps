@@ -119,10 +119,12 @@ function buildProjectPicker(): { toggle: HTMLElement; list: HTMLElement } {
     list.hidden = !list.hidden;
     toggle.classList.toggle("on", !list.hidden);   // 열림 상태를 버튼에 반영(토글 버튼)
     if (list.hidden || loaded) return;
-    loaded = true;
     list.innerHTML = `<div class="empty">${esc(t("loading"))}</div>`;
     try {
       const res = jparse(await callTool("list_projects"));
+      // 실패를 성공처럼 캐시하면 닫았다 열어도 재시도가 없다 - 성공했을 때만 loaded 를 세운다.
+      if (res && res.ok === false) { list.innerHTML = `<div class="empty">${esc(res.message || t("failed"))}</div>`; return; }
+      loaded = true;
       const projs = (res && Array.isArray(res.projects) ? res.projects : []).filter((p: any) => p.has_claude);
       // 이미 추적 중(라이브러리 후보 = 추적된 프로젝트 .claude dir)인지 비교.
       const trackedNorm = new Set(libProjectTargets.map((c) => c.replace(/\\/g, "/").toLowerCase()));
