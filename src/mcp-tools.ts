@@ -949,24 +949,10 @@ export function buildTools(scriptDir: string): ToolDef[] {
 
     // ----- 브라우저 열기 -----
     {
-      name: "open_report",
-      meta: {
-        title: "Open Static Report in Browser",
-        description: "현재 설정 상태를 데이터 인라인 정적 HTML 로 생성해 기본 브라우저에서 연다(읽기 전용 스냅샷)",
-        inputSchema: z.object({}), annotations: WRITE,
-      },
-      run: async () => {
-        const out = path.join(scriptDir, "config-report.html");
-        await runPy("claude_config.py", ["report", "-o", out]);
-        openInBrowser(out.replace(/\\/g, "/"));
-        return jsonResult(JSON.stringify({ ok: true, message: "정적 리포트 생성 + 브라우저 열기", path: out }));
-      },
-    },
-    {
       name: "open_in_browser",
       meta: {
         title: "Open Live Dashboard in Browser",
-        description: "라이브 대시보드 HTTP 서버(기본 3002)를 필요시 기동하고 기본 브라우저에서 연다(편집/복원/watcher 동작)",
+        description: "[UI 전용] 라이브 대시보드 HTTP 서버(기본 3002)를 필요시 기동하고 사용자의 기본 브라우저에서 연다. 대화에서 설정을 읽거나 고칠 때는 쓰지 않는다",
         inputSchema: z.object({ port: z.number().optional() }), annotations: WRITE,
       },
       run: async (a: { port?: number }) => {
@@ -974,30 +960,38 @@ export function buildTools(scriptDir: string): ToolDef[] {
         // 서버가 127.0.0.1 에만 바인딩하므로 주소도 맞춘다. 'localhost' 는 Windows 에서 ::1 로
         // 먼저 해석될 수 있어, IPv4 전용 리스너에 프로브/브라우저가 못 붙는 경우가 생긴다.
         const url = `http://127.0.0.1:${port}/`;
+        const log = path.join(STORE, "dashboard-server.log");
         let up = await fetch(url).then((r) => r.ok).catch(() => false);
         if (!up) {
-          // server.ts(HTTP) 를 detached 로 기동. watcher 와 동일한 Start-Process 패턴.
-          const srv = path.join(scriptDir, "server.ts").replace(/\\/g, "/");
-          const dir = scriptDir.replace(/\\/g, "/");
-          if (process.platform === "win32") {
-            // 주의: `Start-Process npx` 는 npx.ps1 을 찾아 기본앱(메모장)으로 '편집' 연다.
-            // cmd.exe /c 로 npx 를 '실행'해야 한다. -WorkingDirectory 로 local tsx 해결, PORT 는 env.
-            const cmd = `Start-Process cmd -WindowStyle Hidden -WorkingDirectory '${dir}' -ArgumentList '/c','npx tsx ${srv}'`;
-            spawn("powershell.exe", ["-NoProfile", "-Command", cmd],
-              { stdio: "ignore", windowsHide: true, env: { ...process.env, PORT: String(port) } });
-          } else {
-            spawn("npx", ["tsx", srv], { cwd: scriptDir, stdio: "ignore", detached: true, env: { ...process.env, PORT: String(port) } }).unref();
-          }
-          // 기동 대기(최대 ~6s).
-          for (let i = 0; i < 12; i++) {
+          // 이 프로세스를 띄운 node 로 tsx 를 직접 실행한다(npx·cmd·PowerShell 을 거치지 않음).
+          // Claude Desktop 은 MCP 서버에 PATHEXT 없는 최소 환경만 넘기는데, 그 환경에서 PowerShell 은
+          // PATHEXT=.CPL 을 채워 넣고 자식 cmd 는 npx.cmd 를 못 찾는다("'npx'은(는) ... 아닙니다").
+          // 실행 파일 경로를 직접 주면 확장자 탐색 자체가 없어 환경에 좌우되지 않는다.
+          // stderr 는 스토어의 로그로 받는다 - 안 뜨는 이유가 어디에도 남지 않던 것이 진단을 막았다.
+          const tsx = path.join(scriptDir, "..", "node_modules", "tsx", "dist", "cli.mjs");
+          const srv = path.join(scriptDir, "server.ts");
+          let fh: fs.FileHandle | null = null;
+          try {
+            await fs.mkdir(STORE, { recursive: true });
+            fh = await fs.open(log, "a");
+          } catch { /* 로그를 못 열어도 기동은 시도한다 */ }
+          const out: number | "ignore" = fh ? fh.fd : "ignore";
+          const child = spawn(process.execPath, [tsx, srv], {
+            cwd: scriptDir, detached: true, windowsHide: true,
+            stdio: ["ignore", out, out], env: { ...process.env, PORT: String(port) },
+          });
+          child.unref();
+          await fh?.close();   // 자식은 자기 핸들을 물려받았으므로 부모 쪽은 닫아도 된다
+          // 기동 대기(최대 ~15s). tsx 콜드 스타트는 이 PC 에서 4초 안팎이지만 여유를 둔다.
+          for (let i = 0; i < 30; i++) {
             await new Promise((r) => setTimeout(r, 500));
             if (await fetch(url).then((r) => r.ok).catch(() => false)) { up = true; break; }
           }
         }
         // 이 도구는 spawn 도 브라우저 실행도 fire-and-forget 이라, 프로브 결과가 실패를 담을 수 있는
         // 유일한 신호다. 버리면 서버가 안 떠도 ok:true 가 나가 호출부의 어떤 가드로도 잡을 수 없다.
+        if (!up) return jsonResult(JSON.stringify({ ok: false, message: `대시보드 서버가 ${port} 에서 응답하지 않습니다. 기동 로그: ${log}`, url, log }));
         openInBrowser(url);
-        if (!up) return jsonResult(JSON.stringify({ ok: false, message: `대시보드 서버가 ${port} 에서 응답하지 않습니다`, url }));
         return jsonResult(JSON.stringify({ ok: true, message: "라이브 대시보드 브라우저 열기", url }));
       },
     },
