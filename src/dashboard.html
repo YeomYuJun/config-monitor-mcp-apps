@@ -588,7 +588,7 @@
   .sp-foot{border-top:1px solid var(--line);margin-top:12px;padding-top:10px}
   .sp-foot .sp-row{margin-top:0;align-items:flex-start}
   .sp-hint{font-size:11px;color:var(--mut);margin-top:2px;line-height:1.4}
-  .hbtns .setpop .sp-btn{flex:0 0 auto;height:auto;min-width:0;padding:4px 10px;font-size:11px;font-weight:600;
+  .hbtns .setpop .sp-btn{flex:0 0 auto;width:auto;height:auto;min-width:0;padding:4px 10px;font-size:11px;font-weight:600;white-space:nowrap; width: auto;
     border:1px solid var(--accent);border-radius:5px;background:var(--panel);color:var(--accent);cursor:pointer}
   .hbtns .setpop .sp-btn:hover:not(:disabled){background:#F4F6FE}
   .hbtns .setpop .sp-btn.danger{border-color:#B42318;color:#B42318}
@@ -670,7 +670,7 @@
             <div class="sp-foot">
               <div class="sp-row"><div><div class="sp-lbl" data-i18n="gcTitle">스냅샷 정리</div>
                   <div class="sp-hint" data-i18n="gcHint">90일 지난 스냅샷과 미참조 객체</div></div>
-                <button id="opt-gc" class="sp-btn" data-i18n="gcScan">대상 계산</button></div>
+                <button id="opt-gc" class="sp-btn" data-i18n="gcScan">정리</button></div>
               <div id="gc-result" class="sp-gcres" hidden></div>
             </div>
           </div>
