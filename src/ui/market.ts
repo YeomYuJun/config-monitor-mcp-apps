@@ -531,6 +531,7 @@ function renderInventory(host: HTMLElement, d: any, row: any): void {
 }
 
 function mkHomepageLink(host: HTMLElement, url: string): void {
+  if (!/^https?:\/\//i.test(url)) return;   // 매니페스트 값이라 javascript: 등은 링크로 만들지 않는다
   const a = document.createElement("a");
   a.className = "modallink";
   a.href = url;

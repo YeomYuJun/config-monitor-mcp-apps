@@ -739,6 +739,10 @@ def cmd_diff(args):
     to = args.to or "work"
     if frm is None:
         print("스냅샷 없음 (아직 snapshot 안 됨)"); return
+    if target not in expand_tracked(load_config(p).get("tracked", [])) and not any(
+            _hash_in_snapshot(p, r, target) for r in (frm, to) if r not in ("work", "WORK", "empty")):
+        print(json.dumps({"ok": False, "message": f"추적 중인 파일이 아님: {target}"}, ensure_ascii=False))
+        sys.exit(1)
     a = _content_at(p, frm, target)
     b = _content_at(p, to, target)
     if a is None and b is None:

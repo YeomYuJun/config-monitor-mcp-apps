@@ -16,7 +16,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3002);
 
 // REST 용 도구 맵 (MCP 와 동일 핸들러)
-const toolMap = Object.fromEntries(buildTools(__dirname).map((d) => [d.name, d.run]));
+const toolMap = new Map(buildTools(__dirname).map((d) => [d.name, d]));
 
 // 루프백 바인딩은 네트워크만 막고 **브라우저 오리진은 못 막는다** - 같은 PC 에서 열린 아무
 // 페이지나 fetch 로 여기 닿을 수 있다. /api/tool/:name 은 편집 도구(mcp-add · hook-add · restore)를
@@ -71,10 +71,12 @@ app.get("/health", (_req, res) => {
 
 // 도구 REST: 브라우저(standalone) 대시보드가 호출. MCP 와 동일 핸들러.
 app.post("/api/tool/:name", async (req, res) => {
-  const fn = toolMap[req.params.name];
-  if (!fn) return res.status(404).json({ error: `unknown tool: ${req.params.name}` });
+  const d = toolMap.get(req.params.name);
+  if (!d) return res.status(404).json({ error: `unknown tool: ${req.params.name}` });
+  const parsed = d.meta.inputSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
   try {
-    const r = await fn(req.body || {});
+    const r = await d.run(parsed.data);
     res.json({ text: r.content?.[0]?.text ?? "" });
   } catch (e) {
     res.status(500).json({ error: String(e) });

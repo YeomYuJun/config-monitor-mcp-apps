@@ -416,5 +416,24 @@ class TestStoreWrites(CasStoreCase):
         self.assertFalse(os.path.exists(os.path.join(self.store, "snapshot.lock")))
 
 
+class TestDiffGuard(CasStoreCase):
+    def test_untracked_path_is_refused(self):
+        self.snapshot("s1")
+        other = os.path.join(self.tmp.name, "secret.txt")
+        with open(other, "w", encoding="utf-8") as f:
+            f.write("secret-value")
+        out = run(CAS, "--store", self.store, "diff", other)
+        self.assertNotIn("secret-value", out)
+        self.assertFalse(json.loads(out)["ok"])
+
+    def test_untracked_file_with_snapshot_history_still_diffs(self):
+        self.snapshot("s1")
+        sid = cas._snapshot_ids(cas.store_paths(self.store))[-1]
+        run(CAS, "--store", self.store, "untrack", self.file)
+        self.write_lf('{\n  "keep": false\n}')
+        out = run(CAS, "--store", self.store, "diff", "--from", sid, self.file)
+        self.assertIn('+  "keep": false', out)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -110,6 +110,13 @@ class HttpOriginGuard(unittest.TestCase):
                         {"content-type": "text/plain", "Origin": "https://evil.example"}, b"{}")
         self.assertEqual(st, 403)
 
+    def test_rest_rejects_arguments_that_fail_the_schema(self):
+        st, body, _ = self.tool("get_diff")
+        self.assertEqual(st, 400, body)
+
+    def test_rest_does_not_resolve_prototype_keys(self):
+        self.assertEqual(self.tool("constructor")[0], 404)
+
     def test_dns_rebinding_host_is_rejected(self):
         # 대시보드('/')까지 막아야 한다. 여기서 HTML 을 내주면 그 오리진이 같은-오리진이 된다.
         self.assertEqual(_req(self.base + "/", headers={"Host": "evil.example"})[0], 403)
