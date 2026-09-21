@@ -202,7 +202,7 @@ export function openLibAdd(prefill: string): void {
       try {
         const r = s.kind === "local"
           ? jparse(await callTool("library_scan", { lib: s.url }))
-          : jparse(await callTool("library_remote_add", { url: s.url }));
+          : jparse(await callTool("library_add", { kind: "remote", url: s.url }));
         if (r && r.ok === false) {
           err.textContent = r.message || t("failed");
           err.hidden = false;
@@ -267,7 +267,7 @@ function openMarketWarn(url: string): void {
       err.hidden = true;
       setPending(ok);
       try {
-        const rr = jparse(await callTool("library_marketplace_add", { url }));
+        const rr = jparse(await callTool("library_add", { kind: "market", url }));
         if (rr && rr.ok === false) {
           // 매니페스트가 없어서 거절된 것뿐이면 막다른 길이 아니다 - Library 쪽이 받는
           // 모양일 수 있으므로 그리로 건너갈 길을 준다. 분기는 code 로만 한다

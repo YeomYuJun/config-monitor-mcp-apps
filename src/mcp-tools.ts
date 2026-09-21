@@ -784,40 +784,28 @@ export function buildTools(scriptDir: string): ToolDef[] {
       },
     },
     {
-      name: "library_remote_add",
+      name: "library_add",
       meta: {
-        title: "Add Remote Library (git)",
-        description: "임의 git 레포를 라이브러리로 등록. clone 후 agents/skills/commands 레이아웃을 대소문자 무시로 탐지하고 store/config.json 의 remotes[] 에 영속화한다. **네트워크를 탄다** — library_scan 은 타지 않으므로 등록 후 scan 은 캐시만 읽는다. 고정 sha 를 기록하며 자동 pull 은 없다",
+        title: "Add Remote Library or Marketplace",
+        description: "원격 소스를 config-monitor 스토어에 등록한다. **네트워크를 탄다** — library_scan 은 타지 않으므로 등록 후 scan 은 캐시만 읽는다. " +
+          "kind=remote: 임의 git 레포를 라이브러리로 등록. clone 후 agents/skills/commands 레이아웃을 대소문자 무시로 탐지하고 store/config.json 의 remotes[] 에 영속화한다. 고정 sha 를 기록하며 자동 pull 은 없다. " +
+          "kind=market: .claude-plugin/marketplace.json 을 가진 레포를 카탈로그로 등록. 매니페스트만 sparse checkout 한다(공식 마켓 기준 401K, 전체 체크아웃은 9.7M). 플러그인은 선택 시점에 받는다. 공식/비공식 구분은 없다 — URL 이 전부다",
         inputSchema: z.object({
-          url: z.string().describe("git 레포 URL(https/ssh/file). config-monitor 는 이 URL 을 심사하지 않는다"),
+          kind: z.enum(["remote", "market"]).describe("remote=git 레포를 라이브러리로, market=마켓플레이스 카탈로그로"),
+          url: z.string().describe("remote 는 git 레포 URL(https/ssh/file), market 은 마켓 레포 URL. config-monitor 는 이 URL 을 심사하지 않는다"),
           ref: z.string().optional().describe("브랜치/태그. 생략 시 기본 HEAD"),
-          id: z.string().optional().describe("라이브러리 id. 생략 시 URL 의 레포명에서 파생"),
-          map: z.string().optional().describe('레이아웃 매핑 JSON, 예: {"agents":"Agents","skills":"Skills"}. 탐지 실패 시에만 필요'),
+          id: z.string().optional().describe("라이브러리/마켓 id. 생략 시 URL 의 레포명에서 파생"),
+          map: z.string().optional().describe('kind=remote 전용. 레이아웃 매핑 JSON, 예: {"agents":"Agents","skills":"Skills"}. 탐지 실패 시에만 필요. kind=market 에 주면 거부한다(마켓은 매니페스트가 레이아웃을 정한다)'),
         }), annotations: EDIT,
       },
-      run: async (a: { url: string; ref?: string; id?: string; map?: string }) => {
-        const args = ["remote-add", "--url", a.url];
+      run: async (a: { kind: "remote" | "market"; url: string; ref?: string; id?: string; map?: string }) => {
+        if (a.kind === "market" && a.map) {
+          return jsonResult(JSON.stringify({ ok: false, message: "map 은 kind=remote 에서만 쓸 수 있습니다. 마켓은 marketplace.json 매니페스트가 레이아웃을 정합니다" }));
+        }
+        const args = [a.kind === "market" ? "market-add" : "remote-add", "--url", a.url];
         if (a.ref) args.push("--ref", a.ref);
         if (a.id) args.push("--id", a.id);
         if (a.map) args.push("--map", a.map);
-        return jsonResult(await runPy("library.py", args));
-      },
-    },
-    {
-      name: "library_marketplace_add",
-      meta: {
-        title: "Add Marketplace",
-        description: ".claude-plugin/marketplace.json 을 가진 레포를 카탈로그로 등록. 매니페스트만 sparse checkout 한다(공식 마켓 기준 401K, 전체 체크아웃은 9.7M). 플러그인은 선택 시점에 받는다. **네트워크를 탄다**. 공식/비공식 구분은 없다 — URL 이 전부다",
-        inputSchema: z.object({
-          url: z.string().describe("마켓 레포 URL. config-monitor 는 이 URL 을 심사하지 않는다"),
-          ref: z.string().optional(),
-          id: z.string().optional().describe("마켓 id. 생략 시 URL 의 레포명에서 파생"),
-        }), annotations: EDIT,
-      },
-      run: async (a: { url: string; ref?: string; id?: string }) => {
-        const args = ["market-add", "--url", a.url];
-        if (a.ref) args.push("--ref", a.ref);
-        if (a.id) args.push("--id", a.id);
         return jsonResult(await runPy("library.py", args));
       },
     },
@@ -885,7 +873,7 @@ export function buildTools(scriptDir: string): ToolDef[] {
       name: "claude_marketplace_add",
       meta: {
         title: "Register Marketplace in Claude Code",
-        description: "`claude plugin marketplace add <source> --scope` 위임 — 대시보드에서 등록한 마켓을 Claude Code 쪽에도 올린다(export). source 는 owner/repo · git URL · marketplace.json URL · 로컬 경로 4형식. **scope=project 는 프로젝트 .claude/settings.json 에 선언이 들어가 팀에 공유된다** — cwd 로 그 프로젝트를 지정할 것. config-monitor 자기 스토어에 등록하는 건 library_marketplace_add 로, 별개다(캐시를 각자 유지한다)",
+        description: "`claude plugin marketplace add <source> --scope` 위임 — 대시보드에서 등록한 마켓을 Claude Code 쪽에도 올린다(export). source 는 owner/repo · git URL · marketplace.json URL · 로컬 경로 4형식. **scope=project 는 프로젝트 .claude/settings.json 에 선언이 들어가 팀에 공유된다** — cwd 로 그 프로젝트를 지정할 것. config-monitor 자기 스토어에 등록하는 건 library_add(kind=market) 로, 별개다(캐시를 각자 유지한다)",
         inputSchema: z.object({
           source: z.string(),
           scope: z.enum(["user", "project", "local"]).optional(),
@@ -939,27 +927,19 @@ export function buildTools(scriptDir: string): ToolDef[] {
       },
     },
     {
-      name: "plugin_catalog_details",
+      name: "plugin_catalog",
       meta: {
         title: "Plugin Inventory and Token Cost",
-        description: "설치 **전에** 그 플러그인이 무엇을 넣는지와 토큰 비용을 돌려준다 — components(commands/agents/skills/hooks/mcpServers/lspServers 이름), unique_installs, tokens(모델별 always_on / on_invoke), homepage, last_updated. Claude Code 가 캐시해 둔 ~/.claude/plugins/plugin-catalog-cache.json 을 읽을 뿐이라 **네트워크도 fetch 도 타지 않는다.** 다만 그 캐시는 **공식 마켓 전용**이라 다른 마켓 플러그인은 조회되지 않는다(오류가 아니다 — 그 경우 fetch 해야 개수를 알 수 있다). id 형식: <plugin>@<marketplace>",
-        inputSchema: z.object({ id: z.string(), cache: z.string().optional() }), annotations: READ,
+        description: "Claude Code 가 캐시해 둔 ~/.claude/plugins/plugin-catalog-cache.json 을 읽을 뿐이라 **네트워크도 fetch 도 타지 않는다.** 다만 그 캐시는 **공식 마켓 전용**이라 다른 마켓 플러그인은 조회되지 않는다(오류가 아니다 — 그 경우 fetch 해야 개수를 알 수 있다). " +
+          "id 없음: 카탈로그 행을 채우기 위한 경량 맵 — {entries: {id: {installs, components: {kind: 개수}, total}}}. 컴포넌트 **이름은 담지 않는다**(255개 전부는 크다) — 이름이 필요하면 id 를 준다. " +
+          "id 있음: 설치 **전에** 그 플러그인이 무엇을 넣는지와 토큰 비용을 돌려준다 — components(commands/agents/skills/hooks/mcpServers/lspServers 이름), unique_installs, tokens(모델별 always_on / on_invoke), homepage, last_updated",
+        inputSchema: z.object({
+          id: z.string().optional().describe("<plugin>@<marketplace>. 주면 그 플러그인 하나의 상세(컴포넌트 이름 포함), 생략하면 전체 요약(개수만)"),
+          cache: z.string().optional(),
+        }), annotations: READ,
       },
-      run: async (a: { id: string; cache?: string }) => {
-        const args = ["details", a.id];
-        if (a.cache) args.push("--cache", a.cache);
-        return jsonResult(await runPy("plugin_catalog.py", args));
-      },
-    },
-    {
-      name: "plugin_catalog_summary",
-      meta: {
-        title: "Plugin Inventory Summary",
-        description: "카탈로그 행을 채우기 위한 경량 맵 — {id: {installs, components: {kind: 개수}, total}}. 컴포넌트 **이름은 담지 않는다**(255개 전부는 크다) — 이름이 필요하면 plugin_catalog_details. 공식 마켓 전용이며 네트워크를 타지 않는다",
-        inputSchema: z.object({ cache: z.string().optional() }), annotations: READ,
-      },
-      run: async (a: { cache?: string }) => {
-        const args = ["summary"];
+      run: async (a: { id?: string; cache?: string }) => {
+        const args = a.id ? ["details", a.id] : ["summary"];
         if (a.cache) args.push("--cache", a.cache);
         return jsonResult(await runPy("plugin_catalog.py", args));
       },
@@ -968,7 +948,7 @@ export function buildTools(scriptDir: string): ToolDef[] {
       name: "library_market_discover",
       meta: {
         title: "Discover Marketplaces from Claude Code",
-        description: "Claude Code(`/plugins`)에 등록된 마켓플레이스를 읽어 이 스토어와 대조한다. **네트워크를 타지 않는다** — known_marketplaces.json 하나만 읽고, 실제 등록은 사용자가 후보를 골라 library_marketplace_add 를 눌렀을 때만 일어난다. new=가져올 수 있는 것 / both=양쪽 등록(두 도구가 같은 레포를 각자 캐시에 다른 시점으로 들고 있으므로 sha·시각을 나란히 돌려준다) / unusable=URL 이 없어 가져올 수 없는 것",
+        description: "Claude Code(`/plugins`)에 등록된 마켓플레이스를 읽어 이 스토어와 대조한다. **네트워크를 타지 않는다** — known_marketplaces.json 하나만 읽고, 실제 등록은 사용자가 후보를 골라 library_add(kind=market) 를 눌렀을 때만 일어난다. new=가져올 수 있는 것 / both=양쪽 등록(두 도구가 같은 레포를 각자 캐시에 다른 시점으로 들고 있으므로 sha·시각을 나란히 돌려준다) / unusable=URL 이 없어 가져올 수 없는 것",
         inputSchema: z.object({
           pluginsDir: z.string().optional().describe("기본 ~/.claude/plugins"),
         }), annotations: READ,

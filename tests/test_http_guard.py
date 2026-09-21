@@ -2,7 +2,7 @@
 r"""
 test_http_guard.py - server.ts 의 Host/Origin 게이트 회귀 가드.
 
-server.ts 는 47개 도구를 REST 로 노출한다(config_mcp_add · config_hook_add · config_restore 포함).
+server.ts 는 53개 도구를 REST 로 노출한다(config_mcp_add · config_hook_add · config_restore 포함).
 루프백 바인딩은 네트워크만 막고 브라우저 오리진은 못 막으므로, 같은 PC 의 아무 페이지나
 fetch 로 닿을 수 있었다. 그 구멍이 다시 열리는지 실제 서버를 띄워 확인한다.
 

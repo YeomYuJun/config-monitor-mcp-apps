@@ -62,7 +62,7 @@ async function buildCatalog(): Promise<HTMLElement> {
     }
   } catch (e) { console.error("[config-monitor] market discover", e); }
   try {
-    const s = jparse(await callTool("plugin_catalog_summary", {}));
+    const s = jparse(await callTool("plugin_catalog", {}));
     if (s && s.ok !== false) setCcCatalog(s.entries || {});
   } catch (e) { console.error("[config-monitor] catalog summary", e); }
   cmMarketUrls.clear();
@@ -483,7 +483,7 @@ function openPluginDetails(row: any): void {
     void (async () => {
       let d: any = null;
       try {
-        const r = jparse(await callTool("plugin_catalog_details", { id }));
+        const r = jparse(await callTool("plugin_catalog", { id }));
         if (r && r.ok !== false) d = r;
       } catch (e) { console.error("[config-monitor] plugin details", e); }
       renderInventory(inv, d, row);

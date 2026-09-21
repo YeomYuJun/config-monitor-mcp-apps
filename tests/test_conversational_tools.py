@@ -125,6 +125,25 @@ class ConversationalTools(unittest.TestCase):
         self.assertIn(" boot abc123", log)
         self.assertNotIn(" poll ", log)
 
+    def test_plugin_catalog_picks_summary_or_details_by_id(self):
+        cache = os.path.join(self.store, "no-such-catalog.json")
+        s = self.tool("plugin_catalog", cache=cache)
+        self.assertIn("entries", s)
+        self.assertNotIn("id", s)
+        d = self.tool("plugin_catalog", id="x@m", cache=cache)
+        self.assertEqual(d["id"], "x@m")
+        self.assertNotIn("entries", d)
+
+    @unittest.skipUnless(shutil.which("git"), "git 없음 - remote-add 가 git 확인에서 먼저 멈춘다")
+    def test_library_add_routes_by_kind_and_refuses_map_for_market(self):
+        r = self.tool("library_add", kind="remote", url="https://example.invalid/r.git", map="notjson")
+        self.assertIn("--map 이 JSON 이 아님", r["message"])
+        m = self.tool("library_add", kind="market", url="  ")
+        self.assertIn("마켓 소스가 비어 있습니다", m["message"])
+        bad = self.tool("library_add", kind="market", url="https://example.invalid/m.git", map="{}")
+        self.assertIs(bad["ok"], False)
+        self.assertIn("kind=remote 에서만", bad["message"])
+
 
 if __name__ == "__main__":
     unittest.main()
