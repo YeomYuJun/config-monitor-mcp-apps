@@ -151,7 +151,8 @@ export function renderHistory(): void {
         pre.textContent = t("fetchFail") + ": " + errText(err, t("unknown"));
         return;
       }
-      pre.textContent = content || t("emptyFile");
+      const fresh = err && err.ok === true && typeof err.content === "string";
+      pre.textContent = (fresh ? err.content : content) || t("emptyFile");
       curLoaded = true;
     } catch (e) {
       pre.textContent = t("fetchFail") + ": " + String(e);
@@ -195,15 +196,32 @@ export async function renderDiffFor(): Promise<void> {
     }
     // 화면에 보이는 diff 를 모델 컨텍스트에도 얹는다(앞 2KB) - 사용자가 변경 내용을 물으면
     // 모델이 화면과 같은 근거로 답하게(updateModelContext, standalone 은 no-op).
-    pushCtx(`[Config Monitor] '${path}' diff ${reqFrom} -> ${reqTo || "work"}:\n${diff.slice(0, 2048)}`);
-    renderDiff(diff, fromLabel, toLabel);
+    const fresh = err && err.ok === true && typeof err.kind === "string";
+    const shown = fresh ? (err.kind === "diff" ? err.diff : err.message) : diff;
+    pushCtx(`[Config Monitor] '${path}' diff ${reqFrom} -> ${reqTo || "work"}:\n${String(shown).slice(0, 2048)}`);
+    if (fresh) renderDiffResult(err, fromLabel, toLabel);
+    else renderDiff(diff, fromLabel, toLabel);
   } catch (e) {
     const area = document.getElementById("diff-area");
     if (area) area.innerHTML = `<div class="empty err">${esc(t("diffFetchFail"))}: ${esc(String(e))}</div>`;
   }
 }
 
-function renderDiff(diff: string, fromLabel: string, toLabel: string): void {
+const KIND_KEY: Record<string, string> = {
+  no_change: "noDiff", eol_or_bom_only: "eolOnlyDiff", whitespace_only: "formatOnlyDiff",
+  no_snapshot: "noSnapshotDiff", both_absent: "bothAbsentDiff",
+};
+
+function renderDiffResult(r: any, fromLabel: string, toLabel: string): void {
+  if (r.kind === "diff") { renderDiff(r.diff, fromLabel, toLabel, r.ignored || ""); return; }
+  const area = document.getElementById("diff-area");
+  if (!area) return;
+  const msg = r.kind === "ignored_only" ? `${t("ignoredOnlyDiff")}: ${r.ignored}`
+    : KIND_KEY[r.kind] ? t(KIND_KEY[r.kind]) : r.message;
+  area.innerHTML = `<div class="diffempty">${esc(msg || t("noDiff"))}</div>`;
+}
+
+function renderDiff(diff: string, fromLabel: string, toLabel: string, ignored = ""): void {
   const area = document.getElementById("diff-area");
   if (!area) return;
   // unified diff 는 항상 @@ 헌크를 가진다 - 없으면 diff 가 아니라 cas 의 안내 메시지
@@ -231,6 +249,7 @@ function renderDiff(diff: string, fromLabel: string, toLabel: string): void {
     const text = cls[i] === "note" ? t("ignoredAlso") + line.slice(IGNORED_ALSO.length) : line;
     return `<div class="dl ${cls[i]}">${esc(text) || "&nbsp;"}</div>`;
   });
+  if (ignored) html.push(`<div class="dl note">${esc(`${t("ignoredAlso")}: ${ignored}`)}</div>`);
   // 줄 안 하이라이트: 연속 del 묶음과 뒤따르는 add 묶음을 순서대로 짝지어, 공통 접두/접미를
   // 뺀 가운데만 강조한다. JSON 설정은 한 줄에서 값 하나가 바뀌는 경우가 대부분이라 이게
   // 판독 시간을 좌우한다. 줄 대부분이 바뀐 짝(80% 초과)은 전면 재작성이라 칠하지 않는다.

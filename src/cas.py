@@ -33,6 +33,7 @@ DEFAULT_STORE = os.environ.get("CLAUDE_SNAPSHOT_STORE") or (
 
 # 존재하면 자동 추적할 기본 대상. untrack 으로 명시 제외한 항목(ignore_defaults)은 다시 넣지 않는다.
 # CLAUDE_CAS_NO_DEFAULT_TRACK=1 이면 병합 자체를 끈다(테스트/특수 상황용).
+from cli_result import emit, guard, JsonArgumentParser
 import paths  # Win32/MSIX 겸용 Desktop config 경로 해석(read/write 와 동일 대상)
 
 _HOME = os.path.expanduser("~")
@@ -449,8 +450,8 @@ def _track_locked(p, args):
                 added.append(ap)
     save_json(p["config"], config)
     if getattr(args, "json", False):
-        print(json.dumps({"ok": True, "added": added, "already": already,
-                          "not_found": not_found}, ensure_ascii=False))
+        emit(True, "ok" if added else "noop", f"추가됨: {len(added)}개", added=added, already=already,
+             not_found=not_found)
     else:
         print("추가됨:\n  " + "\n  ".join(added) if added else "추가할 파일 없음 / 이미 추적 중")
 
@@ -488,7 +489,8 @@ def _untrack_locked(p, args):
         save_json(p["index"], index)
     removed = before - len(config["tracked"])
     if getattr(args, "json", False):
-        print(json.dumps({"ok": True, "removed": removed, "index_removed": idx_removed}, ensure_ascii=False))
+        emit(True, "ok" if removed or idx_removed else "noop", f"제거됨: {removed}개 (index {idx_removed}개)",
+             removed=removed, index_removed=idx_removed)
     else:
         print(f"제거됨: {removed}개 (index {idx_removed}개)")
 
@@ -497,7 +499,7 @@ def cmd_status(args):
     config = load_config(p)
     index = load_json(p["index"], {})
     result, _ = scan(p, config, index, rehash=False)
-    if args.json:  # 머신용: 순수 JSON 만
+    if args.json:
         out = {k: result[k] for k in result}
         # 전역(기본 추적) 대상 분류용. UI 가 전역(editable) vs 프로젝트(view-only) 행 구분에 사용.
         # 버킷 문자열과 동일 정규화(norm_entry)로 내보내야 UI 의 정확 매칭이 성립.
@@ -507,8 +509,7 @@ def cmd_status(args):
         out["watcher"] = _watcher_state(args.store)
         ids = _snapshot_ids(p)
         out["last_snapshot"] = ids[-1] if ids else None
-        print(json.dumps(out, ensure_ascii=False))
-        return
+        emit(True, "ok", "추적 상태", **out)
     def show(key, sym):
         for path in result[key]:
             print(f"  {sym} {path}")
@@ -524,8 +525,8 @@ def cmd_status(args):
 # 항상 겹친다. os.replace 는 쓰기만 원자적이라 시퀀스 전체는 못 막고, 두 프로세스가 같은 parent 를
 # 읽으면 이력 체인이 갈라진다. 파일 내용은 content-addressed 라 안전하지만 이력이 어긋나는 건
 # 이 도구가 파는 것 자체가 깨지는 일이다.
-# 대기 상한은 config_edit.snapshot_before 의 subprocess timeout(30s)보다 충분히 짧아야 한다 -
-# 거기서는 모든 예외가 삼켜지므로, 오래 기다리면 스냅샷이 조용히 생략된 채 편집만 진행된다.
+# 대기 상한은 짧아야 한다 - config_edit.snapshot_before 는 cas 를 in-process 로 부르고 모든 예외를
+# 삼키므로, 오래 기다리면 편집이 그만큼 늦어진 뒤 스냅샷이 조용히 생략된 채 편집만 진행된다.
 LOCK_WAIT_SEC = float(os.environ.get("CLAUDE_CAS_LOCK_WAIT", "8"))
 LOCK_STALE_SEC = 60.0
 
@@ -609,11 +610,20 @@ def cmd_snapshot(args):
     try:
         ts, result = _take_snapshot(p, args.message, args.force)
     except TimeoutError as e:
+        if args.json:
+            emit(False, "lock_timeout", "스냅샷 생략: 다른 스냅샷이 진행 중입니다", detail=e)
         print(f"스냅샷 생략: {e}"); sys.exit(1)
     if ts is None:
-        print("변경 없음 — 스냅샷 생략 (--force 로 강제)")
+        msg = "변경 없음 — 스냅샷 생략 (--force 로 강제)"
+        if args.json:
+            emit(True, "noop", msg, snapshot=None)
+        print(msg)
         return
-    print(f"스냅샷 {ts}  (+{len(result['new'])} ~{len(result['modified'])} -{len(result['deleted'])})")
+    counts = {k: len(result[k]) for k in ("new", "modified", "deleted")}
+    msg = f"스냅샷 {ts}  (+{counts['new']} ~{counts['modified']} -{counts['deleted']})"
+    if args.json:
+        emit(True, "ok", msg, snapshot=ts, counts=counts)
+    print(msg)
 
 def cmd_restore(args):
     """특정 스냅샷의 blob 으로 파일을 복원. 안전장치: 복원 전 스냅샷(되돌릴 지점) + .bak + atomic write.
@@ -623,9 +633,7 @@ def cmd_restore(args):
     sid = args.frm
     blob = _content_at(p, sid, target)
     if blob is None:
-        print(json.dumps({"ok": False, "message": f"스냅샷 {sid} 에 '{target}' 내용 없음(추적 안 됨/삭제됨)"},
-                         ensure_ascii=False))
-        sys.exit(1)
+        emit(False, "not_found", f"스냅샷 {sid} 에 '{target}' 내용 없음(추적 안 됨/삭제됨)", target=target)
     # 전/후 스냅샷과 파일 쓰기를 한 락 안에서 - 사이가 벌어지면 watcher tick 이 먼저 찍어
     # 복원 결과가 'auto:' 메시지로 기록되고, 리비전에 복원이라는 사실이 남지 않는다.
     pre_snapshot = post_snapshot = bak = None
@@ -648,12 +656,9 @@ def cmd_restore(args):
             if not args.no_snapshot:
                 post_snapshot, _ = _take_snapshot_locked(p, f"restore: {os.path.basename(target)} <- {sid}")
     except TimeoutError as e:
-        print(json.dumps({"ok": False, "message": f"복원 전 스냅샷 실패: {e}"}, ensure_ascii=False))
-        sys.exit(1)
-    print(json.dumps({"ok": True, "message": f"복원 완료: {os.path.basename(target)} <- {sid}",
-                      "path": target, "from": sid, "backup": bak, "pre_snapshot": pre_snapshot,
-                      "post_snapshot": post_snapshot},
-                     ensure_ascii=False))
+        emit(False, "lock_timeout", "복원 전 스냅샷 실패", detail=e)
+    emit(True, "ok", f"복원 완료: {os.path.basename(target)} <- {sid}",
+         path=target, backup=bak, pre_snapshot=pre_snapshot, post_snapshot=post_snapshot, **{"from": sid})
 
 def cmd_log(args):
     p = store_paths(args.store)
@@ -721,8 +726,7 @@ def cmd_history(args):
             last = key
     if computed:
         save_sig_cache(p, cache)
-    print(json.dumps({"path": target, "revisions": rows}, ensure_ascii=False,
-                     indent=None if args.json else 2))
+    emit(True, "ok", f"리비전 {len(rows)}개", path=target, revisions=rows, indent=None if args.json else 2)
 
 def _diff_lines(b: bytes):
     """diff 비교용 줄 목록: 개행 방식(CRLF/LF/CR)과 선두 BOM 을 정규화한다.
@@ -731,25 +735,30 @@ def _diff_lines(b: bytes):
     t = b.decode("utf-8", "replace")
     return t.lstrip("﻿").splitlines()
 
-def cmd_diff(args):
-    p = store_paths(args.store)
-    target = os.path.abspath(os.path.expanduser(args.path))
+_DIFF_TEXT = {
+    "no_snapshot": "스냅샷 없음 (아직 snapshot 안 됨)",
+    "both_absent": "양쪽 모두 내용 없음(추적 안 됨/삭제됨)",
+    "no_change": "텍스트 변경 없음",
+    "eol_or_bom_only": "줄 내용 동일 — 개행 방식(CRLF/LF)이나 BOM 만 다름",
+    "whitespace_only": "표기만 다름 (들여쓰기·공백 등, 의미 있는 내용은 동일)",
+}
+
+def _diff_result(p, args, target):
     ids = _snapshot_ids(p)
     frm = args.frm or (ids[-1] if ids else None)
     to = args.to or "work"
     if frm is None:
-        print("스냅샷 없음 (아직 snapshot 안 됨)"); return
+        return "no_snapshot", frm, to, "", False, ""
     if target not in expand_tracked(load_config(p).get("tracked", [])) and not any(
             _hash_in_snapshot(p, r, target) for r in (frm, to) if r not in ("work", "WORK", "empty")):
-        print(json.dumps({"ok": False, "message": f"추적 중인 파일이 아님: {target}"}, ensure_ascii=False))
-        sys.exit(1)
+        return None
     a = _content_at(p, frm, target)
     b = _content_at(p, to, target)
     if a is None and b is None:
-        print("양쪽 모두 내용 없음(추적 안 됨/삭제됨)"); return
+        return "both_absent", frm, to, "", False, ""
     a, b = a or b"", b or b""
     lines_a, lines_b = _diff_lines(a), _diff_lines(b)
-    note = ""
+    hidden = ""
     filtered = False
     profile = None if args.raw else ignore_profile(load_config(p), target)
     if profile:
@@ -757,20 +766,34 @@ def cmd_diff(args):
         if fa is not None and fb is not None:       # 한쪽이라도 JSON 이 아니면 원문 diff
             hidden = _ignored_summary(a, b, profile) if a and b else ""
             if fa == fb and hidden:
-                print(f"무시 목록 항목만 다름: {hidden}")
-                return
+                return "ignored_only", frm, to, "", True, hidden
             lines_a, lines_b, filtered = fa.splitlines(), fb.splitlines(), True
-            if hidden:
-                note = f"\n# 무시 목록 항목도 바뀜: {hidden}"
     diff = "\n".join(difflib.unified_diff(lines_a, lines_b, fromfile=str(frm), tofile=str(to), lineterm=""))
     if diff:
-        print(diff + note)
-    elif a == b:
-        print("텍스트 변경 없음")
-    elif not filtered or _diff_lines(a) == _diff_lines(b):
-        print("줄 내용 동일 — 개행 방식(CRLF/LF)이나 BOM 만 다름")
+        return "diff", frm, to, diff, filtered, hidden
+    if a == b:
+        return "no_change", frm, to, "", filtered, hidden
+    if not filtered or _diff_lines(a) == _diff_lines(b):
+        return "eol_or_bom_only", frm, to, "", filtered, hidden
+    return "whitespace_only", frm, to, "", filtered, hidden
+
+def cmd_diff(args):
+    p = store_paths(args.store)
+    target = os.path.abspath(os.path.expanduser(args.path))
+    res = _diff_result(p, args, target)
+    if res is None:
+        emit(False, "not_tracked", f"추적 중인 파일이 아님: {target}", target=target)
+    kind, frm, to, diff, filtered, hidden = res
+    if kind == "ignored_only":
+        text = f"무시 목록 항목만 다름: {hidden}"
+    elif kind == "diff":
+        text = diff + (f"\n# 무시 목록 항목도 바뀜: {hidden}" if hidden else "")
     else:
-        print("표기만 다름 (들여쓰기·공백 등, 의미 있는 내용은 동일)")
+        text = _DIFF_TEXT[kind]
+    if args.json:
+        emit(True, "ok", text if kind != "diff" else "diff", path=target, to=to, kind=kind, diff=diff,
+             filtered=filtered, ignored=hidden, **{"from": frm})
+    print(text)
 
 def cmd_show(args):
     p = store_paths(args.store)
@@ -786,10 +809,15 @@ def cmd_cat(args):
     config = load_config(p)
     target = os.path.abspath(os.path.expanduser(args.path))
     if target not in expand_tracked(config.get("tracked", [])):
-        print(json.dumps({"ok": False, "message": f"추적 중인 파일이 아님: {target}"}, ensure_ascii=False))
-        sys.exit(1)
-    with open(target, "rb") as f:
-        sys.stdout.write(f.read().decode("utf-8", "replace"))
+        emit(False, "not_tracked", f"추적 중인 파일이 아님: {target}", target=target)
+    try:
+        with open(target, "rb") as f:
+            content = f.read().decode("utf-8", "replace")
+    except FileNotFoundError:
+        emit(False, "not_found", f"추적 목록에 있으나 파일이 없음: {target}", target=target)
+    if args.json:
+        emit(True, "ok", os.path.basename(target), path=target, content=content)
+    sys.stdout.write(content)
 
 def _watcher_state(store):
     """watcher.py 가 쓰는 watcher.json(heartbeat) 을 읽어 상주 여부를 판정.
@@ -823,7 +851,7 @@ def _watcher_state(store):
     }
 
 def cmd_watcher_status(args):
-    print(json.dumps(_watcher_state(args.store), ensure_ascii=False))
+    emit(True, "ok", "watcher 상태", **_watcher_state(args.store))
 
 def cmd_gc(args):
     """보존 기한이 지난 스냅샷 정리 + 미참조 객체 sweep. 가장 최신 스냅샷과 현재 index 가
@@ -874,17 +902,16 @@ def cmd_gc(args):
                 for d in os.listdir(p["objects"]):
                     with contextlib.suppress(OSError):
                         os.rmdir(os.path.join(p["objects"], d))
-    res = {"ok": True, "dry_run": bool(args.dry_run), "keep_days": args.keep_days,
-           "removed_snapshots": len(drop), "kept_snapshots": len(keep),
-           "removed_objects": len(sweep), "freed_bytes": freed, "tmp_removed": len(tmps)}
+    act = "정리 예정" if args.dry_run else "정리 완료"
+    msg = f"{act}: 스냅샷 {len(drop)}개 · 객체 {len(sweep)}개 · {freed / 1048576:.1f} MB (보존 {args.keep_days:g}일)"
     if args.json:
-        print(json.dumps(res, ensure_ascii=False))
-    else:
-        act = "정리 예정" if args.dry_run else "정리 완료"
-        print(f"{act}: 스냅샷 {len(drop)}개 · 객체 {len(sweep)}개 · {freed / 1048576:.1f} MB (보존 {args.keep_days:g}일)")
+        emit(True, "dry_run" if args.dry_run else "ok", msg, dry_run=bool(args.dry_run), keep_days=args.keep_days,
+             removed_snapshots=len(drop), kept_snapshots=len(keep), removed_objects=len(sweep),
+             freed_bytes=freed, tmp_removed=len(tmps))
+    print(msg)
 
 def main():
-    ap = argparse.ArgumentParser(prog="cas", description="Custom CAS snapshot engine")
+    ap = JsonArgumentParser(prog="cas", description="Custom CAS snapshot engine")
     ap.add_argument("--store", default=DEFAULT_STORE, help=f"저장소 경로 (기본 {DEFAULT_STORE})")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
@@ -895,16 +922,19 @@ def main():
     sp.add_argument("--json", action="store_true"); sp.set_defaults(func=cmd_untrack)
     sp = sub.add_parser("status"); sp.add_argument("--json", action="store_true"); sp.set_defaults(func=cmd_status)
     sp = sub.add_parser("snapshot"); sp.add_argument("-m", "--message", default="")
-    sp.add_argument("--force", action="store_true"); sp.set_defaults(func=cmd_snapshot)
+    sp.add_argument("--force", action="store_true"); sp.add_argument("--json", action="store_true")
+    sp.set_defaults(func=cmd_snapshot)
     sp = sub.add_parser("log"); sp.add_argument("-n", "--limit", type=int, default=20); sp.set_defaults(func=cmd_log)
     sp = sub.add_parser("history"); sp.add_argument("path"); sp.add_argument("--json", action="store_true")
     sp.set_defaults(func=cmd_history)
     sp = sub.add_parser("diff"); sp.add_argument("path")
     sp.add_argument("--from", dest="frm"); sp.add_argument("--to", dest="to")
     sp.add_argument("--raw", action="store_true", help="무시 키 프로필을 적용하지 않은 원문 diff")
+    sp.add_argument("--json", action="store_true")
     sp.set_defaults(func=cmd_diff)
     sp = sub.add_parser("show"); sp.add_argument("path"); sp.set_defaults(func=cmd_show)
-    sp = sub.add_parser("cat"); sp.add_argument("path"); sp.set_defaults(func=cmd_cat)
+    sp = sub.add_parser("cat"); sp.add_argument("path"); sp.add_argument("--json", action="store_true")
+    sp.set_defaults(func=cmd_cat)
     sub.add_parser("watcher-status").set_defaults(func=cmd_watcher_status)
     sp = sub.add_parser("gc"); sp.add_argument("--keep-days", type=float, default=90)
     sp.add_argument("--dry-run", action="store_true"); sp.add_argument("--json", action="store_true")
@@ -919,4 +949,4 @@ def main():
     args.func(args)
 
 if __name__ == "__main__":
-    main()
+    guard(main, {TimeoutError: "lock_timeout"})

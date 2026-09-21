@@ -81,8 +81,7 @@ export function buildTools(scriptDir: string): ToolDef[] {
   const tail = (s: unknown) => (typeof s === "string" ? s.slice(-2048) : "");
   const isJson = (s: string) => { try { JSON.parse(s); return true; } catch { return false; } };
   // 항상 JSON 문자열을 돌려주고 throw 하지 않는다. 판정은 호출부가 stdout 의 ok 로 한다.
-  // plain 은 아직 평문을 내는 서브커맨드만 통과시키는 자리다.
-  const runPy = async (script: string, args: string[], opts: { plain?: boolean } = {}): Promise<string> => {
+  const runPy = async (script: string, args: string[]): Promise<string> => {
     const op = `${script} ${args[0] ?? ""}`.trim();
     try {
       const { stdout } = await pexec(PY, [path.join(scriptDir, script), ...args], {
@@ -90,7 +89,7 @@ export function buildTools(scriptDir: string): ToolDef[] {
         maxBuffer: 16 * 1024 * 1024,
         timeout: timeoutMs(script, args),
       });
-      if (opts.plain || isJson(stdout)) return stdout;
+      if (isJson(stdout)) return stdout;
       return JSON.stringify({ ok: false, code: "bad_output", message: `${op} 의 출력이 JSON 이 아닙니다`, detail: tail(stdout) });
     } catch (e: any) {
       const stdout: string = typeof e?.stdout === "string" ? e.stdout : "";
@@ -356,7 +355,7 @@ export function buildTools(scriptDir: string): ToolDef[] {
         description: "추적 중인 설정 파일의 현재 내용을 그대로 반환(읽기 전용 뷰어). 추적 목록 밖 경로는 거부",
         inputSchema: z.object({ path: z.string().describe("추적 중인 파일의 절대경로") }), annotations: READ,
       },
-      run: async (a: { path: string }) => text(await runPy("cas.py", ["cat", a.path], { plain: true })),
+      run: async (a: { path: string }) => jsonResult(await runPy("cas.py", ["cat", a.path, "--json"])),
     },
     {
       name: "get_diff",
@@ -371,11 +370,11 @@ export function buildTools(scriptDir: string): ToolDef[] {
         }), annotations: READ,
       },
       run: async (a: { path: string; from?: string; to?: string; raw?: boolean }) => {
-        const args = ["diff", a.path];
+        const args = ["diff", a.path, "--json"];
         if (a.from) args.push("--from", a.from);
         if (a.to) args.push("--to", a.to);
         if (a.raw) args.push("--raw");
-        return text(await runPy("cas.py", args, { plain: true }));
+        return jsonResult(await runPy("cas.py", args));
       },
     },
     {
@@ -385,7 +384,7 @@ export function buildTools(scriptDir: string): ToolDef[] {
         description: "추적 파일 현재 상태로 스냅샷 1개 생성",
         inputSchema: z.object({ message: z.string().optional() }), annotations: WRITE,
       },
-      run: async (a: { message?: string }) => text(await runPy("cas.py", ["snapshot", "-m", a.message || "manual"], { plain: true })),
+      run: async (a: { message?: string }) => jsonResult(await runPy("cas.py", ["snapshot", "-m", a.message || "manual", "--json"])),
     },
     {
       name: "snapshot_gc",

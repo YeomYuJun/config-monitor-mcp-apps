@@ -99,12 +99,27 @@ class CasStoreCase(unittest.TestCase):
     def diff(self):
         return run(CAS, "--store", self.store, "diff", self.file)
 
+    def diff_json(self, *extra):
+        return json.loads(run(CAS, "--store", self.store, "diff", self.file, "--json", *extra))
+
+
+class TestJsonContract(CasStoreCase):
+    def test_snapshot_and_cat_emit_one_json_document(self):
+        run(CAS, "--store", self.store, "snapshot", "-m", "a", "--json")
+        again = json.loads(run(CAS, "--store", self.store, "snapshot", "-m", "b", "--json"))
+        self.assertEqual((again["ok"], again["code"]), (True, "noop"))
+        c = json.loads(run(CAS, "--store", self.store, "cat", self.file, "--json"))
+        with open(self.file, encoding="utf-8", newline="") as f:
+            self.assertEqual(c["content"], f.read())
+        miss = json.loads(run(CAS, "--store", self.store, "cat", self.file + ".nope", "--json"))
+        self.assertEqual((miss["ok"], miss["code"]), (False, "not_tracked"))
+
 
 class TestDiffEolInsensitive(CasStoreCase):
     def test_eol_only_change_reports_no_content_diff(self):
         self.snapshot("base")
         self.write_lf('{\r\n  "keep": true\r\n}')
-        self.assertIn("줄 내용 동일", self.diff())
+        self.assertEqual(self.diff_json()["kind"], "eol_or_bom_only")
 
     def test_empty_ref_shows_first_revision_as_full_addition(self):
         # UI 의 '직전 리비전 (기본)' 비교에서 첫 리비전은 empty 와 비교된다.
@@ -319,7 +334,8 @@ class TestIgnoreProfile(CasStoreCase):
         config_edit.snapshot_before(self.store)            # 편집 전 드리프트 캡처도 같은 판정을 탄다
         config_edit.snapshot_after(self.store, "op")
         self.assertEqual(len(self.history()), 1)
-        self.assertIn("무시 목록 항목만 다름: feedbackDrafts", self.diff())
+        d = self.diff_json()
+        self.assertEqual((d["kind"], d["ignored"]), ("ignored_only", "feedbackDrafts"))
         self.assertIn("feedbackDrafts", run(CAS, "--store", self.store, "diff", self.file, "--raw"))
 
     def test_mixed_change_shows_significant_keys_and_notes_the_rest(self):
@@ -327,11 +343,12 @@ class TestIgnoreProfile(CasStoreCase):
         self.write_lf('{\n  "keep": false,\n  "feedbackDrafts": {"x": 1}\n}')
         self.snapshot("edit")
         r0, r1 = [r["snapshot"] for r in self.history()]
-        body, _, note = self.diff_revs(r0, r1).partition("\n# ")
-        self.assertIn('-  "keep": true', body)
-        self.assertIn('+  "keep": false', body)
-        self.assertNotIn("feedbackDrafts", body)
-        self.assertIn("무시 목록 항목도 바뀜: feedbackDrafts", note)
+        d = self.diff_json("--from", r0, "--to", r1)
+        self.assertEqual(d["kind"], "diff")
+        self.assertIn('-  "keep": true', d["diff"])
+        self.assertIn('+  "keep": false', d["diff"])
+        self.assertNotIn("feedbackDrafts", d["diff"])
+        self.assertEqual(d["ignored"], "feedbackDrafts")
         self.assertIn("feedbackDrafts", self.diff_revs(r0, r1, "--raw"))
 
     def test_config_rules_wildcard_subtree_and_keep_exceptions(self):

@@ -394,8 +394,8 @@ $("snap").addEventListener("click", async () => {
   const raw = await callTool("snapshot_now", { message: t("snapshotMsg") });
   const r = jparse(raw);
   if (r && r.ok === false) { openReasonModal(t("failed"), errText(r)); return; }
-  // cas snapshot 은 평문 출력이다: 변경이 없어 생략된 경우까지 "생성됨" 토스트를 띄우지 않는다.
-  if (raw.trim().startsWith("변경 없음")) { flashToast(t("snapNoChange")); return; }
+  // 변경이 없어 생략된 경우까지 "생성됨" 토스트를 띄우지 않는다. 평문은 재시작 전 서버의 응답이다.
+  if (r?.ok === true ? r.code === "noop" : raw.trim().startsWith("변경 없음")) { flashToast(t("snapNoChange")); return; }
   flashToast(t("toastSnapshot"));
   await refresh();
   if (selectedPath) selectFile(selectedPath);
