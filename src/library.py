@@ -73,7 +73,7 @@ def _hash_file(path):
 def _walk_strict(path):
     """os.walk 인데 나열 실패를 삼키지 않는다. 기본 onerror=None 은 OSError 를 조용히 버리고
     빈 결과만 낸다 - Windows MAX_PATH(약 260자) 초과 등으로 못 읽은 하위경로가 '항목 없음'
-    으로 둔갑해(fix round 2 finding) 진짜 빈 디렉토리와 구분이 안 됐다. 여기서 다시 올려
+    으로 둔갑해 진짜 빈 디렉토리와 구분이 안 됐다. 여기서 다시 올려
     보내면 호출부(_hash_dir/_has_kit_ref 는 기존 except OSError 로, _iter_items 는
     cmd_scan 의 카테고리별 try/except 로)가 실패와 '진짜 없음'을 구분할 수 있다."""
     def _raise(err):
@@ -239,7 +239,7 @@ def _recs_for(a, register_new=False):
     합성 전에 store 에도 등록한다. a.lib 미지정이면 전체 레코드 목록.
 
     무조건 local: 로 재합성하면(구버전 버그) UI 가 remote 캐시 경로를 --lib 로 보내면서
-    --origin 도 같이 보내는 설치 조합(Task 9)에서 origin 필터가 항상 빈 결과가 되어
+    --origin 도 같이 보내는 설치 조합에서 origin 필터가 항상 빈 결과가 되어
     원격 레포 설치가 전부 실패한다. 또 이미 remotes[] 에 있는 캐시 경로를 매번 재등록하면
     libraries[] 에도 중복으로 들어가 같은 캐시가 source="registered"/"remote" 두 줄로 쪼개진다.
 
@@ -274,7 +274,7 @@ def _status_ex(cfg, target_root, category, leaf, src, tgt, kind, origin):
 def _unit_flags(cfg, target, root, origin):
     """hooks/mcp 보유·설치 플래그. 라이브러리 루트 행과 하위 유닛 행이 같은 규칙을 쓴다.
 
-    hooks/mcp 설치 버튼이 이 플래그에 매달린다(cmd_plugin_fetch 응답에만 있었다 - Task 22
+    hooks/mcp 설치 버튼이 이 플래그에 매달린다(cmd_plugin_fetch 응답에만 있었다 -
     UI 는 scan 행을 쓰므로 여기 없으면 버튼이 안 뜬다). root 가 없어도 os.path.exists 는
     예외 없이 False 를 준다 - os.walk 가 아니라 exists 2회뿐이라 실패할 여지도 없다.
     설치 여부는 원장(타깃 기준)에서 읽는다. 원장 키는 플러그인 **이름**이라 서로 다른
@@ -345,7 +345,7 @@ def cmd_scan(a):
                     })
             except OSError as e:
                 # 나열이 도중에 죽었다(예: 깊은 하위경로가 Windows MAX_PATH 를 넘음).
-                # _walk_strict 가 이제 이걸 삼키지 않고 올려 보낸다(fix round 2 finding) -
+                # _walk_strict 가 이제 이걸 삼키지 않고 올려 보낸다 -
                 # 이 카테고리만 비우고 계속하되(한 라이브러리의 사고가 scan 전체를 막지 않음),
                 # row 에 error 를 남겨 "진짜 항목 0개"와 구분되게 한다.
                 enum_errors.append(f"{category}: {e}")
@@ -376,7 +376,7 @@ def cmd_unregister(a):
 
     market:<id>/<plugin> 은 그 플러그인 하나만 뺀다 - Library 칸의 플러그인 칩 ✕ 가 이 형태의
     origin 을 그대로 보내므로, 예전처럼 market:<id> 로 뭉뚱그려 mid 만 뽑으면 플러그인 하나를
-    지우려다 마켓 등록 전체(레포 + 다른 모든 플러그인)를 날려버린다(fix round 1 finding)."""
+    지우려다 마켓 등록 전체(레포 + 다른 모든 플러그인)를 날려버린다."""
     # scan 처럼 항상 exit 0 + JSON 으로 응답(runPy 가 nonzero exit 를 throw 하므로 out() 대신 print).
     if a.origin:
         cfg = lib_store.load_cfg(a.store)
@@ -895,12 +895,12 @@ def cmd_catalog(a):
 def _count_components(root, cmap=None):
     """fetch 직후 실제 개수. 카탈로그에는 이 칼럼이 없다 - fetch 이후에만 알 수 있으므로.
 
-    _iter_items 는 나열 실패를 삼키지 않는다(fix round 2) - root 자체의 존재는
-    cmd_plugin_fetch 가 이미 등록 전에 확인했지만(같은 라운드의 1번 수정), root 안쪽 더
-    깊은 경로 하나가 읽기 실패할 수는 있다. round 2 는 그 실패를 0 으로 뭉개 크래시만
-    막았는데, 그 결과 "가져옴: 성공, skills 0개" 라는 응답이 나갔다 - 사용자에게는
-    "fetch 는 됐는데 진짜 비어 있다"로 읽혀, 곧바로 이어지는 scan 의 error 와 모순됐다
-    (fix round 3 finding). 0 은 '읽었더니 진짜 없다'와 '못 읽었다'를 구분하지 못하므로
+    _iter_items 는 나열 실패를 삼키지 않는다 - root 자체의 존재는
+    cmd_plugin_fetch 가 이미 등록 전에 확인했지만, root 안쪽 더
+    깊은 경로 하나가 읽기 실패할 수는 있다. 그 실패를 0 으로 뭉개면 크래시만
+    막고 "가져옴: 성공, skills 0개" 라는 응답이 나간다 - 사용자에게는
+    "fetch 는 됐는데 진짜 비어 있다"로 읽혀, 곧바로 이어지는 scan 의 error 와 모순된다.
+    0 은 '읽었더니 진짜 없다'와 '못 읽었다'를 구분하지 못하므로
     실패는 별도 dict 로 갈라 둔다 - 호출부가 실수로 실패를 0 으로 오독할 수 없게 한다.
 
     반환: {"counts": {카테고리: 성공적으로 읽은 개수, ...},   # 실패한 카테고리는 여기 없음
@@ -964,8 +964,8 @@ def cmd_plugin_fetch(a):
             staging = None
         else:
             # 외부: plugins/<name>/<sha12>/ 에 완전히 물질화한 뒤에야 옛 sha 를 지운다(1단계).
-            # 디렉토리 이름에는 sha 앞 12자만 쓴다(Windows MAX_PATH 에 28자 여유를 번다,
-            # fix round 2) - 12자는 이 용도로 충돌 걱정 없이 유일하다. 원장/레지스트리에는
+            # 디렉토리 이름에는 sha 앞 12자만 쓴다(Windows MAX_PATH 에 28자 여유를 번다).
+            # 12자는 이 용도로 충돌 걱정 없이 유일하다. 원장/레지스트리에는
             # 항상 spec["sha"](또는 materialize 가 돌려준 전체 sha)를 그대로 저장한다 -
             # 식별/비교/원장 참조는 전체 sha 에 의존하므로 여기서 자르면 안 된다.
             sha_tag = spec["sha"][:12] if spec["sha"] else "head"
@@ -981,7 +981,7 @@ def cmd_plugin_fetch(a):
     # materialize 가 성공을 보고해도(git rc=0, 예외 없음) 결과 디렉토리가 실제로 없을 수 있다 -
     # 실측: Windows MAX_PATH(약 260자) 를 넘는 경로는 git 이 파일을 못 쓰는데도 조용히 넘어가고,
     # 이후 os.path.isdir/os.walk 는 예외 대신 False/빈 결과를 낸다. 그 상태로 원장에 쓰면
-    # "가져옴: 성공, 컴포넌트 0개" 라는 거짓 성공이 나간다(fix round 2 finding) - 등록(원장 쓰기)
+    # "가져옴: 성공, 컴포넌트 0개" 라는 거짓 성공이 나간다 - 등록(원장 쓰기)
     # 전에 여기서 반드시 확인한다. 번들/외부 두 경로 모두 이 한 지점에서 걸러진다.
     if not os.path.isdir(root):
         length = len(root)
@@ -1022,7 +1022,7 @@ def cmd_plugin_fetch(a):
     warning = None
     if comp["failed"]:
         # fetch 자체는 성공이다(파일은 디스크에 있고 등록도 유효하다) - ok:true 를 유지하되,
-        # "성공 + 0개" 로는 못 읽게 경고를 명시적으로 붙인다(fix round 3). cmd_scan 이 이미
+        # "성공 + 0개" 로는 못 읽게 경고를 명시적으로 붙인다. cmd_scan 이 이미
         # 쓰는 것과 같은 근거(경로 길이 / CLAUDE_SNAPSHOT_STORE)를 재사용한다.
         length = len(root)
         hint = ""

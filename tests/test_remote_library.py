@@ -258,7 +258,7 @@ class Materialize(unittest.TestCase):
         self.assertEqual(got, "true")
 
     def test_materialize_rejects_malicious_urls_independently_of_marketplace(self):
-        # 리뷰 Finding 2: marketplace.py 를 거치지 않는 호출(사용자가 직접 --url 로 넘긴
+        # marketplace.py 를 거치지 않는 호출(사용자가 직접 --url 로 넘긴
         # remote-add/market-add)도 같은 방어가 필요하다 - remote_fetch 는 marketplace 를
         # import 하지 않으므로 독립적으로 재검증한다. 이 머신에서 실제로 전송 헬퍼(ext::)를
         # 실행시키지 않기 위해 비실행형 케이스(--옵션 주입, 허용 목록 밖 스킴)로 확인한다.
@@ -370,7 +370,7 @@ class ScanRecords(unittest.TestCase):
         self.assertTrue(json.loads(out)["ok"])
 
     def test_install_with_lib_and_origin_resolves_remote_record_not_local(self):
-        # UI 조합(Task 9): install 이 --lib 에 캐시 경로, --origin 에 remote:<id> 를 함께 보낸다.
+        # UI 조합: install 이 --lib 에 캐시 경로, --origin 에 remote:<id> 를 함께 보낸다.
         # --lib 를 무조건 local: 로 재합성하면 --origin 필터가 항상 빈 결과가 되어
         # 원격 레포 설치가 전부 실패한다(리뷰에서 재현된 회귀). 대문자 카테고리 디렉토리(map)도
         # --lib 재합성 시 map 이 None 으로 날아가면 마찬가지로 못 찾는다 - 함께 검증한다.
@@ -395,7 +395,7 @@ class ScanRecords(unittest.TestCase):
 
 
 class ScanEnumerationErrors(unittest.TestCase):
-    """fix round 2: os.walk 나열 실패(onerror=None 기본값)가 조용히 '항목 0개' 로 둔갑하던
+    """os.walk 나열 실패(onerror=None 기본값)가 조용히 '항목 0개' 로 둔갑하던
     버그. 진짜 빈 라이브러리(예외 없음)와 나열 실패(예외 있음)는 구분돼야 한다.
 
     프로세스 안에서 cmd_scan 을 직접 호출하고 os.walk 를 부분적으로 몽키패치한다 - 실제
@@ -464,7 +464,7 @@ class ScanEnumerationErrors(unittest.TestCase):
 
 
 class ComponentCounting(unittest.TestCase):
-    """fix round 3: _count_components 는 '진짜 0개'와 '못 읽음'을 같은 0 으로 뭉개면 안 된다.
+    """_count_components 는 '진짜 0개'와 '못 읽음'을 같은 0 으로 뭉개면 안 된다.
     실패한 카테고리는 counts 에 아예 안 나타나고 failed 로만 갈라져야 한다."""
 
     def setUp(self):
@@ -727,7 +727,7 @@ class Manifest(unittest.TestCase):
 
     def test_malformed_entry_name_is_skipped_not_indexed(self):
         # 이름 자체가 경로 이탈("..")이면 by_name 에 아예 안 실린다 - resolve_plugin 이
-        # 원천적으로 도달 못 하게 한다(리뷰 Finding 1).
+        # 원천적으로 도달 못 하게 한다.
         import marketplace
         p = self.write({"name": "o", "plugins": [
             {"name": "..", "source": "./p"},
@@ -736,7 +736,7 @@ class Manifest(unittest.TestCase):
         self.assertEqual(sorted(mf["by_name"]), ["ok"])
 
     def test_resolve_plugin_rejects_unsafe_canonical_name_from_renames(self):
-        # 리뷰 Finding 1 재현: renames 타깃이 경로 이탈이면 그 이름으로 해석해서는 안 된다.
+        # renames 타깃이 경로 이탈이면 그 이름으로 해석해서는 안 된다.
         # plugins[] 에 같은 이름의 엔트리가 있어도(정상이라면 있을 수 없지만, 매니페스트는
         # 신뢰할 수 없는 입력이므로 있다고 가정한다) 여전히 거부해야 한다 - by_name 인덱싱과
         # resolve_plugin 양쪽에서 막는다(방어 심층화).
@@ -778,7 +778,7 @@ class PathGuards(unittest.TestCase):
                 self.assertEqual(marketplace.safe_segment(n), n)
 
     def test_trailing_dot_space_segments_rejected(self):
-        # 리뷰 Finding 3: os.path.normpath 는 트레일링 dot/space 를 먹어치우므로
+        # os.path.normpath 는 트레일링 dot/space 를 먹어치우므로
         # 이 가드의 판정이 OS 의 실제 해석과 어긋나면 안 된다. rstrip(" .\t") 결과가
         # 빈 문자열/./.. 이면 거부한다.
         import marketplace
@@ -813,7 +813,7 @@ class PathGuards(unittest.TestCase):
         self.assertEqual(marketplace.safe_relpath("plugins/creative-cloud/adobe"), "plugins/creative-cloud/adobe")
 
     def test_source_spec_covers_all_four_kinds(self):
-        # url/sha 는 실제로 검증되므로(리뷰 Finding 2) 플레이스홀더 "u"/"s" 대신
+        # url/sha 는 실제로 검증되므로 플레이스홀더 "u"/"s" 대신
         # 스킴이 있는 URL 과 hex sha 를 쓴다 - 이 테스트가 검증하려는 대상(4종 판별)과
         # 무관한 값이라 결과는 이전과 동일하다.
         import marketplace
@@ -833,7 +833,7 @@ class PathGuards(unittest.TestCase):
             marketplace.source_spec({"source": {"source": "github", "repo": "../evil", "sha": "deadbeef"}})
 
     def test_source_spec_rejects_malicious_urls(self):
-        # 리뷰 Finding 2 재현: git 이 스스로 해석하는 문자열이라 subprocess 의 인자 리스트
+        # git 이 스스로 해석하는 문자열이라 subprocess 의 인자 리스트
         # 격리가 안 통한다. ext:: 는 전송 헬퍼(명령 실행), --upload-pack= 은 git 옵션 주입,
         # 그 외는 허용 스킴(https/http/ssh/git/file/scp-style) 밖의 임의 스킴이다.
         import marketplace
@@ -926,7 +926,7 @@ class Catalog(unittest.TestCase):
         self.assertEqual(row["origin"], "market:official/alpha")
 
     def test_malformed_entry_name_excluded_from_rows(self):
-        # 리뷰 Finding 1: plugins[] 이름이 ".." 처럼 경로 이탈이면 카탈로그 행에도
+        # plugins[] 이름이 ".." 처럼 경로 이탈이면 카탈로그 행에도
         # 노출하지 않는다(집계에서도 제외) - by_name 필터와 별개로 catalog() 자체가 방어한다.
         mf = {"name": "official", "renames": {}, "by_name": {}, "plugins": [
             {"name": "..", "description": "evil", "category": "x", "source": "./p"},
@@ -1235,7 +1235,7 @@ class PluginFetch(MarketAdd):
         self.assertEqual(rc, 0, err)
 
         plugins_dir = os.path.join(self.store, "lib-cache", "markets", "mk", "plugins", "multiseg")
-        # fix round 2: 스테이징 디렉토리 이름은 sha 앞 12자만 쓴다(Windows 260자 제한에 여유를
+        # 스테이징 디렉토리 이름은 sha 앞 12자만 쓴다(Windows 260자 제한에 여유를
         # 번다) - 원장의 sha 필드 자체는 여전히 전체 40자 그대로다(아래에서 별도 검증).
         self.assertEqual(sorted(os.listdir(plugins_dir)), [sha2[:12]],
                          "옛 sha 스테이징 디렉토리가 안 지워지고 남음(다단 source.path 정리 버그)")
@@ -1276,7 +1276,7 @@ class PluginFetch(MarketAdd):
                          "검증 실패는 원장에 흔적을 남기면 안 된다(거짓 성공 등록 금지)")
 
     def test_plugin_fetch_warns_when_a_category_cannot_be_enumerated(self):
-        # fix round 3: root 자체는 있고(1번 수정 통과) skills/ 나열만 실패하는 상황을
+        # root 자체는 있고 skills/ 나열만 실패하는 상황을
         # 실제 260+ 문자 경로 없이 시뮬레이션한다 - 이미 fetch 된 bundled 캐시에 대해
         # os.walk 를 부분적으로 몽키패치한 뒤 cmd_plugin_fetch 를 프로세스 안에서 재호출한다.
         self.libcmd("market-add", "--url", self.url, "--ref", "main")
@@ -1311,7 +1311,7 @@ class PluginFetch(MarketAdd):
 
     def test_plugin_fetch_reports_genuinely_empty_category_as_zero_without_warning(self):
         # bundled 픽스처는 skills/bs1 하나만 있고 agents/commands 는 아예 없다 -
-        # 이건 나열 실패가 아니라 진짜 빈 카테고리다. round 3 의 구분이 이 경우를
+        # 이건 나열 실패가 아니라 진짜 빈 카테고리다. '진짜 0개'와 '못 읽음'을 가르는 처리가 이 경우를
         # 여전히 조용한 0 으로 다뤄야 한다(경고를 남발하면 그것도 오독을 만든다).
         self.libcmd("market-add", "--url", self.url, "--ref", "main")
         rc, out, err = self.libcmd("plugin-fetch", "--marketplace", "mk", "--plugin", "bundled")
@@ -1326,7 +1326,7 @@ class PluginFetch(MarketAdd):
 
 @unittest.skipIf(shutil.which("git") is None, "git 없음")
 class MarketUnregister(MarketAdd):
-    """unregister --origin market:<id>/<plugin> 은 그 플러그인만 지운다(fix round 1 회귀 가드).
+    """unregister --origin market:<id>/<plugin> 은 그 플러그인만 지운다(회귀 가드).
     market:<id> (플러그인 세그먼트 없음)는 여전히 마켓 전체(레포+모든 플러그인)를 지운다."""
 
     def _external_fixture(self, name="ext"):
@@ -2092,7 +2092,7 @@ class NoneInputsAreNoops(unittest.TestCase):
 
 
 class HooksUninstallStructural(unittest.TestCase):
-    """hooks-uninstall fix round 1: root 문자열 매칭만으로는 ${CLAUDE_PLUGIN_ROOT} 를 전혀
+    """hooks-uninstall: root 문자열 매칭만으로는 ${CLAUDE_PLUGIN_ROOT} 를 전혀
     안 쓰는(전역 도구를 직접 부르는) hook 을 못 찾는다. hooks_merge 가 이제 root 매칭 +
     구조적 동일성 두 메커니즘으로 설치 중복을 막듯, uninstall 도 대칭으로 제거해야 한다."""
 
@@ -2151,7 +2151,7 @@ class HooksUninstallStructural(unittest.TestCase):
 
         after = self._settings()
         self.assertNotIn("PreToolUse", after.get("hooks", {}))
-        # global-lint-tool 엔트리(root 미참조)가 실제로 사라졌는지 - fix round 1 의 핵심 검증.
+        # global-lint-tool 엔트리(root 미참조)가 실제로 사라졌는지 - 이 테스트의 핵심 검증.
         stop_cmds = [h["hooks"][0]["command"] for h in after.get("hooks", {}).get("Stop", [])]
         self.assertNotIn("global-lint-tool --check", stop_cmds)
         # PreToolUse 가 빈 배열로 낙오되지 않았는지(hooks_remove 가 지우고, 그 뒤 identity
@@ -2188,8 +2188,8 @@ class HooksUninstallStructural(unittest.TestCase):
 
 
 class ScanHooksMcpFlags(unittest.TestCase):
-    """scan 이 has_hooks/has_mcp 를 방출해야 대시보드의 hooks/mcp 설치 버튼이 뜬다(fix round 1
-    Finding 2 - 이전에는 cmd_plugin_fetch 응답에만 있어 scan 행에는 없었다)."""
+    """scan 이 has_hooks/has_mcp 를 방출해야 대시보드의 hooks/mcp 설치 버튼이 뜬다.
+    이전에는 cmd_plugin_fetch 응답에만 있어 scan 행에는 없었다."""
 
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="scanflags_test_")

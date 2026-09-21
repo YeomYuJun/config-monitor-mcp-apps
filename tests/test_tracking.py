@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""추적 의미론 회귀 테스트: EOL 보존 / EOL 불감 diff / 편집 후행 스냅샷 귀속 / watcher 폴링.
+"""스냅샷 저장소(cas)와 watcher 회귀 테스트.
 
-가드하는 결함 세 가지:
-  - save_atomic 이 텍스트 모드로 써서 LF 파일 전체가 CRLF 로 뒤집히던 것(diff 전량 재작성 표기)
-  - diff 가 EOL/BOM 차이를 내용 변경으로 세던 것
-  - 스냅샷이 편집 '전'에만 찍혀 리비전 N 의 diff 가 N-1 편집을 보여주던 오프바이원 귀속
+  - 쓰기: save_atomic 의 EOL 보존, 중단된 객체 쓰기가 blob 을 남기지 않음, 락 소유 확인 후 해제
+  - diff: EOL/BOM 차이 무시, 무시 키 프로필과 이력 접기, 추적 목록 밖 경로 거부
+  - 스냅샷: 편집 후행 귀속(리비전 N 의 diff 가 N 의 편집을 보여줌), 구간 락, CLI 위임, gc
+  - watcher: tick, 상태 JSON, 손상된 watcher.json·읽기 실패·tick 예외에도 멈추지 않음
 """
 import json
 import os

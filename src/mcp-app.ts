@@ -5,24 +5,16 @@
 //   get_diff         -> from->to unified diff
 //   config_*/config_restore/watcher_* -> inline edit / restore / watcher control
 //   updateModelContext -> inject what the user is viewing into Claude context
-import { app, STANDALONE, callTool, pushCtx, jparse, jparseLast } from "./ui/bridge";
+import { app, STANDALONE, callTool, jparse, jparseLast } from "./ui/bridge";
 import { t, getLang, setLang } from "./ui/i18n";
-import { $, esc, setPending, clearPending, openModal, mkNotice, openReasonModal, modalActions, flashToast } from "./ui/widgets";
+import { $, esc, openReasonModal, flashToast } from "./ui/widgets";
 import {
-  selectedPath, setSelectedPath, currentRevs, setCurrentRevs, fromRev, setFromRev, toRev, setToRev,
-  detailOpen, setDetailOpen, collapsed, ccPlugins, ccMarkets, ccCatalog, setCcCatalog,
-  knownProjects, setKnownProjects, cmMarketUrls, cmMarketsNoUrl, OFFICIAL_MARKET_URL, normUrl,
-  secIds, collapsedInit, setCollapsedInit, showPlugin, setShowPlugin, showBuiltin, setShowBuiltin,
-  libGroupOpen, ROOT_GROUP_KEY, libChecked, libOpen, libProjectTargets, setLibProjectTargets,
-  libTarget, setLibTarget, libSelBarUpdate, setLibSelBarUpdate, scopeFilter, setScopeFilter,
-  srcOpen, lastConfigSections, setLastConfigSections, refreshApp, setRefreshApp, catOpen,
-  catSecEl, setCatSecEl, sectionPrefs,
+  selectedPath, currentRevs, setDetailOpen, collapsed, secIds, libProjectTargets, setLibTarget,
+  setScopeFilter, setRefreshApp, setCatSecEl, sectionPrefs,
 } from "./ui/state";
-import { valClass, basename, dirname, ABS_PATH_RE, safeSegment, looksLikePermRule, originShort, mkSrcTag } from "./ui/helpers";
 import { renderConfig, applySectionPrefs, wireSectionPrefs } from "./ui/config";
 import { selectFile, renderHistory, renderDiffFor, applyDetailState } from "./ui/detail";
 import { renderCatalog } from "./ui/market";
-import { openMarketAdd, openLibAdd } from "./ui/libmarket";
 import { renderTracked } from "./ui/tracked";
 import { refreshLibrary } from "./ui/library";
 import { INSTANCE_ID, persistView } from "./ui/view";

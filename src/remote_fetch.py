@@ -98,7 +98,7 @@ class GitError(FetchError):
 # 실행 시도했다). marketplace.py 가 같은 검증을 이미 하지만, remote-add/market-add 처럼
 # 사용자가 --url 을 직접 넘겨 marketplace.py 를 거치지 않는 경로도 있으므로 여기서
 # 독립적으로 다시 검사한다(marketplace 를 import 하지 않는다 - 이 모듈은 그보다 아래
-# 계층이다). marketplace.py 의 동일 로직과 의도적으로 중복이다(Finding 2).
+# 계층이다). marketplace.py 의 동일 로직과 의도적으로 중복이다.
 _ALLOWED_URL_SCHEMES = ("https://", "http://", "ssh://", "git://", "file://")
 _SCP_STYLE_RE = re.compile(r"^[A-Za-z0-9_.~-]+@[A-Za-z0-9_.-]+:[A-Za-z0-9_./~-].*$")
 _TRANSPORT_HELPER_RE = re.compile(r"^[A-Za-z0-9+.-]*::")   # 앞에서만 검사 - IPv6 리터럴([::1]) 오탐 방지

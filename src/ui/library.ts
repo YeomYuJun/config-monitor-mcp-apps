@@ -494,7 +494,7 @@ function renderLibrary(host: HTMLElement, res: any): void {
         chip.appendChild(age);
       }
       // env(CLAUDE_CONFIG_LIBRARIES) 지정 경로만 대시보드에서 제거 불가 -> ✕ 미표시.
-      // remote/market 은 library_unregister --origin(Task 15) 이 캐시까지 정리하고, 원장이 그 캐시를
+      // remote/market 은 library_unregister --origin 이 캐시까지 정리하고, 원장이 그 캐시를
       // 참조 중이면 거부(held_by) 하므로 ✕ 를 그려도 안전하다 - 아래 공용 ✕ 로 흘려보낸다.
       if (l.source === "env") return chip;
     }

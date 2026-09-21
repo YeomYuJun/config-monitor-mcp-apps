@@ -18,7 +18,7 @@ import json, os, re
 MANIFEST_REL = os.path.join(".claude-plugin", "marketplace.json")
 
 # Windows 예약 디바이스 이름(확장자·대소문자 무관) - 경로 이탈은 아니지만 그런 이름으로
-# 파일/디렉토리를 만들 수 없어 기능적으로 깨진다(Finding 3).
+# 파일/디렉토리를 만들 수 없어 기능적으로 깨진다.
 _RESERVED_DEVICE_NAMES = {
     "con", "prn", "aux", "nul",
     "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8", "com9",
@@ -26,7 +26,7 @@ _RESERVED_DEVICE_NAMES = {
 }
 
 # git 이 url 문자열 자체를 해석한다(subprocess 의 인자 리스트 격리가 안 통함) - 허용 스킴만
-# 통과시킨다. scp 스타일(user@host:path)도 정상 git 문법이라 허용한다(Finding 2).
+# 통과시킨다. scp 스타일(user@host:path)도 정상 git 문법이라 허용한다.
 _ALLOWED_URL_SCHEMES = ("https://", "http://", "ssh://", "git://", "file://")
 _SCP_STYLE_RE = re.compile(r"^[A-Za-z0-9_.~-]+@[A-Za-z0-9_.-]+:[A-Za-z0-9_./~-].*$")
 # 전송 헬퍼 구문(예: ext::, foo::) - 문자열 맨 앞에서만 위험하다. 부분 문자열로 "::" 를
@@ -87,7 +87,7 @@ def resolve_plugin(mf: dict, name: str):
     canonical 이름은 반환 직전 safe_segment 로 재검증한다: by_name 이 이미 안전한 이름만
     담고 있지만(위 parse_manifest), 이 함수는 그 불변식이 깨져도(호출부가 by_name 을
     직접 조립하는 테스트/미래 코드) 마지막 방어선이 되도록 한다 - cmd_plugin_fetch 가
-    이 반환값으로 바로 os.path.join 하기 때문이다(Finding 1).
+    이 반환값으로 바로 os.path.join 하기 때문이다.
     cur 가 문자열이 아니면(예: renames 값이 dict 인 오염된 매니페스트) 즉시 포기한다 -
     dict.get() 에 unhashable 값을 넣으면 TypeError 로 죽는다."""
     seen = set()
@@ -115,7 +115,7 @@ def safe_segment(s, what="이름"):
     NTFS ADS 'a:b'), 구분자 금지, Windows 예약 디바이스 이름(확장자·대소문자 무관) 금지.
 
     트레일링 dot/space 를 따로 가려내는 이유: os.path.normpath 가 이를 먹어치우므로
-    이 가드의 판정이 OS 의 실제 해석과 어긋나면 안 된다(Finding 3, 리뷰 지적)."""
+    이 가드의 판정이 OS 의 실제 해석과 어긋나면 안 된다."""
     if not isinstance(s, str) or not s or ":" in s or any(c in s for c in "\\/") or \
        s != os.path.basename(s):
         raise ManifestError(f"{what}가 유효하지 않음: {s!r}")
@@ -146,7 +146,7 @@ def safe_relpath(p, what="경로"):
 def _validate_source_url(url, what="source.url"):
     """git 이 스스로 해석하는 문자열이라 remote_fetch 가 subprocess 에 리스트 인자로 넘겨도
     주입을 막지 못한다(git 자신이 "ext::" 전송 헬퍼나 "--upload-pack=" 같은 옵션형 값을
-    해석해 임의 명령을 실행한다 - Finding 2, 실측: git fetch 가 --upload-pack=evil 을 받으면
+    해석해 임의 명령을 실행한다 - 실측: git fetch 가 --upload-pack=evil 을 받으면
     "evil" 을 서브프로세스로 실행 시도하는 게 재현됐다). 허용 스킴 allowlist 로 막는다."""
     if not isinstance(url, str) or not url:
         raise ManifestError(f"{what}가 유효하지 않음: {url!r}")
@@ -289,7 +289,7 @@ def source_spec(entry: dict) -> dict:
 
     url/ref/sha 는 여기서 검증하지만, marketplace.py 를 거치지 않는 호출 경로(사용자가
     remote-add/market-add 에 직접 --url 을 넘기는 경우)도 있으므로 remote_fetch.materialize 에
-    독립적으로 같은 검증이 한 번 더 있다(방어 심층화, Finding 2)."""
+    독립적으로 같은 검증이 한 번 더 있다(방어 심층화)."""
     src = entry.get("source")
     if isinstance(src, str):
         return {"kind": "str-path", "url": None, "path": safe_relpath(src, "source.path"),
@@ -334,7 +334,7 @@ def catalog(mf: dict, fetched: dict, query=None, category=None, limit=50, offset
         try:
             safe_segment(name, "플러그인 이름")
         except ManifestError:
-            continue        # 이름 자체가 경로 이탈이면 카탈로그에 노출하지 않는다(집계 제외, Finding 1)
+            continue        # 이름 자체가 경로 이탈이면 카탈로그에 노출하지 않는다(집계 제외)
         cat = e.get("category") or ""
         counts[cat] = counts.get(cat, 0) + 1
         if category and cat != category:
