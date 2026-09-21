@@ -383,7 +383,7 @@ class ClaudeCliDelegation(unittest.TestCase):
     def test_install_dry_run_builds_id_and_scope(self):
         _, r = self.call("install", "--marketplace", "official", "--plugin", "notion",
                          "--scope", "project", "--dry-run")
-        self.assertTrue(r["ok"])
+        self.assertEqual((r["ok"], r["code"]), (True, "dry_run"))
         self.assertEqual(r["target"], "notion@official")
         self.assertEqual(r["command"][1:], ["plugin", "install", "notion@official", "--scope", "project"])
 

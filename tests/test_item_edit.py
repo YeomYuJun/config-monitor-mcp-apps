@@ -63,7 +63,8 @@ class TestItemScaffold(ItemEditCase):
 
     def test_duplicate_scaffold_is_refused(self):
         self.assertTrue(self.scaffold("rule", "rules", "dup")["ok"])
-        self.assertFalse(self.scaffold("rule", "rules", "dup")["ok"])
+        r = self.scaffold("rule", "rules", "dup")
+        self.assertEqual((r["ok"], r["code"]), (False, "exists"))
 
     def test_remove_moves_to_trash_not_delete(self):
         self.scaffold("output-style", "output-styles", "terse")

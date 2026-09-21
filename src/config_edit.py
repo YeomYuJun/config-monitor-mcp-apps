@@ -16,7 +16,7 @@ config_edit.py - Claude 설정 파일 안전 편집기 (스냅샷-선행 + atomi
   ~/.claude/agents/<name>.md                       에이전트 (scaffold/remove)
     --skills-dir/--agents-dir 로 프로젝트-로컬(<root>/.claude/skills) 지정 가능.
     형태는 <...>/.claude/<skills|agents> 로 제한(_safe_config_dir).
-출력은 항상 JSON 한 줄 ({ok, message, ...}) — MCP 서버가 그대로 파싱.
+출력은 항상 JSON 한 줄 ({ok, code, message, ...}, cli_result 계약) — MCP 서버가 그대로 파싱.
 
 ops:
   perm-add    <allow|deny|ask> <rule>
@@ -43,6 +43,7 @@ for _s in (sys.stdout, sys.stderr):
     except (AttributeError, ValueError):
         pass
 
+from cli_result import emit, guard, JsonArgumentParser
 import paths  # read(claude_config.py) 와 동일한 해석기로 Desktop config 경로를 잡는다
 import cas    # 스냅샷은 in-process 로 찍는다(락을 편집 전후로 걸쳐 쥐기 위해 - snapshot_before 주석)
 
@@ -82,7 +83,7 @@ def _safe_memory_dir(d):
     n = os.path.normpath(d)
     nc = os.path.normcase
     if nc(os.path.basename(n)) != nc("memory") or        nc(os.path.basename(os.path.dirname(os.path.dirname(n)))) != nc("projects"):
-        out(False, f"메모리 디렉토리가 유효하지 않음(<...>/projects/<name>/memory 형태만 허용): '{d}'")
+        out(False, f"메모리 디렉토리가 유효하지 않음(<...>/projects/<name>/memory 형태만 허용): '{d}'", "invalid_arg", target=d)
     return n
 DEFAULT_CLAUDE_JSON = os.path.join(HOME, ".claude.json")
 # Win32(%APPDATA%\Claude) vs MSIX/Store(...\Packages\Claude_*\LocalCache\Roaming\Claude)
@@ -90,9 +91,11 @@ DEFAULT_CLAUDE_JSON = os.path.join(HOME, ".claude.json")
 DEFAULT_DESKTOP_CONFIG = paths.desktop_config_path()
 HERE = os.path.dirname(os.path.abspath(__file__))
 
-def out(ok, message, **extra):
-    print(json.dumps({"ok": ok, "message": message, **extra}, ensure_ascii=False))
-    sys.exit(0 if ok else 1)
+def out(ok, message, code=None, **extra):
+    if code is None:
+        print(json.dumps({"ok": ok, "message": message, **extra}, ensure_ascii=False))
+        sys.exit(0 if ok else 1)
+    emit(ok, code, message, **extra)
 
 def load(path):
     # utf-8-sig: PowerShell Out-File 등이 남기는 BOM 을 견딘다(utf-8 로 열면 json 이 거부해
@@ -216,14 +219,14 @@ def edit_json_file(path, mutate, no_snapshot, store):
     data = load(path)
     data, msg, changed = mutate(data)
     if not changed:
-        out(True, msg + " (no-op)", changed=False)
+        out(True, msg + " (no-op)", "noop", changed=False)
     if not no_snapshot:
         snapshot_before(store)
     bak = backup(path)
     save_atomic(path, data)
     if not no_snapshot:
         snapshot_after(store, msg)
-    out(True, msg, changed=True, file=path, backup=bak)
+    out(True, msg, "ok", changed=True, file=path, backup=bak)
 
 # ── ops (settings 딕셔너리를 받아 (settings, msg) 반환) ──
 
@@ -314,7 +317,7 @@ def _safe_name(name):
     """디렉토리 탈출/경로 주입 방지: 이름은 경로 구분자·상대참조 없이 단일 세그먼트만."""
     if not name or name != os.path.basename(name) or name in (".", "..") or \
        any(c in name for c in "\\/"):
-        out(False, f"이름이 유효하지 않음: '{name}'")
+        out(False, f"이름이 유효하지 않음: '{name}'", "invalid_arg", target=name)
     return name
 
 def _safe_config_dir(d, sub):
@@ -325,7 +328,7 @@ def _safe_config_dir(d, sub):
     n = os.path.normpath(d)
     nc = os.path.normcase                                  # Win 대소문자 무시 / POSIX 그대로
     if nc(os.path.basename(n)) != nc(sub) or nc(os.path.basename(os.path.dirname(n))) != nc(".claude"):
-        out(False, f"설정 디렉토리가 유효하지 않음(<...>/.claude/{sub} 형태만 허용): '{d}'")
+        out(False, f"설정 디렉토리가 유효하지 않음(<...>/.claude/{sub} 형태만 허용): '{d}'", "invalid_arg", target=d)
     return n
 
 SETTINGS_NAMES = ("settings.json", "settings.local.json")
@@ -340,11 +343,11 @@ def _safe_settings_path(p):
     nc = os.path.normcase
     if nc(os.path.basename(n)) not in tuple(nc(x) for x in SETTINGS_NAMES) or \
        nc(os.path.basename(os.path.dirname(n))) != nc(".claude"):
-        out(False, f"settings 경로가 유효하지 않음(<...>/.claude/settings[.local].json 형태만 허용): '{p}'")
+        out(False, f"settings 경로가 유효하지 않음(<...>/.claude/settings[.local].json 형태만 허용): '{p}'", "invalid_arg", target=p)
     return n
 
 def main():
-    ap = argparse.ArgumentParser(prog="config_edit")
+    ap = JsonArgumentParser(prog="config_edit")
     ap.add_argument("--settings", default=DEFAULT_SETTINGS)
     ap.add_argument("--skills-dir", default=DEFAULT_SKILLS)
     ap.add_argument("--agents-dir", default=DEFAULT_AGENTS)
@@ -392,7 +395,7 @@ def main():
         a.items_dir = _safe_config_dir(a.items_dir or os.path.join(HOME, ".claude", sub_dir), sub_dir)
     elif a.op == "memory-remove":
         if not a.memory_dir:
-            out(False, "memory-remove 는 --memory-dir 이 필요합니다")
+            out(False, "memory-remove 는 --memory-dir 이 필요합니다", "invalid_arg", target="--memory-dir")
         a.memory_dir = _safe_memory_dir(a.memory_dir)
 
     # ── 단일 파일 항목 ops (rules / output-styles / workflows) ──
@@ -401,7 +404,7 @@ def main():
         _sub, ext = ITEM_KINDS[a.kind]
         f_path = os.path.join(a.items_dir, name + ext)
         if os.path.exists(f_path):
-            out(False, f"이미 존재: {f_path}")
+            out(False, f"이미 존재: {f_path}", "exists", target=f_path)
         if not a.no_snapshot:
             snapshot_before(a.store)
         os.makedirs(a.items_dir, exist_ok=True)
@@ -411,34 +414,34 @@ def main():
         msg = f"{a.kind} {'설치' if a.content else '스캐폴드 생성'}: {f_path}"
         if not a.no_snapshot:
             snapshot_after(a.store, msg)
-        out(True, msg, path=f_path)
+        out(True, msg, "ok", path=f_path)
 
     if a.op == "item-remove":
         name = _safe_name(a.name)
         _sub, ext = ITEM_KINDS[a.kind]
         f_path = os.path.join(a.items_dir, name + ext)
         if not os.path.exists(f_path):
-            out(False, f"{a.kind} 없음: {f_path}")
+            out(False, f"{a.kind} 없음: {f_path}", "not_found", target=f_path)
         if not a.no_snapshot:
             snapshot_before(a.store)
         dst = trash(f_path)
         msg = f"{a.kind} 제거됨(.trash 이동): {name}"
         if not a.no_snapshot:
             snapshot_after(a.store, msg)
-        out(True, msg, trashed=dst)
+        out(True, msg, "ok", trashed=dst)
 
     if a.op == "memory-remove":
         name = _safe_name(a.name)
         f_path = os.path.join(a.memory_dir, name + ".md")
         if not os.path.exists(f_path):
-            out(False, f"메모리 없음: {f_path}")
+            out(False, f"메모리 없음: {f_path}", "not_found", target=f_path)
         if not a.no_snapshot:
             snapshot_before(a.store)
         dst = trash(f_path)
         msg = f"메모리 제거됨(.trash 이동): {name}"
         if not a.no_snapshot:
             snapshot_after(a.store, msg)
-        out(True, msg, trashed=dst)
+        out(True, msg, "ok", trashed=dst)
 
     if a.op == "outputstyle-set":
         # 파일을 만드는 게 아니라 '무엇이 EAGER 인가'를 바꾸는 유일한 스위치다.
@@ -457,7 +460,7 @@ def main():
         d = os.path.join(a.skills_dir, name)
         md = os.path.join(d, "SKILL.md")
         if os.path.exists(md):
-            out(False, f"이미 존재: {md}")
+            out(False, f"이미 존재: {md}", "exists", target=md)
         if not a.no_snapshot:
             snapshot_before(a.store)
         os.makedirs(d, exist_ok=True)
@@ -468,26 +471,26 @@ def main():
         msg = f"스킬 {'설치' if a.content else '스캐폴드 생성'}: {md}"
         if not a.no_snapshot:
             snapshot_after(a.store, msg)
-        out(True, msg, path=md)
+        out(True, msg, "ok", path=md)
 
     if a.op == "skill-remove":
         name = _safe_name(a.name)
         d = os.path.join(a.skills_dir, name)
         if not os.path.isdir(d):
-            out(False, f"스킬 없음: {d}")
+            out(False, f"스킬 없음: {d}", "not_found", target=d)
         if not a.no_snapshot:
             snapshot_before(a.store)
         dst = trash(d)
         msg = f"스킬 제거됨(.trash 이동): {name}"
         if not a.no_snapshot:
             snapshot_after(a.store, msg)
-        out(True, msg, trashed=dst)
+        out(True, msg, "ok", trashed=dst)
 
     if a.op == "agent-scaffold":
         name = _safe_name(a.name)
         md = os.path.join(a.agents_dir, f"{name}.md")
         if os.path.exists(md):
-            out(False, f"이미 존재: {md}")
+            out(False, f"이미 존재: {md}", "exists", target=md)
         if not a.no_snapshot:
             snapshot_before(a.store)
         os.makedirs(a.agents_dir, exist_ok=True)
@@ -505,7 +508,7 @@ def main():
         msg = f"에이전트 {'설치' if a.content else '스캐폴드 생성'}: {md}"
         if not a.no_snapshot:
             snapshot_after(a.store, msg)
-        out(True, msg, path=md)
+        out(True, msg, "ok", path=md)
 
     if a.op == "agent-remove":
         name = _safe_name(a.name)
@@ -513,14 +516,14 @@ def main():
         cand = [os.path.join(a.agents_dir, f"{name}.md"), os.path.join(a.agents_dir, name)]
         target = next((c for c in cand if os.path.exists(c)), None)
         if target is None:
-            out(False, f"에이전트 없음: {name} ({a.agents_dir})")
+            out(False, f"에이전트 없음: {name} ({a.agents_dir})", "not_found", target=name)
         if not a.no_snapshot:
             snapshot_before(a.store)
         dst = trash(target)
         msg = f"에이전트 제거됨(.trash 이동): {name}"
         if not a.no_snapshot:
             snapshot_after(a.store, msg)
-        out(True, msg, trashed=dst)
+        out(True, msg, "ok", trashed=dst)
 
     # ── mcpServers ops: scope 에 따라 대상 파일 선택 ──
     if a.op in ("mcp-add", "mcp-remove"):
@@ -529,9 +532,9 @@ def main():
             try:
                 server = json.loads(a.server_json)
             except json.JSONDecodeError as e:
-                out(False, f"--json 파싱 실패: {e}")
+                out(False, f"--json 파싱 실패: {e}", "invalid_arg", target="--json")
             if not isinstance(server, dict):
-                out(False, "--json 은 서버 설정 객체여야 함 (예: {\"command\":\"npx\",\"args\":[...]})")
+                out(False, "--json 은 서버 설정 객체여야 함 (예: {\"command\":\"npx\",\"args\":[...]})", "invalid_arg", target="--json")
             edit_json_file(target, lambda d: op_mcp_add(d, a.name, server), a.no_snapshot, a.store)
         else:
             edit_json_file(target, lambda d: op_mcp_remove(d, a.name), a.no_snapshot, a.store)
@@ -544,10 +547,10 @@ def main():
     elif a.op == "hook-remove": s, msg, changed = op_hook_remove(s, a.event, a.needle)
     elif a.op == "plugin-toggle": s, msg, changed = op_plugin_toggle(s, a.id, a.state == "on")
     else:
-        out(False, f"알 수 없는 op: {a.op}")
+        out(False, f"알 수 없는 op: {a.op}", "invalid_arg", target=a.op)
 
     if not changed:
-        out(True, msg + " (no-op)", changed=False)
+        out(True, msg + " (no-op)", "noop", changed=False)
 
     if not a.no_snapshot:
         snapshot_before(a.store)
@@ -555,15 +558,7 @@ def main():
     save_atomic(a.settings, s)
     if not a.no_snapshot:
         snapshot_after(a.store, msg)
-    out(True, msg, changed=True, settings=a.settings, backup=bak)
+    out(True, msg, "ok", changed=True, settings=a.settings, backup=bak)
 
 if __name__ == "__main__":
-    try:
-        main()
-    except SystemExit:
-        raise
-    except Exception as e:
-        # stdout 한 줄 JSON 계약 유지: 예기치 못한 실패(권한/디스크 등)도 트레이스백 대신 사유로.
-        _release_span()
-        print(json.dumps({"ok": False, "message": f"{type(e).__name__}: {e}"}, ensure_ascii=False))
-        sys.exit(1)
+    guard(main, cleanup=_release_span)
