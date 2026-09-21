@@ -1,7 +1,7 @@
 // src/ui/market.ts - Marketplace 카탈로그: 마켓별 그룹 · 검색 · 페이징 · 플러그인 상세와 설치.
 // Library 칸이 "가져온 것"이라면 여기는 "가져올 수 있는 것"이다.
 // 등록 모달은 libmarket.ts 가 갖는다 - Library 쪽과 공유하므로 여기 두면 순환이 된다.
-import { t } from "./i18n";
+import { t, errText, okText } from "./i18n";
 import { callTool, jparse } from "./bridge";
 import { $, esc, setPending, clearPending, openModal, openReasonModal, flashToast } from "./widgets";
 import {
@@ -207,8 +207,8 @@ function mkMarketCcActions(m: any): HTMLElement {
     setPending(btn);
     try {
       const rr = jparse(await callTool(tool, args));
-      if (rr && rr.ok === false) { clearPending(btn, t("failed")); flashToast(rr.message || t("failed")); return; }
-      flashToast(rr?.message || t("done"));
+      if (rr && rr.ok === false) { clearPending(btn, t("failed")); flashToast(errText(rr)); return; }
+      flashToast(okText(rr, "done"));
       await reloadCatalog();
     } catch (e) { clearPending(btn, t("failed")); console.error("[config-monitor] " + tool, e); }
   };
@@ -277,10 +277,10 @@ function mkMarketCcActions(m: any): HTMLElement {
       const r = jparse(await callTool("library_unregister", { origin: `market:${m.id}` }));
       if (r && r.ok === false) {
         clearPending(b, t("failed"));
-        openReasonModal(t("heldTitle"), r.message || t("failed"), r.held_by || []);
+        openReasonModal(t("heldTitle"), errText(r), r.held_by || []);
         return;
       }
-      flashToast(r?.message || t("done"));
+      flashToast(okText(r, "done"));
       await refreshApp?.();                        // Library 패널도 같이 바뀐다
     } catch (e) { clearPending(b, t("failed")); console.error("[config-monitor] market unregister", e); }
   }));
@@ -398,13 +398,13 @@ function mkCatalogRow(row: any): HTMLElement {
         if (rr && rr.ok === false) {
           // 네트워크·매니페스트 오류라 원문이 길다. 토스트로 스치게 두지 않는다.
           clearPending(b, t("catFetch"));
-          openReasonModal(t("failed"), rr.message || t("failed"));
+          openReasonModal(t("failed"), errText(rr));
           return;
         }
         // components_failed 가 있으면 개수는 "모름"이지 "0개"가 아니다 - warning 을 성공 메시지에
         // 묻어 버리면 "가져왔는데 텅 빔" 처럼 보인다(사실은 "가져왔는데 일부를 못 읽음").
-        flashToast(rr?.warning ? `${rr?.message || t("done")} · ${row.name} ⚠ ${rr.warning}`
-          : `${rr?.message || t("done")} · ${row.name}`);
+        flashToast(rr?.warning ? `${okText(rr, "done")} · ${row.name} ⚠ ${rr.warning}`
+          : `${okText(rr, "done")} · ${row.name}`);
         await refreshApp?.();
       } catch (e) { flashToast(t("failed")); clearPending(b, t("failed")); console.error("[config-monitor] plugin fetch", e); }
     });
@@ -596,9 +596,9 @@ function mkInstallScopes(row: any, market: string, close: () => void): HTMLEleme
         marketplace: market, plugin: row.name, scope,
         ...(scope === "user" ? {} : { cwd: sel.value }),
       }));
-      if (rr && rr.ok === false) { flashToast(rr.message || t("failed")); clearPending(btn, label); return; }
+      if (rr && rr.ok === false) { flashToast(errText(rr)); clearPending(btn, label); return; }
       close();
-      flashToast(`${rr?.message || t("done")} · ${row.name}@${market}`);
+      flashToast(`${okText(rr, "done")} · ${row.name}@${market}`);
       await refreshApp?.();
       await reloadCatalog();
     } catch (e) { clearPending(btn, label); flashToast(t("failed")); console.error("[config-monitor] install scope", e); }

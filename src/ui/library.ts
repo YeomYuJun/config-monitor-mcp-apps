@@ -1,7 +1,7 @@
 // src/ui/library.ts - Library 섹션: 가져온 라이브러리의 skills · agents · commands 와 hooks/MCP 유닛,
 // 그리고 그것들의 설치 · 동기화 · 제거. 설치 대상(전역 / 프로젝트 .claude)은 state 의 libTarget 이 정한다.
 // 등록 모달은 libmarket.ts 가 갖는다 - Marketplace 쪽과 공유하므로 여기 두면 순환이 된다.
-import { t } from "./i18n";
+import { t, errText, okText } from "./i18n";
 import { persistView } from "./view";
 import { callTool, jparse } from "./bridge";
 import { $, esc, setPending, clearPending, openReasonModal, flashToast } from "./widgets";
@@ -44,7 +44,7 @@ function mkItemActions(it: any): HTMLElement {
         if (r && r.ok === false) {
           // 행 하나짜리 동작이라 인라인 슬롯을 둘 자리가 없다. 토스트로 알리되 사유를
           // 버튼 title 에도 남긴다 - 토스트가 사라진 뒤에도 되짚어 읽을 수 있어야 한다.
-          const msg = r.message || t("failed");
+          const msg = errText(r);
           flashToast(msg);
           clearPending(b, t("failed"));
           b.title = msg;
@@ -91,7 +91,7 @@ async function installMany(items: any[], opts: InstallOpts = {}): Promise<void> 
     if (libTarget) args.targetDir = libTarget;
     try {
       const r = jparse(await callTool("library_install", args));
-      if (r && r.ok === false) failures.push(`${it.name} — ${r.message || t("failed")}`);
+      if (r && r.ok === false) failures.push(`${it.name} — ${errText(r)}`);
       else ok++;
     } catch (e) { failures.push(`${it.name} — ${String(e)}`); }
   }
@@ -344,7 +344,7 @@ function mkUnitActions(l: any, kind: "hooks" | "mcp", installed: boolean): HTMLE
         const dry = jparse(await callTool(tool, { origin: l.origin, dryRun: true, ...tgt }));
         if (dry && dry.ok === false) {
           clearPending(install, label);
-          openReasonModal(t("failed"), dry.message || t("failed"));
+          openReasonModal(t("failed"), errText(dry));
           return;
         }
         const cmds: string[] = dry?.commands || (dry?.servers || []);
@@ -364,12 +364,12 @@ function mkUnitActions(l: any, kind: "hooks" | "mcp", installed: boolean): HTMLE
       if (r && r.ok === false) {
         clearPending(install, label);
         confirmed = false;
-        openReasonModal(t("failed"), r.message || t("failed"));
+        openReasonModal(t("failed"), errText(r));
         return;
       }
       // 백엔드가 warning 을 담아 보내면(예: 스토어 미초기화로 출처를 기록 못함) 성공 메시지에 묻혀
       // 사라지면 안 된다 - "성공했지만 알아둬야 할 것" 을 그대로 보여준다.
-      flashToast(r?.warning ? `${r?.message || t("done")} ⚠ ${r.warning}` : (r?.message || t("done")));
+      flashToast(r?.warning ? `${okText(r, "done")} ⚠ ${r.warning}` : okText(r, "done"));
       await refreshApp?.();
     } catch (e) { clearPending(install, t("failed")); console.error("[config-monitor] unit install", e); }
   });
@@ -386,10 +386,10 @@ function mkUnitActions(l: any, kind: "hooks" | "mcp", installed: boolean): HTMLE
         const r = jparse(await callTool(unTool, { origin: l.origin, ...tgt }));
         if (r && r.ok === false) {
           clearPending(rm, t("unitRemove"));
-          openReasonModal(t("failed"), r.message || t("failed"));
+          openReasonModal(t("failed"), errText(r));
           return;
         }
-        flashToast(r?.warning ? `${r?.message || t("done")} ⚠ ${r.warning}` : (r?.message || t("done")));
+        flashToast(r?.warning ? `${okText(r, "done")} ⚠ ${r.warning}` : okText(r, "done"));
         await refreshApp?.();
       } catch (e) { clearPending(rm, t("failed")); console.error("[config-monitor] unit uninstall", e); }
     });
@@ -519,11 +519,11 @@ function renderLibrary(host: HTMLElement, res: any): void {
           if (r && r.ok === false) {
             // 원장 가드 거부: 무엇이 캐시를 붙들고 있는지 보여준다(강제 옵션은 두지 않는다).
             // 목록을 토스트에 이어붙이면 길어서 잘리는데, 정작 그 목록이 다음에 할 일을 정한다.
-            openReasonModal(t("heldTitle"), r.message || t("failed"), r.held_by || []);
+            openReasonModal(t("heldTitle"), errText(r), r.held_by || []);
             chip.replaceWith(mkPathChip(l));
             return;
           }
-          flashToast(r?.message || (t("libPathRemoved") + " · " + basename(l.lib)));
+          flashToast(okText(r, "libPathRemoved") + " · " + basename(l.lib));
           await refreshApp?.();
         } catch (e) { flashToast(t("failed")); console.error("[config-monitor] lib unregister", e); chip.replaceWith(mkPathChip(l)); }
       });

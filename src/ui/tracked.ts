@@ -1,6 +1,6 @@
 // src/ui/tracked.ts - 왼쪽 추적 파일 목록과 그 위의 경로 추가 입력행 · 프로젝트 피커.
 // 행을 누르면 detail 패널을 연다(selectFile) - 반대 방향 의존은 없다.
-import { t } from "./i18n";
+import { t, errText } from "./i18n";
 import { callTool, jparse } from "./bridge";
 import { $, esc, setPending, clearPending, mkNotice, openReasonModal, flashToast } from "./widgets";
 import { basename, dirname, ABS_PATH_RE } from "./helpers";
@@ -37,7 +37,7 @@ function buildTrackAdder(extra?: HTMLElement): HTMLElement {
     try {
       const r = jparse(await callTool("config_track", { path: v }));
       if (r && r.ok === false) {
-        notice.show(r.message || t("failed"));
+        notice.show(errText(r));
         clearPending(btn, t("trackAdd"));
         return;
       }
@@ -90,7 +90,7 @@ function buildUntrackBtn(p: string): HTMLElement {
       if (r && r.ok === false) {
         // 아이콘 버튼 하나뿐인 자리라 인라인 슬롯을 둘 수 없다. 사유는 모달에 남긴다.
         clearPending(b, "×");
-        openReasonModal(t("failed"), r.message || t("failed"));
+        openReasonModal(t("failed"), errText(r));
         return;
       }
       flashToast(t("untracked"));
@@ -123,7 +123,7 @@ function buildProjectPicker(): { toggle: HTMLElement; list: HTMLElement } {
     try {
       const res = jparse(await callTool("list_projects", { includeMissing: sectionPrefs.includeMissingProjects }));
       // 실패를 성공처럼 캐시하면 닫았다 열어도 재시도가 없다 - 성공했을 때만 loaded 를 세운다.
-      if (res && res.ok === false) { list.innerHTML = `<div class="empty">${esc(res.message || t("failed"))}</div>`; return; }
+      if (res && res.ok === false) { list.innerHTML = `<div class="empty">${esc(errText(res))}</div>`; return; }
       loaded = true;
       const projs = res && Array.isArray(res.projects) ? res.projects : [];
       const trackedNorm = new Set(libProjectTargets.map((c) => c.replace(/\\/g, "/").toLowerCase()));
@@ -144,7 +144,7 @@ function buildProjectPicker(): { toggle: HTMLElement; list: HTMLElement } {
           // catch 만 두면 실패해도 아래 성공 토스트가 뜬다 - 행 하나뿐이라 슬롯이 없어 사유는 모달로.
           try {
             const r = jparse(await callTool("config_track", { path: p.claude_dir }));
-            if (r && r.ok === false) { openReasonModal(t("failed"), r.message || t("failed")); return; }
+            if (r && r.ok === false) { openReasonModal(t("failed"), errText(r)); return; }
             flashToast(`${t("trackAdd")} · ${p.name}`);
             await refreshApp?.();
           } catch (e) { flashToast(t("failed")); console.error("[config-monitor] project track", e); }

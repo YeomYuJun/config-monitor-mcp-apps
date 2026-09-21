@@ -6,7 +6,7 @@
 //   config_*/config_restore/watcher_* -> inline edit / restore / watcher control
 //   updateModelContext -> inject what the user is viewing into Claude context
 import { app, STANDALONE, callTool, jparse, jparseLast } from "./ui/bridge";
-import { t, getLang, setLang } from "./ui/i18n";
+import { t, getLang, setLang, errText } from "./ui/i18n";
 import { $, esc, openReasonModal, flashToast } from "./ui/widgets";
 import {
   selectedPath, currentRevs, setDetailOpen, collapsed, secIds, libProjectTargets, setLibTarget,
@@ -56,7 +56,7 @@ async function refreshInner(): Promise<void> {
       lastTrk = trk;   // 폴링의 변화 판별 기준점(재렌더 직후 상태)
       // 여기서 흡수하면 이 UI 자신의 편집(도구 호출 -> refresh)은 폴링을 다시 깨우지 않는다.
       if (trk.change && trk.change.seq !== undefined) lastChangeSeq = trk.change.seq;
-    } else $("tracked").innerHTML = `<div class="empty">${esc(trk?.message || t("emptyTrackedResp"))}</div>`;
+    } else $("tracked").innerHTML = `<div class="empty">${esc(errText(trk, t("emptyTrackedResp")))}</div>`;
   } catch (e) {
     showErr("tracked", t("trackedStatus"), e);
   }
@@ -82,7 +82,7 @@ async function refreshInner(): Promise<void> {
       renderConfig(cfg.sections || []);
       // settingsHint 앞자리 숫자만 실제 카테고리 수로 치환해 라이브 카운트 유지.
       $("config-hint").textContent = t("settingsHint").replace(/^\d+/, String((cfg.sections || []).length));
-    } else $("config").innerHTML = `<div class="empty">${esc(cfg?.message || t("emptyConfigResp"))}</div>`;
+    } else $("config").innerHTML = `<div class="empty">${esc(errText(cfg, t("emptyConfigResp")))}</div>`;
   } catch (e) {
     showErr("config", t("settings"), e);
   }
@@ -121,7 +121,7 @@ function renderWatcherState(st: any): void {
     : t("watcherOff");
   btn.title = watcherRunning
     ? `pid ${st.pid} · ${(st.dirs || []).length} dirs · ${Math.round(st.age_sec || 0)}s ${t("ago")}`
-    : (st?.message || st?.error || (st?.stale ? `${t("watcherStaleTip")}: ${st.heartbeat}` : st?.reason) || t("stopped"));
+    : ((st?.message && errText(st)) || st?.error || (st?.stale ? `${t("watcherStaleTip")}: ${st.heartbeat}` : st?.reason) || t("stopped"));
 }
 
 async function refreshWatcher(): Promise<boolean> {
@@ -155,7 +155,7 @@ $("watcher-toggle").addEventListener("click", async () => {
       const r = jparse(await callTool("watcher_start"));
       if (r && r.ok === false) {
         // 기동 실패를 성공 토스트로 덮지 않는다 - 사유(권한/PATH)는 모달로 남긴다.
-        openReasonModal(t("failed"), r.message || t("failed"));
+        openReasonModal(t("failed"), errText(r));
         await refreshWatcher();
       } else {
         flashToast(t("toastWatcherStart"));
@@ -259,7 +259,7 @@ async function openInBrowser(): Promise<void> {
   flashToast(t("toastBrowser"));
   try {
     const r = jparse(await callTool("open_in_browser"));
-    if (r && r.ok === false) { openReasonModal(t("toastOpenFail"), r.message || t("failed")); return; }
+    if (r && r.ok === false) { openReasonModal(t("toastOpenFail"), errText(r)); return; }
     flashToast(t("toastTabOpened"));
   } catch (e) { flashToast(t("toastOpenFail")); console.error("[config-monitor] open_in_browser", e); }
 }
@@ -331,7 +331,7 @@ function wireSettings(): void {
     try {
       const r = jparse(await callTool("snapshot_gc", { dryRun: !gcArmed }));
       gcRes.hidden = false;
-      if (!r || r.ok === false) { gcRes.textContent = r?.message || t("failed"); resetGc(); return; }
+      if (!r || r.ok === false) { gcRes.textContent = errText(r); resetGc(); return; }
       const line = `${t("gcSnaps")} ${r.removed_snapshots} · ${t("gcObjs")} ${r.removed_objects} · ${(r.freed_bytes / 1048576).toFixed(1)} MB`;
       if (!gcArmed) {
         if (!r.removed_snapshots && !r.removed_objects) { gcRes.textContent = t("gcNothing"); resetGc(); return; }
@@ -393,7 +393,7 @@ $("refresh").addEventListener("click", () => { refresh(); flashToast(t("toastRef
 $("snap").addEventListener("click", async () => {
   const raw = await callTool("snapshot_now", { message: t("snapshotMsg") });
   const r = jparse(raw);
-  if (r && r.ok === false) { openReasonModal(t("failed"), r.message || t("failed")); return; }
+  if (r && r.ok === false) { openReasonModal(t("failed"), errText(r)); return; }
   // cas snapshot 은 평문 출력이다: 변경이 없어 생략된 경우까지 "생성됨" 토스트를 띄우지 않는다.
   if (raw.trim().startsWith("변경 없음")) { flashToast(t("snapNoChange")); return; }
   flashToast(t("toastSnapshot"));

@@ -63,28 +63,44 @@ export function buildTools(scriptDir: string): ToolDef[] {
   // watcher.py 기본값과 동일한 스토어를 가리키도록.
   const STORE = process.env.CLAUDE_SNAPSHOT_STORE ||
     (process.platform === "win32" ? "D:\\.claude-snapshot" : path.join(process.env.HOME || "", ".claude-snapshot"));
-  const runPy = async (script: string, args: string[]): Promise<string> => {
+  // timeout 은 그 호출 안에서 순차로 도는 하위 작업 상한의 합보다 커야 한다. 작으면 정상 진행 중인
+  // git clone 을 끊는다. 60초는 LOCK_STALE_SEC 와 같아 끊긴 호출이 남긴 락을 다음 호출이 회수할 수 있다.
+  const QUERY_OPS: Record<string, Set<string>> = {
+    "cas.py": new Set(["status", "history", "cat", "diff", "watcher-status"]),
+    "prefs.py": new Set(["get"]),
+    "library.py": new Set(["scan", "catalog", "market-discover"]),
+  };
+  const NET_OPS = new Set(["remote-add", "market-add", "plugin-fetch", "fetch"]);
+  const timeoutMs = (script: string, args: string[]): number => {
+    if (script === "claude_config.py" || script === "plugin_catalog.py") return 30_000;
+    if (script === "plugin_cli.py") return 660_000;
+    if (script === "library.py" && args.some((x) => NET_OPS.has(x))) return 1_860_000;
+    if (args.some((x) => QUERY_OPS[script]?.has(x))) return 30_000;
+    return 60_000;
+  };
+  const tail = (s: unknown) => (typeof s === "string" ? s.slice(-2048) : "");
+  const isJson = (s: string) => { try { JSON.parse(s); return true; } catch { return false; } };
+  // 항상 JSON 문자열을 돌려주고 throw 하지 않는다. 판정은 호출부가 stdout 의 ok 로 한다.
+  // plain 은 아직 평문을 내는 서브커맨드만 통과시키는 자리다.
+  const runPy = async (script: string, args: string[], opts: { plain?: boolean } = {}): Promise<string> => {
+    const op = `${script} ${args[0] ?? ""}`.trim();
     try {
       const { stdout } = await pexec(PY, [path.join(scriptDir, script), ...args], {
         env: PY_ENV,
         maxBuffer: 16 * 1024 * 1024,
+        timeout: timeoutMs(script, args),
       });
-      return stdout;
+      if (opts.plain || isJson(stdout)) return stdout;
+      return JSON.stringify({ ok: false, code: "bad_output", message: `${op} 의 출력이 JSON 이 아닙니다`, detail: tail(stdout) });
     } catch (e: any) {
-      // config_edit.out(ok=False, ...) 는 exit 1 이어도 stdout 에 유효 JSON 을 이미 찍는다.
-      // execFile 은 nonzero exit 에서 무조건 reject 해 그 JSON 을 버리므로, 여기서 err.stdout 을
-      // 건져 파싱되면 정상 결과처럼 돌려준다 - 호출부의 ok===false 가드가 처리하게 둔다.
-      // stdout 이 없거나 JSON 이 아니면(=인터프리터가 진짜 죽은 경우) 예외로 전파한다(stderr 포함해 진단 가능하게).
       const stdout: string = typeof e?.stdout === "string" ? e.stdout : "";
-      if (stdout.trim()) {
-        try {
-          JSON.parse(stdout);
-          return stdout;
-        } catch { /* JSON 아님 -> 아래에서 진짜 실패로 전파 */ }
+      if (stdout.trim() && isJson(stdout)) return stdout;
+      const detail = `${tail(stdout)}\n--- stderr ---\n${tail(e?.stderr)}`;
+      if (e?.killed && e?.signal) {
+        return JSON.stringify({ ok: false, code: "timeout", message: `${op} 가 ${timeoutMs(script, args) / 1000}초 안에 끝나지 않아 중단했습니다`, detail });
       }
-      const stderr: string = typeof e?.stderr === "string" ? e.stderr : "";
-      const msg = `${script} ${args.join(" ")} failed: ${e?.message || String(e)}${stderr.trim() ? `\n${stderr}` : ""}`;
-      throw new Error(msg);
+      const exit = typeof e?.code === "number" ? e.code : String(e?.code ?? e?.message ?? e);
+      return JSON.stringify({ ok: false, code: "crash", message: `${op} 가 exit ${exit} 으로 끝났습니다`, detail });
     }
   };
 
@@ -108,7 +124,7 @@ export function buildTools(scriptDir: string): ToolDef[] {
 
   // 편집 도구가 project(이름 또는 경로)만 받아도 되게 .claude 디렉토리로 푼다. 후보는 추적 중인
   // 프로젝트와 ~/.claude.json 의 projects. 이름은 폴더 마지막 세그먼트를 대소문자 무시로 맞춘다.
-  const resolveProject = async (ref: string): Promise<{ dir?: string; error?: string; candidates?: string[] }> => {
+  const resolveProject = async (ref: string): Promise<{ dir?: string; code?: string; error?: string; candidates?: string[] }> => {
     const norm = (p: string) => p.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
     const dirs = new Set<string>(await trackedProjectDirs());
     try {
@@ -121,8 +137,8 @@ export function buildTools(scriptDir: string): ToolDef[] {
     if (byPath.length) return { dir: byPath[0] };
     const byName = all.filter((d) => path.basename(path.dirname(d)).toLowerCase() === r);
     if (byName.length === 1) return { dir: byName[0] };
-    if (byName.length > 1) return { error: `프로젝트 이름 '${ref}' 이 여러 개에 해당합니다. 경로로 지정해 주세요`, candidates: byName };
-    return { error: `프로젝트 '${ref}' 을 찾을 수 없습니다(추적 중이거나 ~/.claude.json 에 있는 프로젝트만 가능)`, candidates: all };
+    if (byName.length > 1) return { code: "ambiguous", error: `프로젝트 이름 '${ref}' 이 여러 개에 해당합니다. 경로로 지정해 주세요`, candidates: byName };
+    return { code: "project_not_found", error: `프로젝트 '${ref}' 을 찾을 수 없습니다(추적 중이거나 ~/.claude.json 에 있는 프로젝트만 가능)`, candidates: all };
   };
 
   // 마지막 편집 도구 호출 표식. 파일에 두는 이유: Desktop 위젯과 대화 중인 Claude 가 서로 다른
@@ -167,15 +183,15 @@ export function buildTools(scriptDir: string): ToolDef[] {
       if (pf && a?.project) {
         const [field, sub] = pf;
         const r = await resolveProject(String(a.project));
-        if (!r.dir) return jsonResult(JSON.stringify({ ok: false, message: r.error, candidates: r.candidates }));
+        if (!r.dir) return jsonResult(JSON.stringify({ ok: false, code: r.code, target: String(a.project), message: r.error, candidates: r.candidates }));
         const subdir = sub === "*item" ? (ITEM_DIRS[a.itemKind] || a.itemKind) : sub;
         a = { ...a, [field]: a[field] || path.join(r.dir, subdir) };
         delete a.project;
       }
       const res = await d.run(a);
       if (!d.meta.annotations.readOnlyHint && !NO_SIGNAL.has(d.name)) {
-        const ok = (res.structuredContent as any)?.ok;
-        if (ok !== false) await bumpChange(d.name);
+        const sc = res.structuredContent as any;
+        if (sc?.ok === true && sc.code !== "noop" && sc.code !== "dry_run") await bumpChange(d.name);
       }
       return res;
     };
@@ -340,7 +356,7 @@ export function buildTools(scriptDir: string): ToolDef[] {
         description: "추적 중인 설정 파일의 현재 내용을 그대로 반환(읽기 전용 뷰어). 추적 목록 밖 경로는 거부",
         inputSchema: z.object({ path: z.string().describe("추적 중인 파일의 절대경로") }), annotations: READ,
       },
-      run: async (a: { path: string }) => text(await runPy("cas.py", ["cat", a.path])),
+      run: async (a: { path: string }) => text(await runPy("cas.py", ["cat", a.path], { plain: true })),
     },
     {
       name: "get_diff",
@@ -359,7 +375,7 @@ export function buildTools(scriptDir: string): ToolDef[] {
         if (a.from) args.push("--from", a.from);
         if (a.to) args.push("--to", a.to);
         if (a.raw) args.push("--raw");
-        return text(await runPy("cas.py", args));
+        return text(await runPy("cas.py", args, { plain: true }));
       },
     },
     {
@@ -369,7 +385,7 @@ export function buildTools(scriptDir: string): ToolDef[] {
         description: "추적 파일 현재 상태로 스냅샷 1개 생성",
         inputSchema: z.object({ message: z.string().optional() }), annotations: WRITE,
       },
-      run: async (a: { message?: string }) => text(await runPy("cas.py", ["snapshot", "-m", a.message || "manual"])),
+      run: async (a: { message?: string }) => text(await runPy("cas.py", ["snapshot", "-m", a.message || "manual"], { plain: true })),
     },
     {
       name: "snapshot_gc",
@@ -419,8 +435,8 @@ export function buildTools(scriptDir: string): ToolDef[] {
         inputSchema: z.object({}), annotations: WRITE,
       },
       run: async () => {
-        const cur = JSON.parse((await runPy("cas.py", ["watcher-status"]).catch(() => "{}")) || "{}");
-        if (cur.running) return jsonResult(JSON.stringify({ ok: true, message: "이미 실행 중", pid: cur.pid, changed: false }));
+        const cur = JSON.parse(await runPy("cas.py", ["watcher-status"]));
+        if (cur.running) return jsonResult(JSON.stringify({ ok: true, code: "noop", message: "이미 실행 중", pid: cur.pid, changed: false }));
         // 좀비/중복 watcher 정리(상태 신뢰성과 무관하게 단일 인스턴스 보장) 후 새로 기동.
         await killWatchers();
         await fs.rm(path.join(STORE, "watcher.json"), { force: true }).catch(() => {});
@@ -434,11 +450,11 @@ export function buildTools(scriptDir: string): ToolDef[] {
         let st: any = {};
         for (let i = 0; i < 8; i++) {
           await new Promise((r) => setTimeout(r, 700));
-          st = JSON.parse((await runPy("cas.py", ["watcher-status"]).catch(() => "{}")) || "{}");
+          st = JSON.parse(await runPy("cas.py", ["watcher-status"]));
           if (st.running) break;
         }
         return jsonResult(JSON.stringify({
-          ok: !!st.running,
+          ok: !!st.running, code: st.running ? "ok" : "watcher_start_failed",
           message: st.running ? "watcher 기동됨" : "watcher 기동 실패(watcher.json 미갱신 - 권한/PATH 확인)",
           pid: st.pid, changed: true,
         }));
@@ -455,7 +471,7 @@ export function buildTools(scriptDir: string): ToolDef[] {
         // pid 하나가 아니라 모든 watcher 를 종료(좀비 누적 정리).
         await killWatchers();
         await fs.rm(path.join(STORE, "watcher.json"), { force: true }).catch(() => {});
-        return jsonResult(JSON.stringify({ ok: true, message: "watcher 종료", changed: true }));
+        return jsonResult(JSON.stringify({ ok: true, code: "ok", message: "watcher 종료", changed: true }));
       },
     },
 
@@ -800,7 +816,7 @@ export function buildTools(scriptDir: string): ToolDef[] {
       },
       run: async (a: { kind: "remote" | "market"; url: string; ref?: string; id?: string; map?: string }) => {
         if (a.kind === "market" && a.map) {
-          return jsonResult(JSON.stringify({ ok: false, message: "map 은 kind=remote 에서만 쓸 수 있습니다. 마켓은 marketplace.json 매니페스트가 레이아웃을 정합니다" }));
+          return jsonResult(JSON.stringify({ ok: false, code: "invalid_arg", message: "map 은 kind=remote 에서만 쓸 수 있습니다. 마켓은 marketplace.json 매니페스트가 레이아웃을 정합니다" }));
         }
         const args = [a.kind === "market" ? "market-add" : "remote-add", "--url", a.url];
         if (a.ref) args.push("--ref", a.ref);
@@ -1124,9 +1140,9 @@ export function buildTools(scriptDir: string): ToolDef[] {
         }
         // 이 도구는 spawn 도 브라우저 실행도 fire-and-forget 이라, 프로브 결과가 실패를 담을 수 있는
         // 유일한 신호다. 버리면 서버가 안 떠도 ok:true 가 나가 호출부의 어떤 가드로도 잡을 수 없다.
-        if (!up) return jsonResult(JSON.stringify({ ok: false, message: `대시보드 서버가 ${port} 에서 응답하지 않습니다. 기동 로그: ${log}`, url, log }));
+        if (!up) return jsonResult(JSON.stringify({ ok: false, code: "server_unreachable", target: String(port), message: `대시보드 서버가 ${port} 에서 응답하지 않습니다. 기동 로그: ${log}`, url, log }));
         openInBrowser(url);
-        return jsonResult(JSON.stringify({ ok: true, message: "라이브 대시보드 브라우저 열기", url }));
+        return jsonResult(JSON.stringify({ ok: true, code: "ok", message: "라이브 대시보드 브라우저 열기", url }));
       },
     },
   ];

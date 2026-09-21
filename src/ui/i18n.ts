@@ -1,4 +1,4 @@
-// src/ui/i18n.ts - i18n (ko/en): UI 크롬 라벨만. 파일명/경로/설정 데이터/섹션 타이틀은 번역 대상 아님.
+// src/ui/i18n.ts - i18n (ko/en): UI 크롬 라벨과 결과 code 별 문장(err.<code>, 모르는 code 는 백엔드 message 로 폴백)만. 파일명/경로/설정 데이터/섹션 타이틀은 번역 대상 아님.
 //   t(k)    없는 키는 lang -> ko -> 키 자체 순으로 떨어진다.
 //   lang    import 시점에 한 번 정해진다(결정 규칙은 아래 주석). 이후 바뀌는 건 setLang 뿐이다.
 //   setLang 값만 바꾼다 - 저장(localStorage)과 재렌더는 호출부의 몫이다.
@@ -154,6 +154,19 @@ const I18N: Record<string, Record<string, string>> = {
     mkRemove: "제거", mkRemoveTip: "이 대시보드의 마켓 등록을 해제하고 캐시를 지웁니다. 설치된 항목이 이 캐시를 참조 중이면 거부하고 무엇이 붙들고 있는지 알려줍니다. Claude Code 쪽 등록은 그대로입니다",
     plgStaleTip: "enabledPlugins 에만 남은 키입니다. 설치 기록이 없습니다",
     plgMissingTip: "설치 경로가 없습니다. 캐시가 지워졌거나 수동 삭제되었습니다",
+    noopSuffix: " (변경 없음)",
+    "err.invalid_arg": "입력 형식이 맞지 않습니다: {target}", "err.not_tracked": "추적 중인 경로가 아닙니다: {target}",
+    "err.not_found": "찾을 수 없습니다: {target}", "err.exists": "이미 있습니다: {target}",
+    "err.ambiguous": "후보가 여러 개라 고를 수 없습니다: {target}", "err.owner_mismatch": "다른 출처가 설치한 항목입니다: {target}",
+    "err.held": "사용 중이라 해제할 수 없습니다: {target}", "err.refused": "허용되지 않는 작업입니다: {target}",
+    "err.unsupported": "이 소스에서는 지원하지 않습니다: {target}", "err.not_fetched": "아직 가져오지 않은 항목입니다: {target}",
+    "err.not_a_marketplace": "마켓플레이스 매니페스트가 없습니다: {target}", "err.cache_missing": "캐시가 없습니다: {target}",
+    "err.cache_unavailable": "플러그인 카탈로그 캐시를 읽을 수 없습니다", "err.tool_missing": "필요한 프로그램이 PATH 에 없습니다: {target}",
+    "err.external_failed": "외부 명령이 실패했습니다: {target}", "err.store_uninitialized": "스냅샷 스토어가 초기화되지 않았습니다",
+    "err.lock_timeout": "다른 작업이 스냅샷 락을 잡고 있어 기다리다 중단했습니다", "err.internal": "내부 오류",
+    "err.timeout": "시간 안에 끝나지 않아 중단했습니다", "err.crash": "백엔드 스크립트가 비정상 종료했습니다",
+    "err.bad_output": "백엔드 스크립트의 출력을 읽을 수 없습니다", "err.project_not_found": "프로젝트를 찾을 수 없습니다: {target}",
+    "err.server_unreachable": "대시보드 서버가 응답하지 않습니다: {target}", "err.watcher_start_failed": "watcher 를 시작하지 못했습니다",
   },
   en: {
     newFile: "New", modified: "Modified", deleted: "Deleted", unchanged: "Same",
@@ -305,6 +318,19 @@ const I18N: Record<string, Record<string, string>> = {
     mkRemove: "Remove", mkRemoveTip: "Unregisters the marketplace from this dashboard and deletes its cache. Refused, with what is holding it, if installed items still reference that cache. The Claude Code registration is untouched",
     plgStaleTip: "Key left over in enabledPlugins — no install record",
     plgMissingTip: "Install path is gone — cache was pruned or deleted manually",
+    noopSuffix: " (no change)",
+    "err.invalid_arg": "Invalid input: {target}", "err.not_tracked": "Not a tracked path: {target}",
+    "err.not_found": "Not found: {target}", "err.exists": "Already exists: {target}",
+    "err.ambiguous": "More than one match: {target}", "err.owner_mismatch": "Installed by another source: {target}",
+    "err.held": "In use, cannot unregister: {target}", "err.refused": "Not allowed: {target}",
+    "err.unsupported": "Not supported for this source: {target}", "err.not_fetched": "Not fetched yet: {target}",
+    "err.not_a_marketplace": "No marketplace manifest: {target}", "err.cache_missing": "Cache is missing: {target}",
+    "err.cache_unavailable": "Cannot read the plugin catalog cache", "err.tool_missing": "Required program is not on PATH: {target}",
+    "err.external_failed": "External command failed: {target}", "err.store_uninitialized": "Snapshot store is not initialized",
+    "err.lock_timeout": "Gave up waiting for the snapshot lock held by another operation", "err.internal": "Internal error",
+    "err.timeout": "Stopped because it did not finish in time", "err.crash": "Backend script exited abnormally",
+    "err.bad_output": "Cannot read the backend script output", "err.project_not_found": "Project not found: {target}",
+    "err.server_unreachable": "Dashboard server is not responding: {target}", "err.watcher_start_failed": "Could not start the watcher",
   },
 };
 
@@ -322,5 +348,15 @@ if (!lang) {
 }
 if (!lang) lang = "ko";
 export const t = (k: string): string => (I18N[lang] || I18N.ko)[k] ?? k;
+const has = (k: string): boolean => k in (I18N[lang] || I18N.ko);
+export const tf = (k: string, params: Record<string, unknown>): string =>
+  t(k).replace(/\{(\w+)\}/g, (_, n) => String(params[n] ?? "")).replace(/[:\s]+$/, "");
+export function errText(r: any, fallback = t("failed")): string {
+  const key = r?.code ? `err.${r.code}` : "";
+  if (!key || !has(key)) return r?.message || fallback;
+  const s = tf(key, { target: r.target });
+  return r.detail ? `${s}\n${r.detail}` : s;
+}
+export const okText = (r: any, key: string): string => t(key) + (r?.code === "noop" ? t("noopSuffix") : "");
 export const getLang = (): string => lang;
 export const setLang = (v: string): void => { lang = v; };

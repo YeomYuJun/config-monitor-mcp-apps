@@ -1,6 +1,6 @@
 // src/ui/config.ts - 설정 카드(8분류) 렌더와 인라인 편집(권한 · hooks · mcp · skill · agent · plugin).
 // 밖으로 나가는 건 renderConfig 하나뿐이고, 재렌더는 refreshApp 훅으로 엔트리에 되묻는다.
-import { t } from "./i18n";
+import { t, errText, okText } from "./i18n";
 import { persistView } from "./view";
 import { callTool, jparse } from "./bridge";
 import { $, esc, setPending, clearPending, mkNotice, openReasonModal, flashToast } from "./widgets";
@@ -511,7 +511,7 @@ function buildEditUI(edit: any): HTMLElement {
         try {
           const res = jparse(await doRemove(it));
           if (res && (res.ok === false || res.changed === false)) {
-            notice.show(res.message || t("failed"), res.ok === false ? "err" : "warn");
+            notice.show(errText(res), res.ok === false ? "err" : "warn");
             clearPending(ok, t("failed"));
             return;
           }
@@ -554,7 +554,7 @@ function buildEditUI(edit: any): HTMLElement {
       const res = jparse(await doAdd(v));
       if (res && (res.ok === false || res.changed === false)) {
         // changed:false 는 오류가 아니라 "이미 있음" 같은 무변화다. 둘 다 조용히 넘기지 않는다.
-        notice.show(res.message || t("failed"), res.ok === false ? "err" : "warn");
+        notice.show(errText(res), res.ok === false ? "err" : "warn");
         clearPending(add, t("add"));
         return;
       }
@@ -590,7 +590,7 @@ function buildPluginToggleUI(edit: any): HTMLElement {
       if (res && (res.ok === false || res.changed === false)) {
         // changed:false 는 "이미 그 상태"다. 조용히 넘기면 토글이 먹은 것처럼 보인다.
         clearPending(btn, on ? t("plgOff") : t("plgOn"));
-        openReasonModal(res.ok === false ? t("failed") : t("unchangedTitle"), res.message || t("failed"));
+        openReasonModal(res.ok === false ? t("failed") : t("unchangedTitle"), errText(res));
         return;
       }
       // 재시작 전까지는 세션에 반영되지 않는다 - 토글이 고장난 것처럼 보이지 않게 명시한다.
@@ -645,10 +645,10 @@ function mkPluginCliBtn(label: string, tip: string, tool: string, args: any,
         // CLI 위임 실패는 원인이 길다(claude 미설치·마켓 미등록·권한 등). 토스트로 알리고
         // 사유는 모달에 남긴다 - 스쳐 지나가면 무엇을 고쳐야 하는지 알 수 없다.
         clearPending(target, t("failed"));
-        openReasonModal(t("failed"), rr.message || t("failed"));
+        openReasonModal(t("failed"), errText(rr));
         return;
       }
-      flashToast(rr?.message || t("done"));
+      flashToast(okText(rr, "done"));
       await refreshApp?.();
     } catch (e) {
       clearPending(target, t("failed"));
@@ -697,7 +697,7 @@ function buildStyleUI(edit: any): HTMLElement {
       }));
       if (res && (res.ok === false || res.changed === false)) {
         clearPending(btn, t("failed"));
-        notice.show(res.message || t("failed"), res.ok === false ? "err" : "warn");
+        notice.show(errText(res), res.ok === false ? "err" : "warn");
         return;
       }
       flashToast((edit.active ? t("styleDeactivate") : t("styleActivate")) + " · " + edit.name);
@@ -751,7 +751,7 @@ function buildRemoveUI(edit: any): HTMLElement {
         const res = jparse(await doRemove());
         if (res && (res.ok === false || res.changed === false)) {
           clearPending(ok, t("failed"));
-          notice.show(res.message || t("failed"), res.ok === false ? "err" : "warn");
+          notice.show(errText(res), res.ok === false ? "err" : "warn");
           return;
         }
         flashToast(t("toastRemoved") + " · " + edit.name);
@@ -812,7 +812,7 @@ function buildAddUI(edit: any): HTMLElement {
         res = jparse(await callTool("config_agent_add", { name, desc: rest || undefined }));
       }
       if (res && (res.ok === false || res.changed === false)) {
-        notice.show(res.message || t("failed"), res.ok === false ? "err" : "warn");
+        notice.show(errText(res), res.ok === false ? "err" : "warn");
         clearPending(add, t("add"));
         return;
       }

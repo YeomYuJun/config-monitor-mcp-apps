@@ -1,7 +1,7 @@
 // src/ui/libmarket.ts - Library 와 Marketplace 가 **공유하는** 등록 흐름(입력 판별 · 경고 확인 · 교차 안내).
 // 이름은 "Library 등록"이었지만 실제로는 양쪽을 다 아는 층이고, 그래서 어느 한쪽에 넣으면 순환이 된다.
 // 여기서 library.ts / market.ts 를 import 하지 않는다 - 이 방향이 깨지면 그 순환이 되돌아온다.
-import { t } from "./i18n";
+import { t, errText, okText } from "./i18n";
 import { callTool, jparse } from "./bridge";
 import { esc, setPending, clearPending, openModal, modalActions, flashToast } from "./widgets";
 import { cmMarketUrls, OFFICIAL_MARKET_URL, normUrl, refreshApp, catOpen } from "./state";
@@ -204,13 +204,13 @@ export function openLibAdd(prefill: string): void {
           ? jparse(await callTool("library_scan", { lib: s.url }))
           : jparse(await callTool("library_add", { kind: "remote", url: s.url }));
         if (r && r.ok === false) {
-          err.textContent = r.message || t("failed");
+          err.textContent = errText(r);
           err.hidden = false;
           clearPending(ok);
           return;
         }
         const isMarket = s.kind === "local" ? scannedRowIsMarket(r, s.url) : !!(r && r.marketplace);
-        flashToast((r && r.message) || t("libRegistered"));
+        flashToast(okText(r, "libRegistered"));
         await refreshApp?.();
         // 원격은 clone 이 끝나야 매니페스트 유무를 알 수 있어 사전 분기가 불가능하다.
         // 로컬도 같은 화면으로 맞춘다 - 등록은 유효하고, 반대편 등록만 이어서 권한다.
@@ -276,13 +276,13 @@ function openMarketWarn(url: string): void {
             showCrossOffer(body, close, "libNotMarket", "libGoLibrary", () => openLibAdd(url));
             return;
           }
-          err.textContent = rr.message || t("failed");
+          err.textContent = errText(rr);
           err.hidden = false;
           clearPending(ok, t("libRemoteWarnOk"));
           return;
         }
         if (rr?.id) catOpen.add(rr.id);        // 새로 등록된 마켓은 펼친 채로 보여준다
-        flashToast(rr?.message || t("done"));
+        flashToast(okText(rr, "done"));
         close();
         await refreshApp?.();
       } catch (e) {

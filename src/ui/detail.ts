@@ -1,6 +1,6 @@
 // src/ui/detail.ts - 오른쪽 상세 패널: 선택 파일의 스냅샷 이력과 두 버전 사이 diff, 그리고 복원.
 // 패널 열림 여부(detailOpen)는 state 가 들고 있고 여기서는 화면에 반영만 한다.
-import { t } from "./i18n";
+import { t, errText } from "./i18n";
 import { persistView } from "./view";
 import { callTool, pushCtx, jparse, jparseLast } from "./bridge";
 import { $, esc, flashToast } from "./widgets";
@@ -41,7 +41,7 @@ export async function selectFile(p: string): Promise<void> {
   if (selectedPath !== p) return;
   // 도구 실패({"ok":false})를 빈 이력으로 뭉개면 "스냅샷 없음" 이라는 거짓 안내가 된다.
   if (h && h.ok === false) {
-    body.innerHTML = `<div class="empty err">${esc(t("fetchFail"))}: ${esc(h.message || t("unknown"))}</div>`;
+    body.innerHTML = `<div class="empty err">${esc(t("fetchFail"))}: ${esc(errText(h, t("unknown")))}</div>`;
     return;
   }
   setCurrentRevs((h && h.revisions) || []);
@@ -148,7 +148,7 @@ export function renderHistory(): void {
       // 닫았다 열어도 오류 원문이 내용 행세를 계속한다. 실패는 캐시하지 않는다.
       const err = jparse(content);
       if (err && err.ok === false) {
-        pre.textContent = t("fetchFail") + ": " + (err.message || t("unknown"));
+        pre.textContent = t("fetchFail") + ": " + errText(err, t("unknown"));
         return;
       }
       pre.textContent = content || t("emptyFile");
@@ -190,7 +190,7 @@ export async function renderDiffFor(): Promise<void> {
     const err = jparse(diff);
     if (err && err.ok === false) {
       const area = document.getElementById("diff-area");
-      if (area) area.innerHTML = `<div class="empty err">${esc(t("diffFetchFail"))}: ${esc(err.message || t("unknown"))}</div>`;
+      if (area) area.innerHTML = `<div class="empty err">${esc(t("diffFetchFail"))}: ${esc(errText(err, t("unknown")))}</div>`;
       return;
     }
     // 화면에 보이는 diff 를 모델 컨텍스트에도 얹는다(앞 2KB) - 사용자가 변경 내용을 물으면
@@ -277,7 +277,7 @@ function inlineRestore(btn: HTMLElement, r: any): void {
     try {
       const res = jparse(await callTool("config_restore", { path: selectedPath, from: r.snapshot }));
       if (res && res.ok) { flashToast(t("toastRestored")); await refreshApp?.(); await selectFile(selectedPath); }
-      else box.innerHTML = `<span class="rmeta err">${esc(t("failed"))}: ${esc(res?.message || t("unknown"))}</span>`;
+      else box.innerHTML = `<span class="rmeta err">${esc(t("failed"))}: ${esc(errText(res, t("unknown")))}</span>`;
     } catch (err) {
       box.innerHTML = `<span class="rmeta err">${esc(t("failed"))}: ${esc(String(err))}</span>`;
     }
