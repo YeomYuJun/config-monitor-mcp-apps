@@ -421,7 +421,7 @@ class ScanEnumerationErrors(unittest.TestCase):
         import argparse, contextlib, io, library
         a = argparse.Namespace(store=self.store, target=self.target, lib=lib)
         buf = io.StringIO()
-        with contextlib.redirect_stdout(buf):
+        with contextlib.redirect_stdout(buf), self.assertRaises(SystemExit):
             library.cmd_scan(a)
         return json.loads(buf.getvalue())
 
@@ -1298,7 +1298,7 @@ class PluginFetch(MarketAdd):
 
         a = argparse.Namespace(store=self.store, marketplace="mk", plugin="bundled")
         buf = io.StringIO()
-        with mock.patch("os.walk", side_effect=flaky_walk), contextlib.redirect_stdout(buf):
+        with mock.patch("os.walk", side_effect=flaky_walk), contextlib.redirect_stdout(buf),                 self.assertRaises(SystemExit):
             library.cmd_plugin_fetch(a)
         res = json.loads(buf.getvalue())
 
@@ -2670,14 +2670,13 @@ class MarketSourceForms(unittest.TestCase):
         cat = json.loads(self.libcmd("catalog")[1])
         self.assertEqual([r["name"] for r in cat["rows"]], ["ext1"])
 
-    def test_undeducible_id_asks_for_id_with_exit_zero_not_a_thrown_error(self):
+    def test_undeducible_id_asks_for_id_as_a_json_refusal(self):
         """호스트 루트의 marketplace.json 은 id 로 쓸 세그먼트가 없다(호스트는 콜론 때문에
-        세그먼트가 못 된다). 이때 exit 1 로 끝내면 호출부(runPy)가 throw 해서 안내 문구가
-        UI 에 닿지 못한다 - 평범한 입력이므로 JSON 으로 답해야 한다."""
+        세그먼트가 못 된다). 평범한 입력이므로 트레이스백이 아니라 안내 문구를 담은 JSON 으로 답한다."""
         rc, out, err = self.libcmd("market-add", "--url", self.base + "/marketplace.json")
-        self.assertEqual(rc, 0, err)
+        self.assertEqual(rc, 1, err)
         res = json.loads(out)
-        self.assertFalse(res["ok"])
+        self.assertEqual((res["ok"], res["code"]), (False, "invalid_arg"))
         self.assertIn("--id", res["message"])
         # --id 를 주면 같은 주소가 그대로 등록된다.
         rc, out, err = self.libcmd("market-add", "--url", self.base + "/marketplace.json",

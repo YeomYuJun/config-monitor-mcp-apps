@@ -17,7 +17,7 @@ hooks 는 settings.json 조각 + 경로 재작성이 필요한 복합 유닛이�
   - uninstall: 삭제 대신 .trash 이동(복구 가능)
 
 라이브러리 등록은 store/config.json 의 "libraries": [...] 에 영속화.
-출력은 항상 JSON (MCP 서버가 그대로 파싱).
+출력은 항상 JSON 한 줄({ok, code, message, ...}, cli_result 계약).
 """
 from __future__ import annotations
 import argparse, datetime, hashlib, json, os, re, shutil, stat, sys
@@ -30,6 +30,7 @@ for _s in (sys.stdout, sys.stderr):
 
 from config_edit import (backup, snapshot_before, snapshot_after, trash, out, load, save_atomic,
                          op_mcp_add, op_mcp_remove, _safe_settings_path)  # 동일 안전 규율 재사용
+from cli_result import emit, guard, JsonArgumentParser
 import lib_store
 import marketplace
 import remote_fetch
@@ -307,10 +308,10 @@ def cmd_scan(a):
     try:
         recs = _recs_for(a, register_new=True)
     except lib_store.StoreNotInitialized as e:
-        print(json.dumps({"ok": False, "message": str(e), "libraries": []}, ensure_ascii=False)); return
+        emit(False, "store_uninitialized", str(e), libraries=[])
     if not recs:
         # 미설정은 오류가 아니라 정상 상태(라이브러리 기능 미사용). 빈 결과로 응답.
-        print(json.dumps({"ok": True, "target": a.target, "libraries": []}, ensure_ascii=False)); return
+        emit(True, "ok", "등록된 라이브러리 없음", target=a.target, libraries=[])
     cfg = lib_store.load_cfg(a.store)
     meta = _source_meta(cfg)          # origin -> {sha, fetched_at, url}
     result = []
@@ -355,7 +356,7 @@ def cmd_scan(a):
         if enum_errors:
             row_out["error"] = "일부 항목을 나열하지 못함 - " + "; ".join(enum_errors)
         result.append(row_out)
-    print(json.dumps({"ok": True, "target": a.target, "libraries": result}, ensure_ascii=False))
+    emit(True, "ok", f"라이브러리 {len(result)}개", target=a.target, libraries=result)
 
 
 def _source_meta(cfg):
@@ -377,7 +378,6 @@ def cmd_unregister(a):
     market:<id>/<plugin> 은 그 플러그인 하나만 뺀다 - Library 칸의 플러그인 칩 ✕ 가 이 형태의
     origin 을 그대로 보내므로, 예전처럼 market:<id> 로 뭉뚱그려 mid 만 뽑으면 플러그인 하나를
     지우려다 마켓 등록 전체(레포 + 다른 모든 플러그인)를 날려버린다."""
-    # scan 처럼 항상 exit 0 + JSON 으로 응답(runPy 가 nonzero exit 를 throw 하므로 out() 대신 print).
     if a.origin:
         cfg = lib_store.load_cfg(a.store)
         origin = a.origin
@@ -387,22 +387,19 @@ def cmd_unregister(a):
             arr = cfg.get("remotes", [])
             hit = next((x for x in arr if x.get("id") == rid), None)
             if not hit:
-                print(json.dumps({"ok": True, "message": "이미 없음 (no-op)", "removed": False},
-                                 ensure_ascii=False)); return
+                emit(True, "noop", "이미 없음 (no-op)", removed=False)
             caches = [hit["cache"]] if hit.get("cache") else []
             held = []
             for c in caches:
                 held += lib_store.ledger_refs_root(cfg, c)
             if held:
-                print(json.dumps({"ok": False,
-                                  "message": f"이 캐시를 참조하는 설치 항목이 {len(held)}건 있어 해제할 수 없습니다",
-                                  "held_by": [h["key"] for h in held]}, ensure_ascii=False)); return
+                emit(False, "held", f"이 캐시를 참조하는 설치 항목이 {len(held)}건 있어 해제할 수 없습니다",
+                     target=origin, held_by=[h["key"] for h in held])
             arr.remove(hit)
             lib_store.save_cfg(a.store, cfg)
             for c in caches:
                 _rmtree_force(c)
-            print(json.dumps({"ok": True, "message": f"등록 해제됨: {origin}", "removed": True},
-                             ensure_ascii=False)); return
+            emit(True, "ok", f"등록 해제됨: {origin}", removed=True)
 
         if origin.startswith("market:"):
             rest = origin[len("market:"):]
@@ -410,25 +407,22 @@ def cmd_unregister(a):
             mks = cfg.get("marketplaces", [])
             mhit = next((x for x in mks if x.get("id") == mid), None)
             if not mhit:
-                print(json.dumps({"ok": True, "message": "이미 없음 (no-op)", "removed": False},
-                                 ensure_ascii=False)); return
+                emit(True, "noop", "이미 없음 (no-op)", removed=False)
 
             if pname:
                 # 플러그인 단위: 그 플러그인만 빼고 마켓 등록·매니페스트 캐시·다른 플러그인은 안 건드린다.
                 pl = mhit.get("plugins", [])
                 phit = next((p for p in pl if p.get("name") == pname), None)
                 if not phit:
-                    print(json.dumps({"ok": True, "message": "이미 없음 (no-op)", "removed": False},
-                                     ensure_ascii=False)); return
+                    emit(True, "noop", "이미 없음 (no-op)", removed=False)
                 pcache = phit.get("cache")
                 # 가드는 이 플러그인의 캐시만 본다 - 다른 플러그인이나 마켓 루트를 붙잡은 원장
                 # 항목이 이 해제를 막으면 안 된다(ledger_refs_root 는 containment 라 pcache 를
                 # 넘기면 pcache 의 하위만 잡고 마켓 루트 같은 조상은 절대 안 잡는다).
                 held = lib_store.ledger_refs_root(cfg, pcache) if pcache else []
                 if held:
-                    print(json.dumps({"ok": False,
-                                      "message": f"이 캐시를 참조하는 설치 항목이 {len(held)}건 있어 해제할 수 없습니다",
-                                      "held_by": [h["key"] for h in held]}, ensure_ascii=False)); return
+                    emit(False, "held", f"이 캐시를 참조하는 설치 항목이 {len(held)}건 있어 해제할 수 없습니다",
+                         target=origin, held_by=[h["key"] for h in held])
                 pl.remove(phit)
                 lib_store.save_cfg(a.store, cfg)
                 # 번들(str-path)은 마켓 레포 워킹트리를 공유한다 - 손으로 지우면 매니페스트나
@@ -437,8 +431,7 @@ def cmd_unregister(a):
                 if phit.get("kind") != "str-path":
                     _, _, plugins_dir = _market_paths(a.store, mid)
                     _rmtree_force(os.path.join(plugins_dir, pname))
-                print(json.dumps({"ok": True, "message": f"등록 해제됨: {origin}", "removed": True},
-                                 ensure_ascii=False)); return
+                emit(True, "ok", f"등록 해제됨: {origin}", removed=True)
 
             # 마켓 단위(플러그인 세그먼트 없음): 레포 + 모든 플러그인이 한 덩이라 전부 지운다.
             caches = [mhit.get("cache")] + [p.get("cache") for p in mhit.get("plugins", [])]
@@ -447,28 +440,25 @@ def cmd_unregister(a):
             for c in caches:
                 held += lib_store.ledger_refs_root(cfg, c)
             if held:
-                print(json.dumps({"ok": False,
-                                  "message": f"이 캐시를 참조하는 설치 항목이 {len(held)}건 있어 해제할 수 없습니다",
-                                  "held_by": [h["key"] for h in held]}, ensure_ascii=False)); return
+                emit(False, "held", f"이 캐시를 참조하는 설치 항목이 {len(held)}건 있어 해제할 수 없습니다",
+                     target=origin, held_by=[h["key"] for h in held])
             mks.remove(mhit)
             lib_store.save_cfg(a.store, cfg)
             # market 은 repo + plugins 가 <store>/lib-cache/markets/<id>/ 아래 한 덩이라 그 루트를 지운다.
             _rmtree_force(_lib_cache(a.store, "markets", mid))
-            print(json.dumps({"ok": True, "message": f"등록 해제됨: {origin}", "removed": True},
-                             ensure_ascii=False)); return
+            emit(True, "ok", f"등록 해제됨: {origin}", removed=True)
 
-        print(json.dumps({"ok": False, "message": f"origin 형식이 아님: {origin}"}, ensure_ascii=False)); return
+        emit(False, "invalid_arg", f"origin 형식이 아님: {origin}", target=origin)
 
     if not a.lib:
-        print(json.dumps({"ok": False, "message": "제거할 라이브러리 경로(--lib) 또는 --origin 필요"},
-                         ensure_ascii=False)); return
+        emit(False, "invalid_arg", "제거할 라이브러리 경로(--lib) 또는 --origin 필요", target="--lib")
     if any(_norm(a.lib) == _norm(e) for e in _env_libs()):
-        print(json.dumps({"ok": False, "message": "환경변수(CLAUDE_CONFIG_LIBRARIES)로 지정된 경로는 제거할 수 없습니다"}, ensure_ascii=False)); return
+        emit(False, "refused", "환경변수(CLAUDE_CONFIG_LIBRARIES)로 지정된 경로는 제거할 수 없습니다", target=a.lib)
     try:
         removed = _unregister_lib(a.store, a.lib)
     except lib_store.StoreNotInitialized:
         removed = False
-    print(json.dumps({"ok": True, "message": "라이브러리 경로 제거됨" if removed else "이미 없음 (no-op)", "removed": removed}, ensure_ascii=False))
+    emit(True, "ok" if removed else "noop", "라이브러리 경로 제거됨" if removed else "이미 없음 (no-op)", removed=removed)
 
 
 def _resolve_item(a):
@@ -481,16 +471,16 @@ def _resolve_item(a):
     parts = rel.split("/") if rel else []
     seg_bad = any(p in ("", ".", "..") or ":" in p or p != os.path.basename(p) for p in parts)
     if not parts or os.path.isabs(a.path) or seg_bad:
-        out(False, f"경로가 유효하지 않음: '{a.path}'")
+        out(False, f"경로가 유효하지 않음: '{a.path}'", "invalid_arg", target=a.path)
     sub, kind, ext = CATEGORIES[a.category]
     if kind == "file" and len(parts) != 1:
-        out(False, f"경로는 단일 이름이어야 함: '{a.path}'")
+        out(False, f"경로는 단일 이름이어야 함: '{a.path}'", "invalid_arg", target=a.path)
     leaf = parts[-1]
     recs = _recs_for(a)
     if getattr(a, "origin", None):
         recs = [r for r in recs if r["origin"] == a.origin]
         if not recs:
-            out(False, f"출처를 찾을 수 없음: {a.origin}")
+            out(False, f"출처를 찾을 수 없음: {a.origin}", "not_found", target=a.origin)
     hits = []
     for r in recs:
         cmap = r.get("map") or {}
@@ -500,11 +490,11 @@ def _resolve_item(a):
         if os.path.exists(src):
             hits.append((src, kind, _target_path(a.target, a.category, leaf, kind), r["origin"]))
     if not hits:
-        out(False, f"라이브러리에 없음: {a.category}/{rel}")
+        out(False, f"라이브러리에 없음: {a.category}/{rel}", "not_found", target=f"{a.category}/{rel}")
     if len(hits) > 1:
         # 캐시가 여러 개면 첫 매치를 조용히 고르는 건 conflict 판정을 우회한다.
-        out(False, f"출처가 모호함({len(hits)}개) - --origin 으로 지정하세요",
-            candidates=[h[3] for h in hits])
+        out(False, f"출처가 모호함({len(hits)}개) - --origin 으로 지정하세요", "ambiguous",
+            target=a.path, candidates=[h[3] for h in hits])
     return hits[0]
 
 
@@ -513,7 +503,7 @@ def cmd_install(a):
     # 전역 ~/.claude 는 부모 ~ 가 항상 존재하므로 통과. 없는 프로젝트 경로에 .claude 를 만들지 않는다.
     parent = os.path.dirname(os.path.normpath(a.target))
     if parent and not os.path.isdir(parent):
-        out(False, f"설치 대상의 부모 디렉토리가 없음(phantom 방지): {parent}")
+        out(False, f"설치 대상의 부모 디렉토리가 없음(phantom 방지): {parent}", "refused", target=parent)
     src, kind, tgt, origin = _resolve_item(a)
     existed = os.path.exists(tgt)
     if not a.no_snapshot:
@@ -545,22 +535,22 @@ def cmd_install(a):
     msg = f"{'동기화' if existed else '설치'}됨: {a.category}/{a.path}"
     if not a.no_snapshot:
         snapshot_after(a.store, msg)
-    out(True, msg, target=tgt, backup=bak, synced=existed, origin=origin, warning=warn)
+    out(True, msg, "ok", target=tgt, backup=bak, synced=existed, origin=origin, warning=warn)
 
 
 def cmd_uninstall(a):
     if a.name != os.path.basename(a.name) or a.name in (".", "..") or ":" in a.name or any(c in a.name for c in "\\/"):
-        out(False, f"이름이 유효하지 않음: '{a.name}'")
+        out(False, f"이름이 유효하지 않음: '{a.name}'", "invalid_arg", target=a.name)
     _sub, kind, _ext = CATEGORIES[a.category]
     tgt = _target_path(a.target, a.category, a.name, kind)
     if not os.path.exists(tgt):
-        out(True, f"이미 없음: {a.category}/{a.name} (no-op)", changed=False)
+        out(True, f"이미 없음: {a.category}/{a.name} (no-op)", "noop", changed=False)
     cfg = lib_store.load_cfg(a.store)
     rec = lib_store.ledger_get(cfg, a.target, a.category, a.name)
     owner = (rec or {}).get("origin")
     if a.origin and owner and owner != a.origin:
         # 요청한 출처가 소유자가 아니다. 남의 설치를 지우지 않는다.
-        out(False, f"출처가 다릅니다 - 이 항목의 소유자는 '{owner}' 입니다", owner=owner)
+        out(False, f"출처가 다릅니다 - 이 항목의 소유자는 '{owner}' 입니다", "owner_mismatch", target=owner, owner=owner)
     if not a.no_snapshot:
         snapshot_before(a.store)
     dst = trash(tgt)
@@ -572,7 +562,7 @@ def cmd_uninstall(a):
     msg = f"제거됨(.trash 이동): {a.category}/{a.name}"
     if not a.no_snapshot:
         snapshot_after(a.store, msg)
-    out(True, msg, trashed=dst, owner=owner)
+    out(True, msg, "ok", trashed=dst, owner=owner)
 
 
 def _lib_cache(store, *parts):
@@ -630,33 +620,33 @@ def _id_from_url(url):
         base = base[:-4]
     if not base or base != os.path.basename(base) or base in (".", "..") or \
        ":" in base or any(c in base for c in "\\/"):
-        out(False, f"URL 에서 유효한 id 를 만들 수 없습니다: '{url}' - --id 로 지정하세요")
+        out(False, f"URL 에서 유효한 id 를 만들 수 없습니다: '{url}' - --id 로 지정하세요", "invalid_arg", target=url)
     return base
 
 
 def cmd_remote_add(a):
     """임의 git 레포를 라이브러리로 등록. 네트워크를 타는 명시 호출 도구다(scan 아님)."""
     if not remote_fetch.git_available():
-        print(json.dumps({"ok": False, "message": "git 을 PATH 에서 찾을 수 없습니다"}, ensure_ascii=False)); return
+        emit(False, "tool_missing", "git 을 PATH 에서 찾을 수 없습니다")
     rid = a.id or _id_from_url(a.url)
     if rid != os.path.basename(rid) or ":" in rid or any(c in rid for c in "\\/"):
-        out(False, f"id 가 유효하지 않음: '{rid}'")
+        out(False, f"id 가 유효하지 않음: '{rid}'", "invalid_arg", target=rid)
     reason, prev = _dup_checks(lib_store.load_cfg(a.store).get("remotes", []), rid, a.url)
     if reason:
-        print(json.dumps({"ok": False, "message": reason}, ensure_ascii=False)); return
+        emit(False, "exists", reason, target=rid)
     cache = _lib_cache(a.store, "remotes", rid)
     cmap = None
     if a.map:
         try:
             cmap = json.loads(a.map)
         except ValueError as e:
-            out(False, f"--map 이 JSON 이 아님: {e}")
+            out(False, f"--map 이 JSON 이 아님: {e}", "invalid_arg", target="--map")
         if not isinstance(cmap, dict) or any(k not in CATEGORIES for k in cmap):
-            out(False, f"--map 키는 {list(CATEGORIES)} 중 하나여야 합니다")
+            out(False, f"--map 키는 {list(CATEGORIES)} 중 하나여야 합니다", "invalid_arg", target="--map")
     try:
         sha = remote_fetch.materialize(cache, a.url, ref=a.ref or None)
     except remote_fetch.GitError as e:
-        print(json.dumps({"ok": False, "message": str(e)}, ensure_ascii=False)); return
+        emit(False, "external_failed", str(e), target=a.url, detail=e)
     layout = remote_fetch.detect_layout(cache)
     if cmap:
         layout["map"] = {**layout["map"], **cmap}
@@ -673,15 +663,13 @@ def cmd_remote_add(a):
             remotes.append(rec)
         lib_store.save_cfg(a.store, cfg)
     except lib_store.StoreNotInitialized as e:
-        print(json.dumps({"ok": False, "message": str(e), "cache": cache}, ensure_ascii=False)); return
+        emit(False, "store_uninitialized", str(e), cache=cache)
     # clone 이 끝난 뒤에야 매니페스트 유무를 알 수 있다(사전 판별하려면 받아보는 수밖에 없다).
     # 그래서 거절이 아니라 사후 통지다 - .claude 레이아웃이 있으면 원격 등록 자체는 유효하고,
     # 마켓플레이스이기도 하다는 사실만 UI 가 이어서 안내한다.
-    print(json.dumps({"ok": True, "id": rid, "origin": f"remote:{rid}", "cache": cache,
-                      "sha": sha, "layout": layout, "already": bool(prev),
-                      "marketplace": _is_marketplace(cache),
-                      "message": (f"이미 등록된 원격입니다 - 갱신했습니다: {rid}" if prev
-                                  else f"원격 라이브러리 등록됨: {rid}")}, ensure_ascii=False))
+    emit(True, "ok", (f"이미 등록된 원격입니다 - 갱신했습니다: {rid}" if prev else f"원격 라이브러리 등록됨: {rid}"),
+         id=rid, origin=f"remote:{rid}", cache=cache, sha=sha, layout=layout, already=bool(prev),
+         marketplace=_is_marketplace(cache))
 
 
 def _market_paths(store, mid):
@@ -723,26 +711,22 @@ def cmd_market_add(a):
     try:
         cs = marketplace.classify_source(a.url)
     except marketplace.ManifestError as e:
-        print(json.dumps({"ok": False, "message": str(e)}, ensure_ascii=False)); return
+        emit(False, "invalid_arg", str(e), target=a.url)
     kind = cs["kind"]
     # 저장하는 값은 항상 정규화된 표기다(축약 -> 전체 URL, 로컬 -> realpath). cmd_fetch 가
     # 이 값을 다시 classify_source 에 넣으므로, 같은 kind 로 되돌아오지 않으면 갱신이 깨진다.
     url = cs["path"] if kind == "local" else cs["url"]
     if kind == "git" and not remote_fetch.git_available():
-        print(json.dumps({"ok": False, "message": "git 을 PATH 에서 찾을 수 없습니다"}, ensure_ascii=False)); return
+        emit(False, "tool_missing", "git 을 PATH 에서 찾을 수 없습니다")
     mid = a.id or (_id_from_url(url) if kind == "git" else cs["id"])
     if not mid:
-        # 여기는 out() 을 쓰지 않는다: out() 은 exit 1 이고 호출부 runPy 는 nonzero 를 throw 라
-        # "--id 로 지정하세요" 라는 안내가 UI 에 닿지 못한 채 예외로 바뀐다. 평범한 입력
-        # (호스트 루트의 marketplace.json 처럼 id 로 쓸 세그먼트가 없는 주소)으로 닿는 분기다.
-        print(json.dumps({"ok": False, "message":
-                          f"소스에서 유효한 id 를 만들 수 없습니다: '{a.url}' - --id 로 지정하세요"},
-                         ensure_ascii=False)); return
+        emit(False, "invalid_arg", f"소스에서 유효한 id 를 만들 수 없습니다: '{a.url}' - --id 로 지정하세요",
+             target=a.url)
     if mid != os.path.basename(mid) or ":" in mid or any(c in mid for c in "\\/"):
-        out(False, f"id 가 유효하지 않음: '{mid}'")
+        out(False, f"id 가 유효하지 않음: '{mid}'", "invalid_arg", target=mid)
     reason, prev0 = _dup_checks(lib_store.load_cfg(a.store).get("marketplaces", []), mid, url)
     if reason:
-        print(json.dumps({"ok": False, "message": reason}, ensure_ascii=False)); return
+        emit(False, "exists", reason, target=mid)
     _, repo, _ = _market_paths(a.store, mid)
     cache = repo
     try:
@@ -757,7 +741,7 @@ def cmd_market_add(a):
             cache = url                      # 로컬은 fetch 없이 경로 검증만 한다
             sha = None                       # 매니페스트를 읽은 뒤 내용 해시로 채운다
     except remote_fetch.FetchError as e:
-        print(json.dumps({"ok": False, "message": str(e)}, ensure_ascii=False)); return
+        emit(False, "external_failed", str(e), target=a.url, detail=e)
     manifest_path = os.path.join(cache, marketplace.MANIFEST_REL)
     try:
         mf = marketplace.parse_manifest(manifest_path)
@@ -766,8 +750,7 @@ def cmd_market_add(a):
                 else "마켓플레이스가 아닌 것 같습니다(remote-add 를 쓰세요)")
         # code 를 함께 준다: message 는 한국어 문장이라 UI 가 문자열 매칭으로 분기할 수 없다
         # (영어 UI 에서 깨지고, 문구를 고치는 순간 조용히 죽는다). 분기는 code 로만 한다.
-        print(json.dumps({"ok": False, "code": "not_a_marketplace",
-                          "message": f"{e} - {hint}"}, ensure_ascii=False)); return
+        emit(False, "not_a_marketplace", f"{e} - {hint}", target=a.url)
     if kind == "local":
         sha = _local_manifest_sha(manifest_path)
     try:
@@ -786,19 +769,16 @@ def cmd_market_add(a):
             mks.append(rec)
         lib_store.save_cfg(a.store, cfg)
     except lib_store.StoreNotInitialized as e:
-        print(json.dumps({"ok": False, "message": str(e), "cache": cache}, ensure_ascii=False)); return
+        emit(False, "store_uninitialized", str(e), cache=cache)
     cat = marketplace.catalog(mf, {}, limit=0)
     # 같은 URL 을 다시 등록한 경우는 거부하지 않는다(매니페스트 갱신이 정당한 동작이다) -
     # 대신 새로 등록한 것처럼 말하지 않는다. 이미 fetch 한 플러그인은 그대로 보존된다.
     again = ("이미 등록된 마켓플레이스입니다 - 디스크에서 다시 읽었습니다" if kind == "local"
              else "이미 등록된 마켓플레이스입니다 - 매니페스트를 갱신했습니다")
-    print(json.dumps({"ok": True, "id": mid, "name": mf["name"], "cache": cache, "sha": sha,
-                      "kind": kind, "url": url,
-                      "plugins": cat["total"], "categories": cat["categories"],
-                      "already": bool(prev0),
-                      "message": (f"{again}: {mid} (플러그인 {cat['total']}개)" if prev0
-                                  else f"마켓플레이스 등록됨: {mid} (플러그인 {cat['total']}개)")},
-                     ensure_ascii=False))
+    emit(True, "ok", (f"{again}: {mid} (플러그인 {cat['total']}개)" if prev0
+                      else f"마켓플레이스 등록됨: {mid} (플러그인 {cat['total']}개)"),
+         id=mid, name=mf["name"], cache=cache, sha=sha, kind=kind, url=url,
+         plugins=cat["total"], categories=cat["categories"], already=bool(prev0))
 
 
 def cmd_market_discover(a):
@@ -831,11 +811,9 @@ def cmd_market_discover(a):
                          "fetched_at": got.get("fetched_at")})
         else:
             new.append(row)
-    print(json.dumps({"ok": True, "plugins_dir": pdir, "new": new, "both": both,
-                      "unusable": unusable,
-                      "message": (f"가져올 수 있는 마켓 {len(new)}개 · 양쪽 등록 {len(both)}개"
-                                  + (f" · 가져올 수 없음 {len(unusable)}개" if unusable else ""))},
-                     ensure_ascii=False))
+    emit(True, "ok", (f"가져올 수 있는 마켓 {len(new)}개 · 양쪽 등록 {len(both)}개"
+                      + (f" · 가져올 수 없음 {len(unusable)}개" if unusable else "")),
+         plugins_dir=pdir, new=new, both=both, unusable=unusable)
 
 
 def cmd_catalog(a):
@@ -886,10 +864,8 @@ def cmd_catalog(a):
         page = []
     else:
         page = rows[offset:offset + limit] if limit else rows[offset:]
-    print(json.dumps({"ok": True, "total": total, "total_all": sum(counts.values()),
-                      "offset": offset, "limit": a.limit,
-                      "categories": counts, "marketplaces": summary, "rows": page},
-                     ensure_ascii=False))
+    emit(True, "ok", f"플러그인 {total}개", total=total, total_all=sum(counts.values()),
+         offset=offset, limit=a.limit, categories=counts, marketplaces=summary, rows=page)
 
 
 def _count_components(root, cmap=None):
@@ -924,21 +900,20 @@ def cmd_plugin_fetch(a):
     cfg = lib_store.load_cfg(a.store)
     m = next((x for x in cfg.get("marketplaces", []) if x.get("id") == mid), None)
     if not m:
-        out(False, f"등록되지 않은 마켓플레이스: {mid}")
+        out(False, f"등록되지 않은 마켓플레이스: {mid}", "not_found", target=mid)
     try:
         # 플러그인 이름은 신뢰할 수 없는 입력이다. 디스크를 만지기 전에 검증한다.
         marketplace.safe_segment(a.plugin, "플러그인 이름")
         mf = marketplace.parse_manifest(os.path.join(m.get("cache") or "", marketplace.MANIFEST_REL))
     except (marketplace.ManifestError,) as e:
-        print(json.dumps({"ok": False, "message": str(e)}, ensure_ascii=False)); return
+        emit(False, "external_failed", str(e), target=a.plugin, detail=e)
     entry, canon = marketplace.resolve_plugin(mf, a.plugin)
     if not entry:
-        print(json.dumps({"ok": False, "message": f"카탈로그에 없는 플러그인: {a.plugin}"},
-                         ensure_ascii=False)); return
+        emit(False, "not_found", f"카탈로그에 없는 플러그인: {a.plugin}", target=a.plugin)
     try:
         spec = marketplace.source_spec(entry)
     except marketplace.ManifestError as e:
-        print(json.dumps({"ok": False, "message": str(e)}, ensure_ascii=False)); return
+        emit(False, "external_failed", str(e), target=canon, detail=e)
 
     _, repo, plugins_dir = _market_paths(a.store, mid)
     prev = next((p for p in m.get("plugins", []) if p.get("name") == canon), None)
@@ -949,10 +924,8 @@ def cmd_plugin_fetch(a):
         # 번들 플러그인은 "마켓 레포의 워킹트리를 넓힌다"는 뜻이라 git 마켓에서만 성립한다.
         # json/local 마켓에는 넓힐 레포가 없다 - 그대로 두면 매니페스트 URL 이나 로컬 경로를
         # clone 하려다 엉뚱한 git 오류를 뱉으므로 여기서 이유를 밝히고 끝낸다.
-        print(json.dumps({"ok": False, "message":
-                          f"이 마켓({m.get('kind')})은 레포가 없어 번들 플러그인을 가져올 수 없습니다: {canon}"
-                          " - 로컬 경로라면 라이브러리 경로(--lib)로 등록해 쓰세요"},
-                         ensure_ascii=False)); return
+        emit(False, "unsupported", f"이 마켓({m.get('kind')})은 레포가 없어 번들 플러그인을 가져올 수 없습니다: {canon}"
+             " - 로컬 경로라면 라이브러리 경로(--lib)로 등록해 쓰세요", target=canon)
     try:
         if spec["kind"] == "str-path":
             # 번들: 마켓 레포의 sparse 집합을 확장한다(별도 클론 없음). 지울 전용 스테이징이 없다.
@@ -976,7 +949,7 @@ def cmd_plugin_fetch(a):
             root = os.path.join(staging, *spec["path"].split("/")) if spec["path"] else staging
             sparse = None
     except remote_fetch.GitError as e:
-        print(json.dumps({"ok": False, "message": str(e)}, ensure_ascii=False)); return
+        emit(False, "external_failed", str(e), target=canon, detail=e)
 
     # materialize 가 성공을 보고해도(git rc=0, 예외 없음) 결과 디렉토리가 실제로 없을 수 있다 -
     # 실측: Windows MAX_PATH(약 260자) 를 넘는 경로는 git 이 파일을 못 쓰는데도 조용히 넘어가고,
@@ -990,8 +963,7 @@ def cmd_plugin_fetch(a):
             hint = (" Windows 경로 길이 제한(MAX_PATH≈260자)을 넘었을 가능성이 높습니다 - "
                     "CLAUDE_SNAPSHOT_STORE 를 더 짧은 경로로 재설정한 뒤 다시 시도하세요.")
         msg = f"플러그인 캐시 디렉토리를 찾을 수 없음(길이 {length}자): {root}.{hint}"
-        print(json.dumps({"ok": False, "message": msg, "root": root, "root_length": length},
-                         ensure_ascii=False)); return
+        emit(False, "cache_missing", msg, target=root, root=root, root_length=length)
 
     layout = remote_fetch.detect_layout(root)
     # staging 을 rec 에 그대로 들고 있는다 - source.path 가 다단(예: "plugins/sub")이면
@@ -1009,7 +981,7 @@ def cmd_plugin_fetch(a):
             pl.append(rec)
         lib_store.save_cfg(a.store, cfg)       # 3단계: 원장/레지스트리 갱신
     except lib_store.StoreNotInitialized as e:
-        print(json.dumps({"ok": False, "message": str(e)}, ensure_ascii=False)); return
+        emit(False, "store_uninitialized", str(e))
 
     # 4단계: 등록이 성공한 뒤에만 옛 sha 스테이징 디렉토리를 지운다.
     # 여기 도달하기 전에 실패하면 옛 설치가 계속 동작한다 - 그것이 sha 층을 두는 이유다.
@@ -1031,12 +1003,10 @@ def cmd_plugin_fetch(a):
                     "CLAUDE_SNAPSHOT_STORE 를 더 짧은 경로로 재설정한 뒤 다시 시도하세요.")
         cats = ", ".join(sorted(comp["failed"]))
         warning = f"다음 카테고리는 나열하지 못해 개수를 알 수 없음(0개가 아님): {cats}.{hint}"
-    print(json.dumps({"ok": True, "origin": f"market:{mid}/{canon}", "plugin": canon,
-                      "cache": root, "sha": sha, "components": comp["counts"],
-                      "components_failed": comp["failed"],
-                      "has_hooks": os.path.exists(os.path.join(root, "hooks", "hooks.json")),
-                      "has_mcp": plugin_units.has_mcp(root),
-                      "message": f"가져옴: {canon}", "warning": warning}, ensure_ascii=False))
+    emit(True, "ok", f"가져옴: {canon}", origin=f"market:{mid}/{canon}", plugin=canon,
+         cache=root, sha=sha, components=comp["counts"], components_failed=comp["failed"],
+         has_hooks=os.path.exists(os.path.join(root, "hooks", "hooks.json")),
+         has_mcp=plugin_units.has_mcp(root), warning=warning)
 
 
 def cmd_fetch(a):
@@ -1051,16 +1021,15 @@ def cmd_fetch(a):
         rid = origin[len("remote:"):]
         r = next((x for x in cfg.get("remotes", []) if x.get("id") == rid), None)
         if not r:
-            print(json.dumps({"ok": False, "message": f"등록되지 않은 원격: {rid}"}, ensure_ascii=False)); return
+            emit(False, "not_found", f"등록되지 않은 원격: {rid}", target=rid)
         try:
             sha = remote_fetch.materialize(r["cache"], r["url"], ref=r.get("ref") or None)
         except remote_fetch.GitError as e:
-            print(json.dumps({"ok": False, "message": str(e)}, ensure_ascii=False)); return
+            emit(False, "external_failed", str(e), target=rid, detail=e)
         r["sha"], r["fetched_at"] = sha, _now()
         r["map"] = remote_fetch.detect_layout(r["cache"])["map"] or r.get("map")
         lib_store.save_cfg(a.store, cfg)
-        print(json.dumps({"ok": True, "origin": origin, "sha": sha, "message": f"갱신됨: {rid}"},
-                         ensure_ascii=False)); return
+        emit(True, "ok", f"갱신됨: {rid}", origin=origin, sha=sha)
     if origin.startswith("market:"):
         rest = origin[len("market:"):]
         mid, _, pname = rest.partition("/")
@@ -1069,7 +1038,7 @@ def cmd_fetch(a):
             return cmd_plugin_fetch(a)          # 플러그인 갱신 = 재-fetch(원자적 교체 포함)
         m = next((x for x in cfg.get("marketplaces", []) if x.get("id") == mid), None)
         if not m:
-            print(json.dumps({"ok": False, "message": f"등록되지 않은 마켓: {mid}"}, ensure_ascii=False)); return
+            emit(False, "not_found", f"등록되지 않은 마켓: {mid}", target=mid)
         a.url, a.ref, a.id = m["url"], m.get("ref"), mid
         # 매니페스트만 다시 받는다(플러그인은 보존). kind 별로 하는 일이 다르다:
         #   git/json  - 원격에서 다시 받는다.
@@ -1078,8 +1047,7 @@ def cmd_fetch(a):
         #               다시 읽어야 카탈로그와 sha(내용 해시)가 실제 내용과 맞는다. 버튼이
         #               아무 일도 안 하는 것처럼 보이는 게 조용한 실패다.
         return cmd_market_add(a)
-    print(json.dumps({"ok": False, "message": f"origin 형식이 아님(remote:<id> / market:<id>[/<plugin>]): {origin}"},
-                     ensure_ascii=False))
+    emit(False, "invalid_arg", f"origin 형식이 아님(remote:<id> / market:<id>[/<plugin>]): {origin}", target=origin)
 
 
 def _unit_name(origin):
@@ -1129,7 +1097,7 @@ def _safe_target_dir(d):
     파일을 심을 수 있다. UI 도 basename 이 .claude 인 후보만 대상 목록에 올린다(tracked.ts)."""
     n = os.path.normpath(d)
     if os.path.normcase(os.path.basename(n)) != os.path.normcase(".claude"):
-        out(False, f"설치 대상이 유효하지 않음(<...>/.claude 형태만 허용): '{d}'")
+        out(False, f"설치 대상이 유효하지 않음(<...>/.claude 형태만 허용): '{d}'", "invalid_arg", target=d)
     return n
 
 
@@ -1146,21 +1114,17 @@ def cmd_hooks_install(a):
     fetch 는 항상 사용자가 명시적으로 누른 결과여야 한다."""
     root, name = _resolve_origin_root(a.store, a.origin)
     if not root or not os.path.isdir(root):
-        print(json.dumps({"ok": False, "message": f"아직 가져오지 않은 항목입니다 - fetch 먼저 실행하세요: {a.origin}"},
-                         ensure_ascii=False)); return
+        emit(False, "not_fetched", f"아직 가져오지 않은 항목입니다 - fetch 먼저 실행하세요: {a.origin}", target=a.origin)
     hooks_cfg = plugin_units.load_hooks_json(root)
     if not hooks_cfg:
-        print(json.dumps({"ok": False, "message": f"hooks/hooks.json 이 없습니다: {a.origin}"},
-                         ensure_ascii=False)); return
+        emit(False, "not_found", f"hooks/hooks.json 이 없습니다: {a.origin}", target=a.origin)
 
     warns = plugin_units.interpreter_warnings(hooks_cfg)
     commands = plugin_units.hook_commands(plugin_units.substitute(hooks_cfg, root))
     if a.dry_run:
         # 치환된 명령 원문을 그대로 보여준다. 설치 = 매 세션 임의 코드 실행이므로 별도 확인 단계다.
-        print(json.dumps({"ok": True, "dry_run": True, "origin": a.origin, "root": root,
-                          "commands": commands, "warnings": warns,
-                          "events": sorted((hooks_cfg.get("hooks") or {}).keys())},
-                         ensure_ascii=False)); return
+        emit(True, "dry_run", f"hooks {len(commands)}건 설치 예정: {name}", dry_run=True, origin=a.origin, root=root,
+             commands=commands, warnings=warns, events=sorted((hooks_cfg.get("hooks") or {}).keys()))
 
     sp = _settings_path(a)
     cfg = lib_store.load_cfg(a.store)
@@ -1188,10 +1152,8 @@ def cmd_hooks_install(a):
 
     if not a.no_snapshot:
         snapshot_after(a.store, f"hooks 설치됨: {name} ({added}건)")
-    print(json.dumps({"ok": True, "origin": a.origin, "root": root, "settings": sp,
-                      "removed": removed, "added": added, "backup": bak,
-                      "warnings": warns, "warning": warn,
-                      "message": f"hooks 설치됨: {name} ({added}건)"}, ensure_ascii=False))
+    emit(True, "ok", f"hooks 설치됨: {name} ({added}건)", origin=a.origin, root=root, settings=sp,
+         removed=removed, added=added, backup=bak, warnings=warns, warning=warn)
 
 
 def _hooks_remove_all(settings, root, hooks_cfg):
@@ -1238,8 +1200,7 @@ def cmd_hooks_uninstall(a):
     rec = lib_store.ledger_get(cfg, a.target, "hooks", name) or {}
     root = rec.get("root") or _resolve_origin_root(a.store, a.origin)[0]
     if not root:
-        print(json.dumps({"ok": True, "message": "설치 기록이 없습니다 (no-op)", "changed": False},
-                         ensure_ascii=False)); return
+        emit(True, "noop", "설치 기록이 없습니다 (no-op)", changed=False)
     cache_present = os.path.isdir(root)
     hooks_cfg = plugin_units.load_hooks_json(root) if cache_present else None
     sp = _settings_path(a)
@@ -1260,9 +1221,8 @@ def cmd_hooks_uninstall(a):
     degraded = not cache_present
     warn = ("플러그인 캐시가 이미 사라져 경로 매칭 hook만 제거했습니다 - 플러그인 루트를 "
             "참조하지 않는(전역 도구를 직접 호출하는) hook 이 남아 있을 수 있습니다") if degraded else None
-    print(json.dumps({"ok": True, "origin": a.origin, "removed": removed, "changed": bool(removed),
-                      "degraded": degraded, "warning": warn,
-                      "message": f"hooks 제거됨: {name} ({removed}건)"}, ensure_ascii=False))
+    emit(True, "ok", f"hooks 제거됨: {name} ({removed}건)", origin=a.origin, removed=removed,
+         changed=bool(removed), degraded=degraded, warning=warn)
 
 
 def _mcp_target(a):
@@ -1276,25 +1236,21 @@ def cmd_mcp_install(a):
     **네트워크를 타지 않는다.** 미물질화면 거부한다."""
     root, name = _resolve_origin_root(a.store, a.origin)
     if not root or not os.path.isdir(root):
-        print(json.dumps({"ok": False, "message": f"아직 가져오지 않은 항목입니다 - fetch 먼저 실행하세요: {a.origin}"},
-                         ensure_ascii=False)); return
+        emit(False, "not_fetched", f"아직 가져오지 않은 항목입니다 - fetch 먼저 실행하세요: {a.origin}", target=a.origin)
     mcp = plugin_units.load_mcp_json(root)
     servers = (mcp or {}).get("mcpServers") or {}
     if a.server:
         if a.server not in servers:
-            print(json.dumps({"ok": False, "message": f"해당 서버가 없습니다: {a.server}",
-                              "available": sorted(servers)}, ensure_ascii=False)); return
+            emit(False, "not_found", f"해당 서버가 없습니다: {a.server}", target=a.server, available=sorted(servers))
         servers = {a.server: servers[a.server]}
     if not servers:
-        print(json.dumps({"ok": False, "message": f"MCP 서버 선언이 없습니다(.mcp.json / plugin.json): {a.origin}"},
-                         ensure_ascii=False)); return
+        emit(False, "not_found", f"MCP 서버 선언이 없습니다(.mcp.json / plugin.json): {a.origin}", target=a.origin)
     servers = plugin_units.substitute(servers, root)
 
     tgt = _mcp_target(a)
     if a.dry_run:
-        print(json.dumps({"ok": True, "dry_run": True, "origin": a.origin, "root": root,
-                          "target": tgt, "servers": sorted(servers),
-                          "detail": servers}, ensure_ascii=False)); return
+        emit(True, "dry_run", f"MCP 서버 {len(servers)}개 설치 예정: {name}", dry_run=True, origin=a.origin,
+             root=root, target=tgt, servers=sorted(servers), server_config=servers)
 
     d = load(tgt)
     for sname, sconf in servers.items():
@@ -1318,10 +1274,8 @@ def cmd_mcp_install(a):
         warn = "스토어 미초기화로 출처를 기록하지 못했습니다(설치 자체는 완료)"
     if not a.no_snapshot:
         snapshot_after(a.store, f"MCP 서버 설치됨: {name} ({len(servers)}개, scope={a.scope})")
-    print(json.dumps({"ok": True, "origin": a.origin, "target": tgt, "backup": bak,
-                      "servers": sorted(servers), "warning": warn,
-                      "message": f"MCP 서버 설치됨: {name} ({len(servers)}개, scope={a.scope})"},
-                     ensure_ascii=False))
+    emit(True, "ok", f"MCP 서버 설치됨: {name} ({len(servers)}개, scope={a.scope})", origin=a.origin,
+         target=tgt, backup=bak, servers=sorted(servers), warning=warn)
 
 
 def cmd_mcp_uninstall(a):
@@ -1332,8 +1286,7 @@ def cmd_mcp_uninstall(a):
     names = [a.server] if a.server else rec.get("servers", [])
     tgt = rec.get("target") or _mcp_target(a)
     if not names:
-        print(json.dumps({"ok": True, "message": "설치 기록이 없습니다 (no-op)", "changed": False},
-                         ensure_ascii=False)); return
+        emit(True, "noop", "설치 기록이 없습니다 (no-op)", changed=False)
     d = load(tgt)
     removed = 0
     for sname in names:
@@ -1358,13 +1311,12 @@ def cmd_mcp_uninstall(a):
         lib_store.save_cfg(a.store, cfg)
     except lib_store.StoreNotInitialized:
         pass
-    print(json.dumps({"ok": True, "origin": a.origin, "target": tgt, "removed": removed,
-                      "changed": bool(removed),
-                      "message": f"MCP 서버 제거됨: {name} ({removed}개)"}, ensure_ascii=False))
+    emit(True, "ok", f"MCP 서버 제거됨: {name} ({removed}개)", origin=a.origin, target=tgt, removed=removed,
+         changed=bool(removed))
 
 
 def main():
-    ap = argparse.ArgumentParser(prog="library")
+    ap = JsonArgumentParser(prog="library")
     ap.add_argument("--store", default=DEFAULT_STORE)
     ap.add_argument("--target", default=DEFAULT_TARGET, help="설치 대상 루트(기본 ~/.claude)")
     ap.add_argument("--no-snapshot", action="store_true")
@@ -1433,11 +1385,4 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except SystemExit:
-        raise
-    except Exception as e:
-        # stdout 한 줄 JSON 계약 유지: 예기치 못한 실패(권한/디스크 등)도 트레이스백 대신 사유로.
-        print(json.dumps({"ok": False, "message": f"{type(e).__name__}: {e}"}, ensure_ascii=False))
-        sys.exit(1)
+    guard(main, {lib_store.StoreNotInitialized: "store_uninitialized"})

@@ -91,10 +91,7 @@ DEFAULT_CLAUDE_JSON = os.path.join(HOME, ".claude.json")
 DEFAULT_DESKTOP_CONFIG = paths.desktop_config_path()
 HERE = os.path.dirname(os.path.abspath(__file__))
 
-def out(ok, message, code=None, **extra):
-    if code is None:
-        print(json.dumps({"ok": ok, "message": message, **extra}, ensure_ascii=False))
-        sys.exit(0 if ok else 1)
+def out(ok, message, code, **extra):
     emit(ok, code, message, **extra)
 
 def load(path):
