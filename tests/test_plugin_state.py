@@ -464,5 +464,14 @@ class TestHookRefsRootBoundary(unittest.TestCase):
         self.assertTrue(plugin_units.hook_refs_root({"command": "cd D:\\x\\foo"}, "D:\\x\\foo"))
 
 
+class TestBomSettings(unittest.TestCase):
+    def test_enabled_plugins_are_read_from_bom_settings(self):
+        with tempfile.TemporaryDirectory() as d:
+            s = os.path.join(d, "settings.json")
+            with open(s, "wb") as f:
+                f.write(b"\xef\xbb\xbf" + json.dumps({"enabledPlugins": {"a@m": False}}).encode())
+            self.assertEqual(plugin_state.read_enabled([s]), {"a@m": {"on": False, "from": s}})
+
+
 if __name__ == "__main__":
     unittest.main()

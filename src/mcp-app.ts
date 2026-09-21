@@ -119,13 +119,17 @@ function renderWatcherState(st: any): void {
   const dot = $("watcher-dot");
   const label = $("watcher-label");
   const btn = $("watcher-toggle") as HTMLButtonElement;
-  watcherRunning = !!(st && st.running);
+  const failed = st?.ok === false;
+  watcherRunning = !failed && !!(st && st.running);
   dot.className = "wdot" + (watcherRunning ? " on" : "");
   // 파싱/상태 오류는 '정지'로 뭉개지 않고 명시한다 (침묵 실패가 디버깅을 막았던 회귀 가드).
-  label.textContent = watcherRunning ? t("watcherOn") : (st?.error ? t("watcherErr") : t("watcherOff"));
+  label.textContent = watcherRunning ? t("watcherOn")
+    : (failed || st?.error) ? t("watcherErr")
+    : st?.stale ? t("watcherStale")
+    : t("watcherOff");
   btn.title = watcherRunning
     ? `pid ${st.pid} · ${(st.dirs || []).length} dirs · ${Math.round(st.age_sec || 0)}s ${t("ago")}`
-    : (st?.error || st?.reason || t("stopped"));
+    : (st?.message || st?.error || (st?.stale ? `${t("watcherStaleTip")}: ${st.heartbeat}` : st?.reason) || t("stopped"));
 }
 
 async function refreshWatcher(): Promise<boolean> {

@@ -39,7 +39,7 @@ def load_hooks_json(plugin_root: str):
     p = os.path.join(plugin_root, HOOKS_REL)
     if not os.path.exists(p):
         return None
-    with open(p, encoding="utf-8") as f:
+    with open(p, encoding="utf-8-sig") as f:
         return json.load(f)
 
 
@@ -56,12 +56,12 @@ def load_mcp_json(plugin_root: str):
     `.mcp.json` 이 있으면 그쪽이 이긴다(명시 파일이 더 구체적인 선언이다)."""
     p = os.path.join(plugin_root, MCP_REL)
     if os.path.exists(p):
-        with open(p, encoding="utf-8") as f:
+        with open(p, encoding="utf-8-sig") as f:
             return json.load(f)
     meta = os.path.join(plugin_root, PLUGIN_JSON_REL)
     if not os.path.exists(meta):
         return None
-    with open(meta, encoding="utf-8") as f:
+    with open(meta, encoding="utf-8-sig") as f:
         data = json.load(f)
     servers = data.get("mcpServers") if isinstance(data, dict) else None
     return {"mcpServers": servers} if isinstance(servers, dict) and servers else None

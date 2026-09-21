@@ -139,7 +139,7 @@ def save_atomic(path, data):
     tmp = path + ".tmp"
     with open(tmp, "wb") as f:
         f.write(text.encode("utf-8"))
-    with open(tmp, encoding="utf-8") as f:  # 검증
+    with open(tmp, encoding="utf-8-sig") as f:  # 검증
         json.load(f)
     os.replace(tmp, path)
 

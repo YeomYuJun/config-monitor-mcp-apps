@@ -41,7 +41,7 @@ RULES_DIR, STYLES_DIR, WORKFLOWS_DIR = "rules", "output-styles", "workflows"
 def _load(path):
     """읽기 실패를 예외로 만들지 않는다 - scan 경로는 파일 하나가 깨져도 계속 돌아야 한다."""
     try:
-        with open(path, encoding="utf-8") as f:
+        with open(path, encoding="utf-8-sig") as f:
             data = json.load(f)
     except (OSError, ValueError):
         return {}

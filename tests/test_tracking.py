@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "src")
@@ -272,6 +273,25 @@ class TestWatcherTick(CasStoreCase):
         self.assertFalse(st["running"])
         self.assertIn("판독 실패", st["reason"])
 
+    def test_scan_keeps_previous_entry_when_file_is_unreadable(self):
+        p = cas.store_paths(self.store)
+        watcher.tick(p)
+        config = cas.load_config(p)
+        index = cas.load_json(p["index"], {})
+        key = next(iter(index))
+        self.write_lf('{\n  "keep": "size changed"\n}')
+        with mock.patch("cas.open", side_effect=PermissionError("locked"), create=True):
+            result, new_index = cas.scan(p, config, index, rehash=False)
+        self.assertIn(key, result["unchanged"])
+        self.assertEqual(new_index[key], index[key])
+
+    def test_safe_tick_reports_exception_instead_of_raising(self):
+        p = cas.store_paths(self.store)
+        with mock.patch.object(watcher, "tick", side_effect=PermissionError("locked")):
+            msg, err = watcher.safe_tick(p)
+        self.assertIsNone(msg)
+        self.assertIn("PermissionError", err)
+
 
 class TestIgnoreProfile(CasStoreCase):
     """무시 키 프로필: 기계 상태 키만 바뀐 저장은 리비전이 되지 않고 기본 diff 본문에서 빠진다.
@@ -370,6 +390,30 @@ class TestIgnoreProfile(CasStoreCase):
         d = run(CAS, "--store", self.store, "diff", f, "--from", revs[0]["snapshot"], "--to", revs[1]["snapshot"])
         self.assertIn('+      "hasTrustDialogAccepted": true', d)
         self.assertNotIn("# 무시 목록", d)                    # 빈 항목이 한쪽에서만 빠진 것은 숨긴 변경이 아니다
+
+
+class TestStoreWrites(CasStoreCase):
+    def test_interrupted_object_write_leaves_no_blob(self):
+        p = cas.store_paths(self.store)
+        with mock.patch("cas.os.replace", side_effect=OSError("disk full")):
+            with self.assertRaises(OSError):
+                cas.write_object(p, b"partial-content")
+        self.assertFalse(os.path.exists(cas.object_path(p, cas.hash_bytes(b"partial-content"))))
+
+    def test_release_keeps_a_lock_taken_over_by_another_holder(self):
+        p = cas.store_paths(self.store)
+        lock = os.path.join(self.store, "snapshot.lock")
+        with cas._snapshot_lock(p):
+            with open(lock, "w", encoding="utf-8") as f:
+                json.dump({"pid": 0, "token": "other-holder"}, f)
+        self.assertTrue(os.path.exists(lock))
+        os.unlink(lock)
+
+    def test_release_removes_own_lock(self):
+        p = cas.store_paths(self.store)
+        with cas._snapshot_lock(p):
+            pass
+        self.assertFalse(os.path.exists(os.path.join(self.store, "snapshot.lock")))
 
 
 if __name__ == "__main__":

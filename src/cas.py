@@ -15,7 +15,7 @@ git 과 다른 점:
   4) 해시가 달라도 파일별 무시 키 프로필(DEFAULT_IGNORE_KEYS)로 걸러 같으면 unchanged.
 """
 from __future__ import annotations
-import argparse, contextlib, fnmatch, json, os, re, sys, time, zlib, hashlib, glob as globmod, difflib
+import argparse, contextlib, fnmatch, json, os, re, sys, time, uuid, zlib, hashlib, glob as globmod, difflib
 from datetime import datetime, timedelta
 
 # Windows 콘솔 기본 인코딩(cp949)에서 한글/em-dash 출력 시 UnicodeEncodeError 방지.
@@ -77,7 +77,7 @@ def store_paths(store):
 def load_json(path, default):
     if not os.path.exists(path):
         return default
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, "r", encoding="utf-8-sig") as f:
         return json.load(f)
 
 def save_json(path, data):
@@ -98,8 +98,10 @@ def write_object(p, content: bytes) -> str:
     dst = object_path(p, h)
     if not os.path.exists(dst):
         os.makedirs(os.path.dirname(dst), exist_ok=True)
-        with open(dst, "wb") as f:
+        tmp = f"{dst}.{os.getpid()}.tmp"   # 중단되면 해시 이름의 잘린 blob 이 남고 exists 검사로 다시 안 쓰인다
+        with open(tmp, "wb") as f:
             f.write(zlib.compress(content, 9))
+        os.replace(tmp, dst)
     return h
 
 def read_object(p, h) -> bytes:
@@ -328,7 +330,12 @@ def scan(p, config, index, rehash=True):
             continue
         prev = index.get(path)
         if prev is None:
-            h = write_object(p, open(path, "rb").read()) if rehash else None
+            h = None
+            if rehash:
+                try:
+                    h = write_object(p, open(path, "rb").read())
+                except OSError:
+                    continue        # 다른 프로세스가 쓰는 중이면 다음 스캔에서 다시 본다
             new_index[path] = {**stt, "hash": h}
             result["new"].append(path)
             continue
@@ -338,7 +345,12 @@ def scan(p, config, index, rehash=True):
             continue
         # 한 번 읽은 내용으로 해시와 blob 을 함께 만든다 - 두 번 따로 읽으면 그 사이 파일이
         # 또 바뀌었을 때 index 의 해시가 가리키는 blob 이 존재하지 않게 된다(복원 불가).
-        data = open(path, "rb").read()
+        try:
+            data = open(path, "rb").read()
+        except OSError:
+            new_index[path] = prev
+            result["unchanged"].append(path)
+            continue
         h = hash_bytes(data)
         if h == prev.get("hash"):
             new_index[path] = {**stt, "hash": h}
@@ -538,16 +550,21 @@ def _snapshot_lock(p):
             if time.monotonic() > deadline:
                 raise TimeoutError(f"다른 스냅샷이 진행 중입니다({LOCK_WAIT_SEC:.0f}s 대기): {lock}")
             time.sleep(0.05)
+    token = uuid.uuid4().hex
     try:
-        os.write(fd, json.dumps({"pid": os.getpid(), "at": datetime.now().isoformat()}).encode())
+        os.write(fd, json.dumps({"pid": os.getpid(), "at": datetime.now().isoformat(), "token": token}).encode())
         os.close(fd)
         fd = None
         yield
     finally:
         if fd is not None:
             os.close(fd)
-        with contextlib.suppress(OSError):
-            os.unlink(lock)
+        # stale 로 판정돼 다른 프로세스가 가져간 락을 지우지 않는다
+        with contextlib.suppress(OSError, ValueError, AttributeError):
+            with open(lock, encoding="utf-8-sig") as f:
+                owner = json.load(f).get("token")
+            if owner == token:
+                os.unlink(lock)
 
 def _take_snapshot(p, message, force=False):
     """스냅샷 코어. 새 스냅샷 id 를 반환(변경 없고 force 아니면 None). cmd_snapshot/cmd_restore 공용."""

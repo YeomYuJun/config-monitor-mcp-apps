@@ -52,6 +52,14 @@ def tick(p):
     return msg if sid else None  # 락 대기 사이 남이 먼저 찍은 경우 None
 
 
+def safe_tick(p):
+    """tick 1회. 예외는 오류 문자열로 돌려 상주 루프가 끝나지 않게 한다."""
+    try:
+        return tick(p), None
+    except Exception as e:
+        return None, f"{type(e).__name__}: {e}"
+
+
 def write_state(p, interval_ms, started, last_event):
     """heartbeat 갱신(살아있음 신호). BOM 없는 UTF-8 - cas 쪽은 utf-8-sig 로 읽어 양쪽 호환."""
     state = {
@@ -79,11 +87,16 @@ def main():
     print(f"watcher 시작 - 저장소: {args.store} (polling {args.interval_ms}ms)")
     try:
         while True:
-            msg = tick(p)
+            msg, err = safe_tick(p)
+            now = datetime.now().strftime('%H:%M:%S')
             if msg:
-                last_event = f"{msg} @ {datetime.now().strftime('%H:%M:%S')}"
-                print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
-            write_state(p, args.interval_ms, started, last_event)
+                last_event = f"{msg} @ {now}"
+                print(f"[{now}] {msg}")
+            elif err:
+                last_event = f"error: {err} @ {now}"
+                print(f"[{now}] error: {err}")
+            with contextlib.suppress(OSError, ValueError):   # heartbeat 쓰기 실패도 상주를 끝내지 않는다
+                write_state(p, args.interval_ms, started, last_event)
             time.sleep(args.interval_ms / 1000.0)
     except KeyboardInterrupt:
         pass

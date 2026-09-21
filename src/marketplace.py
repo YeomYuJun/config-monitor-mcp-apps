@@ -53,7 +53,7 @@ class ManifestError(Exception):
 
 def parse_manifest(path: str) -> dict:
     try:
-        with open(path, encoding="utf-8") as f:
+        with open(path, encoding="utf-8-sig") as f:
             raw = json.load(f)
     except (OSError, ValueError) as e:
         raise ManifestError(f"매니페스트를 읽을 수 없음: {e}") from e
