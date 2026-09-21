@@ -30,6 +30,7 @@ DEFAULT_UI = {
         "preset": "all",          # all | common | custom
         "hidden": [],             # custom 에서만 의미
         "hideEmpty": True,
+        "includeMissingProjects": False,
         "groupsCollapsed": [],
     },
     # 보던 자리. 호스트가 위젯 iframe 을 다시 올려도 같은 파일·같은 필터로 돌아오게 한다.

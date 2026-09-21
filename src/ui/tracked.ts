@@ -4,7 +4,7 @@ import { t } from "./i18n";
 import { callTool, jparse } from "./bridge";
 import { $, esc, setPending, clearPending, mkNotice, openReasonModal, flashToast } from "./widgets";
 import { basename, dirname, ABS_PATH_RE } from "./helpers";
-import { selectedPath, libProjectTargets, refreshApp, setLibProjectTargets } from "./state";
+import { selectedPath, libProjectTargets, refreshApp, setLibProjectTargets, sectionPrefs } from "./state";
 import { selectFile } from "./detail";
 
 // 파일 상태 배지 라벨(현재 lang 반영). 상태값 new/deleted 는 i18n 키 newFile/deleted 에 매핑된다(키 이름이 상태값과 다름).
@@ -117,28 +117,29 @@ function buildProjectPicker(): { toggle: HTMLElement; list: HTMLElement } {
   let loaded = false;
   toggle.addEventListener("click", async () => {
     list.hidden = !list.hidden;
-    toggle.classList.toggle("on", !list.hidden);   // 열림 상태를 버튼에 반영(토글 버튼)
+    toggle.classList.toggle("on", !list.hidden);
     if (list.hidden || loaded) return;
     list.innerHTML = `<div class="empty">${esc(t("loading"))}</div>`;
     try {
-      const res = jparse(await callTool("list_projects"));
+      const res = jparse(await callTool("list_projects", { includeMissing: sectionPrefs.includeMissingProjects }));
       // 실패를 성공처럼 캐시하면 닫았다 열어도 재시도가 없다 - 성공했을 때만 loaded 를 세운다.
       if (res && res.ok === false) { list.innerHTML = `<div class="empty">${esc(res.message || t("failed"))}</div>`; return; }
       loaded = true;
-      const projs = (res && Array.isArray(res.projects) ? res.projects : []).filter((p: any) => p.has_claude);
-      // 이미 추적 중(라이브러리 후보 = 추적된 프로젝트 .claude dir)인지 비교.
+      const projs = res && Array.isArray(res.projects) ? res.projects : [];
       const trackedNorm = new Set(libProjectTargets.map((c) => c.replace(/\\/g, "/").toLowerCase()));
       list.innerHTML = "";
       if (!projs.length) { list.innerHTML = `<div class="empty">${esc(t("projPickEmpty"))}</div>`; return; }
       for (const p of projs) {
         const already = trackedNorm.has(String(p.claude_dir).replace(/\\/g, "/").toLowerCase());
+        // .claude 가 없으면 추적할 파일이 없다 - 눌러도 실패할 행은 비활성으로 보여만 준다.
+        const tag = already ? t("projPickTracked") : p.has_claude ? "" : t("projPickNoClaude");
         const row = document.createElement("button");
-        row.className = "projpickrow" + (already ? " tracked" : "");
-        row.disabled = already;
+        row.className = "projpickrow" + (tag ? " tracked" : "");
+        row.disabled = !!tag;
         row.innerHTML =
           `<span class="pnm">${esc(p.name)}</span><span class="ppath">${esc(p.claude_dir)}</span>` +
-          (already ? `<span class="ptag">${esc(t("projPickTracked"))}</span>` : "");
-        if (!already) row.addEventListener("click", async () => {
+          (tag ? `<span class="ptag">${esc(tag)}</span>` : "");
+        if (!tag) row.addEventListener("click", async () => {
           // 도구 실패는 예외가 아니라 ok:false 로 온다(callTool 이 두 전송을 그렇게 정규화한다).
           // catch 만 두면 실패해도 아래 성공 토스트가 뜬다 - 행 하나뿐이라 슬롯이 없어 사유는 모달로.
           try {

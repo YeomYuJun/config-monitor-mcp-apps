@@ -73,10 +73,11 @@ export interface SectionPrefs {
   preset: "all" | "common" | "custom";
   hidden: string[];          // custom 에서만 의미
   hideEmpty: boolean;
+  includeMissingProjects: boolean;
   groupsCollapsed: string[];
 }
 export let sectionPrefs: SectionPrefs =
-  { preset: "all", hidden: [], hideEmpty: true, groupsCollapsed: [] };
+  { preset: "all", hidden: [], hideEmpty: true, includeMissingProjects: false, groupsCollapsed: [] };
 export const setSectionPrefs = (v: SectionPrefs): void => { sectionPrefs = v; };
 // '주로 쓰는 것' 이 포함하는 그룹. 나머지(connect/memory/env)는 한 번 맞춰두면 잘 안 건드린다.
 export const COMMON_GROUPS = ["instructions", "extensions", "exec"];

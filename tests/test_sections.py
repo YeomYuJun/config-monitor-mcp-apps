@@ -9,6 +9,7 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 SRC = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")
 sys.path.insert(0, SRC)
@@ -294,3 +295,77 @@ class TestConversationalViews(unittest.TestCase):
         d = json.loads(out.stdout.decode("utf-8"))
         self.assertIn("collisions", d)
         self.assertTrue(all("names" in e for e in d["sections"]))
+
+
+class TestProjectList(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.withc = os.path.join(self.tmp.name, "withc")
+        self.noc = os.path.join(self.tmp.name, "noc")
+        os.makedirs(os.path.join(self.withc, ".claude"))
+        os.makedirs(self.noc)
+
+    def _found(self, keys):
+        cj = os.path.join(self.tmp.name, "claude.json")
+        with open(cj, "w", encoding="utf-8") as f:
+            json.dump({"projects": {k: {} for k in keys}}, f)
+        return {"claude_json": cj}
+
+    def _paths(self, keys, **kw):
+        return [p["path"] for p in cc.list_projects(self._found(keys), **kw)]
+
+    def test_short_name_alias_collapses_to_one_row(self):
+        alias = os.path.join(self.tmp.name, "WITHC~1")
+        real = os.path.realpath
+        with mock.patch.object(cc, "_excluded_roots", return_value=set()), \
+             mock.patch("claude_config.os.path.realpath",
+                        side_effect=lambda p: real(self.withc if p == alias else p)):
+            self.assertEqual(self._paths([self.withc, alias]), [self.withc])
+
+    def test_missing_claude_is_hidden_unless_requested(self):
+        with mock.patch.object(cc, "_excluded_roots", return_value=set()):
+            self.assertEqual(self._paths([self.withc, self.noc]), [self.withc])
+            self.assertEqual(self._paths([self.withc, self.noc], include_missing=True), [self.withc, self.noc])
+            cards = [c["kv"][0][1] for s in cc.parse(self._found([self.withc, self.noc]))["sections"]
+                     if s["id"] == "claude-json" for c in s["cards"] if c.get("badge") == "project"]
+            self.assertEqual(cards, [self.withc])
+
+    def test_temp_and_desktop_scratch_paths_are_always_excluded(self):
+        tmpdir = os.path.join(self.tmp.name, "systemp")
+        appdata = os.path.join(self.tmp.name, "appdata")
+        in_temp = os.path.join(tmpdir, "x")
+        in_scratch = os.path.join(appdata, "Claude", "scratch-workspaces", "y")
+        with mock.patch("claude_config.tempfile.gettempdir", return_value=tmpdir), \
+             mock.patch.dict(os.environ, {"APPDATA": appdata}):
+            self.assertEqual(self._paths([in_temp, in_scratch, self.noc], include_missing=True), [self.noc])
+
+
+class TestPermSummaryNames(unittest.TestCase):
+    def test_perm_names_carry_their_source_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            s = os.path.join(d, "settings.json")
+            with open(s, "w", encoding="utf-8") as f:
+                json.dump({"permissions": {"allow": ["Bash(ls)"]}}, f)
+            summ = cc.summarize(cc.parse({"code_settings": s}))
+        perm = next(e for e in summ["sections"] if e["id"] == "perm")
+        self.assertEqual(perm["names"], ["allow (settings.json)", "deny (settings.json)", "ask (settings.json)"])
+
+    def test_project_perm_names_carry_project_and_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            cdir = os.path.join(d, "proj", ".claude")
+            os.makedirs(cdir)
+            with open(os.path.join(cdir, "settings.local.json"), "w", encoding="utf-8") as f:
+                json.dump({"permissions": {"allow": ["Bash(ls)"]}}, f)
+            summ = cc.summarize(cc.parse({}, [cdir + os.sep]))
+        perm = next(e for e in summ["sections"] if e["id"] == "perm")
+        self.assertIn("allow (proj/settings.local.json)", perm["names"])
+
+
+class TestFrontmatterBom(unittest.TestCase):
+    def test_bom_prefixed_frontmatter_is_parsed(self):
+        with tempfile.TemporaryDirectory() as d:
+            md = os.path.join(d, "SKILL.md")
+            with open(md, "wb") as f:
+                f.write(b"\xef\xbb\xbf---\nname: demo\n---\nbody\n")
+            self.assertEqual(cc.read_frontmatter(md), {"name": "demo"})

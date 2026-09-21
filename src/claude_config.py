@@ -18,7 +18,7 @@ CLI:
   python claude_config.py dump                # 정규화 상태(JSON)  ← MCP get_config 가 사용
 """
 from __future__ import annotations
-import argparse, json, os, glob as globmod, re, sys
+import argparse, json, os, glob as globmod, re, sys, tempfile
 from dataclasses import dataclass
 
 # Windows 콘솔 기본 인코딩(cp949)에서 한글/em-dash 출력 시 UnicodeEncodeError 방지.
@@ -109,7 +109,7 @@ def discover(extra=None):
 def read_frontmatter(path):
     """SKILL.md / agent md 의 --- ... --- frontmatter 를 얕게 파싱."""
     try:
-        with open(path, "r", encoding="utf-8", errors="replace") as f:
+        with open(path, "r", encoding="utf-8-sig", errors="replace") as f:
             text = f.read()
     except Exception:
         return {}
@@ -802,7 +802,7 @@ def _append_plugin_cards(sections, plugins, global_settings=()):
         _recount(by_id[sid])
 
 
-def parse(found, project_dirs=None):
+def parse(found, project_dirs=None, include_missing=False):
     # 주의: 아래 섹션2 에서 지역변수 projects(=.claude.json 의 projects 맵)를 쓰므로
     # 파라미터명은 project_dirs 로 구분(같은 이름이면 섀도잉으로 프로젝트 append 가 오작동).
     state = {"generated": datetime.now().isoformat(), "sources": found, "sections": []}
@@ -855,7 +855,9 @@ def parse(found, project_dirs=None):
                    edit={"kind": "mcp", "scope": "user", "name": name}))
             cards.append(card("＋ 새 전역 MCP 서버", [("형식", 'name {"command":"npx","args":[...]}')],
                               badge="add", edit={"kind": "mcp-add", "scope": "user"}))
-            for path, pj in list(projects.items())[:20]:
+            roots = _excluded_roots()
+            shown = [(path, pj) for path, pj in projects.items() if _project_shown(path, include_missing, roots)]
+            for path, pj in shown[:20]:
                 pj = pj or {}
                 cards.append(card(os.path.basename(path.rstrip("/\\")) or path, [
                     ("path", path),
@@ -1052,6 +1054,20 @@ def compact_state(state):
 _COLLISION_WINNER = {"skills": "global", "agents": "project", "commands": "project"}
 
 
+_TRAIL_SEPS = "/\\"
+
+
+def _summary_name(sec_id, c):
+    """perm 카드 이름(allow/deny/ask)은 파일마다 반복되므로 출처를 붙여야 구별된다."""
+    if sec_id != "perm" or not c.get("source"):
+        return c["name"]
+    src = os.path.basename(c["source"])
+    if c.get("project"):
+        proj = os.path.basename(str(c["project"]).rstrip(_TRAIL_SEPS))
+        src = f"{proj}/{src}"
+    return f"{c['name']} ({src})"
+
+
 def summarize(state):
     """섹션별 개수·적재등급·이름 목록과 이름 충돌·플러그인 상태만 담은 개요.
     상세는 filter_state 로 내려간다(2단 구조)."""
@@ -1080,7 +1096,7 @@ def summarize(state):
             "count": len(cards),
             "global": sum(1 for c in cards if c.get("scope") != "project"),
             "project": sum(1 for c in cards if c.get("scope") == "project"),
-            "names": [c["name"] for c in cards],
+            "names": [_summary_name(sec["id"], c) for c in cards],
         }
         if n_plugin:
             entry["plugin"] = n_plugin
@@ -1102,10 +1118,29 @@ def summarize(state):
             "sections": secs, "collisions": collisions, "plugins": plugin_states}
 
 
-def list_projects(found):
-    """~/.claude.json 의 projects 맵을 {path, name, claude_dir, has_claude} 리스트로.
-    has_claude=True 는 <path>/.claude 가 실제 디렉토리로 존재(=경로 자체도 존재). UI 가
-    프로젝트 .claude 를 원클릭 track/설치 대상 후보로 쓴다(삭제/미존재 항목은 has_claude=False)."""
+def _excluded_roots():
+    """지워진 경로는 realpath 가 8.3 표기를 긴 이름으로 못 풀므로 원래 표기와 realpath 를 둘 다 둔다."""
+    bases = [tempfile.gettempdir()]
+    if os.environ.get("APPDATA"):
+        bases.append(os.path.join(os.environ["APPDATA"], "Claude", "scratch-workspaces"))
+    return {os.path.normcase(f(b)).rstrip("\\/") + os.sep
+            for b in bases for f in (os.path.normpath, os.path.realpath)}
+
+
+def _is_excluded_project(path, roots):
+    cands = {os.path.normcase(f(path)) + os.sep for f in (os.path.normpath, os.path.realpath)}
+    return any(c.startswith(r) for c in cands for r in roots)
+
+
+def _project_shown(path, include_missing, roots):
+    if _is_excluded_project(path, roots):
+        return False
+    return include_missing or os.path.isdir(os.path.join(path, ".claude"))
+
+
+def list_projects(found, include_missing=False):
+    """~/.claude.json 의 projects 맵을 {path, name, claude_dir, has_claude} 리스트로. UI 의 원클릭 track 후보.
+    has_claude=False 행(.claude 없음 또는 경로 없음)은 include_missing 일 때만 낸다."""
     cj = found.get("claude_json")
     out = []
     if not (cj and os.path.exists(cj)):
@@ -1113,14 +1148,16 @@ def list_projects(found):
     data = safe_load(cj)
     if not isinstance(data, dict) or "__error__" in data:
         return out
-    # Claude Code 가 세션 CWD 표기를 그대로 키로 쌓아, 같은 폴더가 드라이브문자 대소문자/
-    # 구분자만 다른 여러 키로 남는다(d:/x, D:/x, D:\x). 먼저 나온 표기만 살려 한 행으로 낸다.
+    # 세션 CWD 표기가 그대로 키가 되어 같은 폴더가 대소문자·구분자·8.3 단축명만 다른 키로 남는다. 먼저 나온 표기만 낸다.
     seen = set()
+    roots = _excluded_roots()
     for path in (data.get("projects") or {}):
-        key = os.path.normcase(os.path.normpath(path))
+        key = os.path.normcase(os.path.realpath(path))
         if key in seen:
             continue
         seen.add(key)
+        if not _project_shown(path, include_missing, roots):
+            continue
         cdir = os.path.join(path, ".claude")
         out.append({
             "path": path,
@@ -1136,6 +1173,9 @@ def main():
     for name in ("discover", "dump", "summary", "projects"):
         sp = sub.add_parser(name)
         sp.add_argument("--paths", nargs="*", help="key=path 로 후보 직접 지정")
+        if name in ("dump", "summary", "projects"):
+            sp.add_argument("--include-missing", action="store_true",
+                            help=".claude 가 없는 프로젝트 경로도 낸다(임시 폴더·Desktop 작업 공간은 항상 제외)")
         if name in ("dump", "summary"):
             sp.add_argument("--projects", nargs="*", default=None,
                             help="프로젝트 .claude 디렉토리들 - 각각의 permissions/hooks/skills/agents 를 프로젝트 항목으로 추가")
@@ -1152,11 +1192,11 @@ def main():
         print(json.dumps(found, ensure_ascii=False, indent=2))
     elif args.cmd == "projects":
         # MCP structuredContent 는 객체여야 함(배열 금지) -> {projects:[...]} 로 감쌈.
-        print(json.dumps({"projects": list_projects(found)}, ensure_ascii=False, indent=2))
+        print(json.dumps({"projects": list_projects(found, args.include_missing)}, ensure_ascii=False, indent=2))
     elif args.cmd == "summary":
-        print(json.dumps(summarize(parse(found, projects)), ensure_ascii=False, indent=2))
+        print(json.dumps(summarize(parse(found, projects, args.include_missing)), ensure_ascii=False, indent=2))
     elif args.cmd == "dump":
-        state = parse(found, projects)
+        state = parse(found, projects, args.include_missing)
         if args.sections or args.scope or args.query:
             state = filter_state(state, args.sections, args.scope, args.query)
         if args.compact:

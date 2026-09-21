@@ -16,7 +16,7 @@ import {
   libGroupOpen, ROOT_GROUP_KEY, libChecked, libOpen, libProjectTargets, setLibProjectTargets,
   libTarget, setLibTarget, libSelBarUpdate, setLibSelBarUpdate, scopeFilter, setScopeFilter,
   srcOpen, lastConfigSections, setLastConfigSections, refreshApp, setRefreshApp, catOpen,
-  catSecEl, setCatSecEl,
+  catSecEl, setCatSecEl, sectionPrefs,
 } from "./ui/state";
 import { valClass, basename, dirname, ABS_PATH_RE, safeSegment, looksLikePermRule, originShort, mkSrcTag } from "./ui/helpers";
 import { renderConfig, applySectionPrefs, wireSectionPrefs } from "./ui/config";
@@ -85,7 +85,7 @@ async function refreshInner(): Promise<void> {
   booted = true;
   try {
     // libProjectTargets(추적 프로젝트 .claude 경로들)는 앞선 renderTracked 에서 채워짐 -> 프로젝트 스코프 설정 포함.
-    const cfg = jparse(await callTool("get_config", { projects: libProjectTargets }));
+    const cfg = jparse(await callTool("get_config", { projects: libProjectTargets, includeMissing: sectionPrefs.includeMissingProjects }));
     if (cfg && cfg.ok !== false) {
       renderConfig(cfg.sections || []);
       // settingsHint 앞자리 숫자만 실제 카테고리 수로 치환해 라이브 카운트 유지.

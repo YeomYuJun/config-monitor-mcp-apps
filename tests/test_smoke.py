@@ -33,6 +33,13 @@ def run(script, *args, env=None):
     return p.returncode, p.stdout, p.stderr
 
 
+def temp_elsewhere(tmp):
+    """시스템 임시 폴더 아래 프로젝트는 목록에서 항상 빠지므로, 자식 프로세스의 임시 폴더를 프로젝트와 겹치지 않는 tmp 하위 폴더로 옮긴다."""
+    t = os.path.join(tmp, "systemp")
+    os.makedirs(t, exist_ok=True)
+    return {**os.environ, "TEMP": t, "TMP": t, "TMPDIR": t}
+
+
 class CasRoundTrip(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="cas_test_")
@@ -938,12 +945,13 @@ class ClaudeConfigDump(unittest.TestCase):
         tmp = tempfile.mkdtemp(prefix="proj_test_")
         try:
             pa = os.path.join(tmp, "projA"); os.makedirs(os.path.join(pa, ".claude"))
-            pb = os.path.join(tmp, "projB"); os.makedirs(pb)  # .claude 없음
+            pb = os.path.join(tmp, "projB"); os.makedirs(pb)
             cj = os.path.join(tmp, ".claude.json")
             with open(cj, "w", encoding="utf-8") as f:
                 json.dump({"projects": {pa: {}, pb: {}}}, f)
-            p = subprocess.run([sys.executable, CFG, "projects", "--paths", f"claude_json={cj}"],
-                               capture_output=True, text=True, encoding="utf-8", timeout=60)
+            p = subprocess.run([sys.executable, CFG, "projects", "--include-missing", "--paths", f"claude_json={cj}"],
+                               capture_output=True, text=True, encoding="utf-8", timeout=60,
+                               env=temp_elsewhere(tmp))
             self.assertEqual(p.returncode, 0, p.stderr)
             by = {x["path"]: x for x in json.loads(p.stdout)["projects"]}
             self.assertTrue(by[pa]["has_claude"])
@@ -965,7 +973,8 @@ class ClaudeConfigDump(unittest.TestCase):
             with open(cj, "w", encoding="utf-8") as f:
                 json.dump({"projects": {v: {} for v in variants}}, f)
             p = subprocess.run([sys.executable, CFG, "projects", "--paths", f"claude_json={cj}"],
-                               capture_output=True, text=True, encoding="utf-8", timeout=60)
+                               capture_output=True, text=True, encoding="utf-8", timeout=60,
+                               env=temp_elsewhere(tmp))
             self.assertEqual(p.returncode, 0, p.stderr)
             rows = json.loads(p.stdout)["projects"]
             self.assertEqual(len(rows), 1, f"중복 표기가 그대로 나열됨: {[r['path'] for r in rows]}")

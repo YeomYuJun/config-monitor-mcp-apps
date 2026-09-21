@@ -129,7 +129,7 @@ Cards for each category, banded into six functional groups — **instructions** 
 
 Each section header carries a **load badge** — `EAGER` (in context at session start), `LAZY` (only when its condition is met), or `NEVER` (runtime only, never in context). Where the class differs per file the badge moves to the card: a rule with `paths:` frontmatter is LAZY and one without it is EAGER; of the output styles only the one named by `outputStyle` is EAGER; `MEMORY.md` is EAGER while its topic files are LAZY.
 
-Most machines have only a handful of these surfaces, so the gear menu carries two independent controls. **섹션 표시 / Sections** picks *which categories* are candidates — `all` (default), `commonly used` (instructions, extensions, execution), or `choose` for a per-section checkbox list. **빈 섹션 숨기기 / Hide empty sections** (on by default) decides whether candidates with nothing in them still render; turn it off to see every surface Claude supports, including the ones you have none of.
+Most machines have only a handful of these surfaces, so the gear menu carries three independent controls. **섹션 표시 / Sections** picks *which categories* are candidates — `all` (default), `commonly used` (instructions, extensions, execution), or `choose` for a per-section checkbox list. **빈 섹션 숨기기 / Hide empty sections** (on by default) decides whether candidates with nothing in them still render; turn it off to see every surface Claude supports, including the ones you have none of. **.claude 없는 프로젝트 표시 / Show projects without .claude** (off by default) adds project paths that have no `.claude` folder to the Claude Code project cards and the add-from-projects list; paths under the system temp folder and Claude Desktop's `scratch-workspaces` are left out either way.
 
 The two are deliberately not folded into one setting: "commonly used, but show me the empty ones so I know what I could add" is a real state, and a single enum that quietly wrote the other axis would let the menu claim one thing while the screen showed another. Both are saved to the store and survive a restart. Whenever sections are hidden, a **Hidden sections N** chip appears above the list and opens the menu — the dashboard reduces the list but never does it silently.
 
@@ -238,7 +238,7 @@ The dashboard is one client of this server. Claude in the same conversation is a
 Two tools exist only for that use:
 
 - **`summarize_config`** returns an overview instead of the full state: per section, the item count, the load class (`eager` / `lazy` / `never`), how many items are global versus per-project, and the item names; plus same-name collisions between global and project items (and which side actually wins) and the plugin state distribution. It is the natural first call when you want Claude to review, tidy, or explain the current setup.
-- **`get_config`** with filters drills into one part: `sections` (ids such as `hooks`, `perm`, `skills`, `agents`, `mcp-desktop`, `plugins`), `scope` (`global` or `project`), `query` (substring match on names and values), and `compact` (identity fields plus a short description instead of every key). A full dump is over 200 KB on a machine with a hundred skills; a compact hooks-only view is under 10 KB. Each card keeps its `edit` block, which carries the exact paths the edit tools accept.
+- **`get_config`** with filters drills into one part: `sections` (ids such as `hooks`, `perm`, `skills`, `agents`, `mcp-desktop`, `plugins`), `scope` (`global` or `project`), `query` (substring match on names and values), `includeMissing` (also list `.claude.json` projects that have no `.claude` folder), and `compact` (identity fields plus a short description instead of every key). A full dump is over 200 KB on a machine with a hundred skills; a compact hooks-only view is under 10 KB. Each card keeps its `edit` block, which carries the exact paths the edit tools accept.
 
 Edit tools that touch a project's `.claude` accept a **`project`** argument (the folder name or its path) instead of the raw `settings` / `skillsDir` / `dir` paths the widget passes. The server resolves it against the tracked projects and the projects Claude Code knows about; an unknown or ambiguous name is refused with the candidate list before anything is written.
 
@@ -329,7 +329,7 @@ The dashboard does not dump whole files — it extracts only the fields it needs
 | Section | File read | Extracted into cards |
 |---|---|---|
 | MCP Servers (desktop) | `<Desktop>/claude_desktop_config.json` | per-server `command`, `args`, `env` **key names only** |
-| Claude Code | `~/.claude.json` | global summary + global `mcpServers` (`command`/`args`) + project cards (path, allowedTools count, mcpServers names, trust) |
+| Claude Code | `~/.claude.json` | global summary + global `mcpServers` (`command`/`args`) + project cards (path, allowedTools count, mcpServers names, trust; projects with a `.claude` folder unless the display setting says otherwise, never under the temp folder or Desktop `scratch-workspaces`) |
 | Permissions | `~/.claude/settings.json` | `permissions.allow` / `deny` / `ask` rules |
 | Hooks | `~/.claude/settings.json` | matcher count + command list per `hooks.<event>` |
 | Skills (code) | `~/.claude/skills/` | immediate subfolders; `SKILL.md` `description` |

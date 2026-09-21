@@ -158,6 +158,7 @@ export function applySectionPrefs(ui: any): void {
     preset: s0.preset === "common" || s0.preset === "custom" ? s0.preset : "all",
     hidden: Array.isArray(s0.hidden) ? s0.hidden : [],
     hideEmpty: s0.hideEmpty !== false,
+    includeMissingProjects: s0.includeMissingProjects === true,
     groupsCollapsed: Array.isArray(s0.groupsCollapsed) ? s0.groupsCollapsed : [],
   });
   syncPrefControls();
@@ -168,6 +169,8 @@ function syncPrefControls(): void {
   if (sel) sel.value = sectionPrefs.preset;
   const he = document.getElementById("opt-hide-empty") as HTMLInputElement | null;
   if (he) he.checked = sectionPrefs.hideEmpty;
+  const im = document.getElementById("opt-missing-proj") as HTMLInputElement | null;
+  if (im) im.checked = sectionPrefs.includeMissingProjects;
   const box = document.getElementById("opt-sections");
   if (box) box.hidden = sectionPrefs.preset !== "custom";
 }
@@ -185,6 +188,13 @@ export function wireSectionPrefs(): void {
     setSectionPrefs({ ...sectionPrefs, hideEmpty: he.checked });
     void persistPrefs();
     renderConfig(lastConfigSections);
+  });
+  // 서버가 거르는 목록이라 다시 그리기가 아니라 다시 불러와야 한다.
+  const im = document.getElementById("opt-missing-proj") as HTMLInputElement | null;
+  im?.addEventListener("change", async () => {
+    setSectionPrefs({ ...sectionPrefs, includeMissingProjects: im.checked });
+    await persistPrefs();
+    await refreshApp?.();
   });
 }
 

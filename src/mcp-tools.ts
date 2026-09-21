@@ -196,9 +196,10 @@ export function buildTools(scriptDir: string): ToolDef[] {
           scope: z.enum(["global", "project"]).optional().describe("global=전역(~/.claude · Desktop)만, project=프로젝트 .claude 항목만"),
           query: z.string().optional().describe("이름·값 부분일치(대소문자 무시)"),
           compact: z.boolean().optional().describe("true 면 카드를 이름·배지·스코프·edit·짧은 설명으로 축약. 대화에서는 기본으로 켠다"),
+          includeMissing: z.boolean().optional().describe("true 면 .claude.json 프로젝트 카드에 .claude 폴더가 없는 경로도 포함"),
         }), annotations: READ,
       },
-      run: async (a: { projects?: string[]; sections?: string[]; scope?: string; query?: string; compact?: boolean }) => {
+      run: async (a: { projects?: string[]; sections?: string[]; scope?: string; query?: string; compact?: boolean; includeMissing?: boolean }) => {
         const args = ["dump"];
         const projects = a.projects ?? await trackedProjectDirs();
         if (projects.length) args.push("--projects", ...projects);
@@ -206,6 +207,7 @@ export function buildTools(scriptDir: string): ToolDef[] {
         if (a.scope) args.push("--scope", a.scope);
         if (a.query) args.push("--query", a.query);
         if (a.compact) args.push("--compact");
+        if (a.includeMissing) args.push("--include-missing");
         return jsonResult(await runPy("claude_config.py", args));
       },
     },
@@ -245,6 +247,7 @@ export function buildTools(scriptDir: string): ToolDef[] {
             preset: z.enum(["all", "common", "custom"]).optional(),
             hidden: z.array(z.string()).optional(),
             hideEmpty: z.boolean().optional(),
+            includeMissingProjects: z.boolean().optional(),
             groupsCollapsed: z.array(z.string()).optional(),
           }).optional().describe("덮어쓸 키만 보낸다"),
           view: z.object({
@@ -313,10 +316,13 @@ export function buildTools(scriptDir: string): ToolDef[] {
       name: "list_projects",
       meta: {
         title: "List Claude Code Projects",
-        description: ".claude.json 의 projects 를 {projects:[{path, name, claude_dir, has_claude}]} 로 반환. UI 가 .claude 있는 프로젝트를 원클릭 track/설치 대상 후보로 사용",
-        inputSchema: z.object({}), annotations: READ,
+        description: ".claude.json 의 projects 를 {projects:[{path, name, claude_dir, has_claude}]} 로 반환. 기본은 .claude 있는 프로젝트만, includeMissing=true 면 .claude 없는 경로도 낸다. 시스템 임시 폴더와 Claude Desktop 작업 공간(scratch-workspaces) 아래 경로는 항상 제외한다. UI 가 원클릭 track/설치 대상 후보로 사용",
+        inputSchema: z.object({
+          includeMissing: z.boolean().optional().describe("true 면 .claude 폴더가 없는 프로젝트 경로도 포함"),
+        }), annotations: READ,
       },
-      run: async () => jsonResult(await runPy("claude_config.py", ["projects"])),
+      run: async (a: { includeMissing?: boolean }) =>
+        jsonResult(await runPy("claude_config.py", a.includeMissing ? ["projects", "--include-missing"] : ["projects"])),
     },
     {
       name: "get_file_history",

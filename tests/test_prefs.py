@@ -33,6 +33,14 @@ class TestPrefs(unittest.TestCase):
             self.assertEqual(ui["sections"]["hidden"], ["themes"])
             self.assertTrue(ui["sections"]["hideEmpty"], "패치하지 않은 키는 기본값이 유지되어야 함")
 
+    def test_include_missing_projects_defaults_off_and_persists(self):
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "config.json"), "w", encoding="utf-8") as f:
+                json.dump({"version": 1}, f)
+            self.assertFalse(prefs.load_ui(d)["sections"]["includeMissingProjects"])
+            prefs.save_ui(d, {"sections": {"includeMissingProjects": True}})
+            self.assertTrue(prefs.load_ui(d)["sections"]["includeMissingProjects"])
+
     def test_view_block_round_trips_and_ignores_unknown_keys(self):
         with tempfile.TemporaryDirectory() as d:
             with open(os.path.join(d, "config.json"), "w", encoding="utf-8") as f:
