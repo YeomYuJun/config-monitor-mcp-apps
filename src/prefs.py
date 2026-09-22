@@ -73,12 +73,11 @@ def _merge_known(ui, patch):
 
 def save_ui(store, patch):
     """patch 의 알려진 sections/view 키만 덮어쓴다. 스토어 미초기화면 StoreNotInitialized."""
-    cfg = lib_store.load_cfg(store)
-    ui = load_ui(store)
-    _merge_known(ui, patch)
-    ui["sections"]["preset"] = _norm_preset(ui["sections"]["preset"])
-    cfg["ui"] = ui
-    lib_store.save_cfg(store, cfg)
+    with lib_store.edit_cfg(store) as cfg:
+        ui = load_ui(store)
+        _merge_known(ui, patch)
+        ui["sections"]["preset"] = _norm_preset(ui["sections"]["preset"])
+        cfg["ui"] = ui
     return ui
 
 
@@ -106,4 +105,4 @@ def main():
 
 
 if __name__ == "__main__":
-    guard(main)
+    guard(main, {TimeoutError: "lock_timeout"})

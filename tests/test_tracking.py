@@ -25,6 +25,7 @@ os.environ["CLAUDE_CAS_LOCK_WAIT"] = "0.2"
 
 import cas
 import config_edit
+import lib_store
 import watcher
 
 CAS = os.path.join(SRC, "cas.py")
@@ -431,6 +432,21 @@ class TestStoreWrites(CasStoreCase):
         with cas._snapshot_lock(p):
             pass
         self.assertFalse(os.path.exists(os.path.join(self.store, "snapshot.lock")))
+
+    def test_default_merge_does_not_overwrite_a_concurrent_untrack(self):
+        p = cas.store_paths(self.store)
+        default = os.path.join(self.tmp.name, "default.json")
+        open(default, "w").close()
+        real_lock = lib_store.config_lock
+
+        def untrack_then_lock(store):
+            run(CAS, "--store", self.store, "untrack", self.file)
+            return real_lock(store)
+        with mock.patch.dict(os.environ, {"CLAUDE_CAS_NO_DEFAULT_TRACK": "0"}),              mock.patch("cas.DEFAULT_TRACKED", [default]),              mock.patch("lib_store.config_lock", untrack_then_lock):
+            cas.load_config(p)
+        tracked = cas.load_json(p["config"], {})["tracked"]
+        self.assertNotIn(self.file, tracked)
+        self.assertIn(default, tracked)
 
 
 class TestDiffGuard(CasStoreCase):

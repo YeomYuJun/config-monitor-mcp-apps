@@ -15,7 +15,7 @@ git 과 다른 점:
   4) 해시가 달라도 파일별 무시 키 프로필(DEFAULT_IGNORE_KEYS)로 걸러 같으면 unchanged.
 """
 from __future__ import annotations
-import argparse, contextlib, fnmatch, json, os, re, sys, time, uuid, zlib, hashlib, glob as globmod, difflib
+import argparse, contextlib, fnmatch, json, os, re, sys, zlib, hashlib, glob as globmod, difflib
 from datetime import datetime, timedelta
 
 # Windows 콘솔 기본 인코딩(cp949)에서 한글/em-dash 출력 시 UnicodeEncodeError 방지.
@@ -34,6 +34,7 @@ DEFAULT_STORE = os.environ.get("CLAUDE_SNAPSHOT_STORE") or (
 # 존재하면 자동 추적할 기본 대상. untrack 으로 명시 제외한 항목(ignore_defaults)은 다시 넣지 않는다.
 # CLAUDE_CAS_NO_DEFAULT_TRACK=1 이면 병합 자체를 끈다(테스트/특수 상황용).
 from cli_result import emit, guard, JsonArgumentParser
+import lib_store
 import paths  # Win32/MSIX 겸용 Desktop config 경로 해석(read/write 와 동일 대상)
 
 _HOME = os.path.expanduser("~")
@@ -48,12 +49,7 @@ def _parse_iso(s):
     소수부를 마이크로초(6자리)로 잘라 파싱. (예: .1970395+09:00 -> .197039+09:00)"""
     return datetime.fromisoformat(re.sub(r"(\.\d{6})\d+", r"\1", str(s)))
 
-def load_config(p):
-    """config.json 로드 + DEFAULT_TRACKED 병합(존재하는 파일만, ignore_defaults 제외).
-    병합으로 바뀌었고 store 가 이미 초기화돼 있으면 즉시 영속화."""
-    config = load_json(p["config"], {"version": 1, "tracked": []})
-    if os.environ.get("CLAUDE_CAS_NO_DEFAULT_TRACK") == "1":
-        return config
+def _merge_defaults(config):
     tracked = config.setdefault("tracked", [])
     ignored = set(config.get("ignore_defaults", []))
     changed = False
@@ -61,8 +57,18 @@ def load_config(p):
         if d not in tracked and d not in ignored and os.path.isfile(d):
             tracked.append(d)
             changed = True
-    if changed and os.path.isdir(p["store"]):
-        save_json(p["config"], config)
+    return changed
+
+def load_config(p):
+    """config.json + DEFAULT_TRACKED 병합(ignore_defaults 제외). 바뀌면 락 안에서 다시 읽어 병합해 저장한다."""
+    config = load_json(p["config"], {"version": 1, "tracked": []})
+    if os.environ.get("CLAUDE_CAS_NO_DEFAULT_TRACK") == "1":
+        return config
+    if _merge_defaults(config) and os.path.isdir(p["store"]):
+        with lib_store.config_lock(p["store"]):
+            config = load_json(p["config"], {"version": 1, "tracked": []})
+            if _merge_defaults(config):
+                save_json(p["config"], config)
     return config
 
 def store_paths(store):
@@ -433,22 +439,23 @@ def cmd_track(args):
         _track_locked(p, args)
 
 def _track_locked(p, args):
-    config = load_json(p["config"], {"version": 1, "tracked": []})
     added, already, not_found = [], [], []
-    for path in args.paths:
-        for ap in _expand_track_path(path):
-            # 아직 없는 경로도 추적을 **허용**한다(_expand_track_path 주석 참고: 나중에 생길
-            # 파일을 미리 걸어 두는 건 의도된 기능이다). 다만 오타도 같은 모양이라 조용히
-            # 넣으면 유령 행으로 남는다 - 어느 것이 아직 없는지 호출부에 알려 화면이 말하게 한다.
-            # 글롭은 지금 매칭이 0건이어도 정상이므로 이 판정에서 제외한다.
-            if not any(c in ap for c in "*?[]") and not os.path.exists(ap):
-                not_found.append(ap)
-            if ap in config["tracked"]:
-                already.append(ap)
-            else:
-                config["tracked"].append(ap)
-                added.append(ap)
-    save_json(p["config"], config)
+    with lib_store.config_lock(p["store"]):
+        config = load_json(p["config"], {"version": 1, "tracked": []})
+        for path in args.paths:
+            for ap in _expand_track_path(path):
+                # 아직 없는 경로도 추적을 **허용**한다(_expand_track_path 주석 참고: 나중에 생길
+                # 파일을 미리 걸어 두는 건 의도된 기능이다). 다만 오타도 같은 모양이라 조용히
+                # 넣으면 유령 행으로 남는다 - 어느 것이 아직 없는지 호출부에 알려 화면이 말하게 한다.
+                # 글롭은 지금 매칭이 0건이어도 정상이므로 이 판정에서 제외한다.
+                if not any(c in ap for c in "*?[]") and not os.path.exists(ap):
+                    not_found.append(ap)
+                if ap in config["tracked"]:
+                    already.append(ap)
+                else:
+                    config["tracked"].append(ap)
+                    added.append(ap)
+        save_json(p["config"], config)
     if getattr(args, "json", False):
         emit(True, "ok" if added else "noop", f"추가됨: {len(added)}개", added=added, already=already,
              not_found=not_found)
@@ -461,18 +468,19 @@ def cmd_untrack(args):
         _untrack_locked(p, args)
 
 def _untrack_locked(p, args):
-    config = load_json(p["config"], {"version": 1, "tracked": []})
-    before = len(config["tracked"])
     targets = _norm_targets(args.paths)
-    config["tracked"] = [t for t in config["tracked"] if t not in targets]
-    # 기본 추적 대상을 명시적으로 뺀 경우, load_config 의 자동 병합이 되살리지 않도록 기록.
-    ignored = set(config.get("ignore_defaults", []))
-    for t in targets:
-        if t in DEFAULT_TRACKED:
-            ignored.add(t)
-    if ignored:
-        config["ignore_defaults"] = sorted(ignored)
-    save_json(p["config"], config)
+    with lib_store.config_lock(p["store"]):
+        config = load_json(p["config"], {"version": 1, "tracked": []})
+        before = len(config["tracked"])
+        config["tracked"] = [t for t in config["tracked"] if t not in targets]
+        # 기본 추적 대상을 명시적으로 뺀 경우, load_config 의 자동 병합이 되살리지 않도록 기록.
+        ignored = set(config.get("ignore_defaults", []))
+        for t in targets:
+            if t in DEFAULT_TRACKED:
+                ignored.add(t)
+        if ignored:
+            config["ignore_defaults"] = sorted(ignored)
+        save_json(p["config"], config)
     # index 에서도 제거: status 의 'deleted' 는 index(스냅샷된 파일) 기준이라 tracked 에서 빠져도
     # index 에 남아 있으면 계속 삭제됨 상태로 표시된다. 추적 해제 = index 에서도 완전 제외.
     # 디렉토리 항목(구버전 track 의 raw 저장분)은 index 에 '하위 파일' 경로로 들어 있어
@@ -530,42 +538,10 @@ def cmd_status(args):
 LOCK_WAIT_SEC = float(os.environ.get("CLAUDE_CAS_LOCK_WAIT", "8"))
 LOCK_STALE_SEC = 60.0
 
-@contextlib.contextmanager
 def _snapshot_lock(p):
     os.makedirs(p["store"], exist_ok=True)          # init 전에도 잠글 수 있어야 한다
-    lock = os.path.join(p["store"], "snapshot.lock")
-    deadline = time.monotonic() + LOCK_WAIT_SEC
-    fd = None
-    while True:
-        try:
-            fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-            break
-        except FileExistsError:
-            # 죽은 프로세스가 남긴 락은 **나이로만** 판정한다(pid 재사용을 신뢰하지 않는다).
-            try:
-                if time.time() - os.path.getmtime(lock) > LOCK_STALE_SEC:
-                    os.unlink(lock)
-                    continue
-            except OSError:
-                pass                                 # 그 사이 남이 풀었다 - 다음 루프에서 재시도
-            if time.monotonic() > deadline:
-                raise TimeoutError(f"다른 스냅샷이 진행 중입니다({LOCK_WAIT_SEC:.0f}s 대기): {lock}")
-            time.sleep(0.05)
-    token = uuid.uuid4().hex
-    try:
-        os.write(fd, json.dumps({"pid": os.getpid(), "at": datetime.now().isoformat(), "token": token}).encode())
-        os.close(fd)
-        fd = None
-        yield
-    finally:
-        if fd is not None:
-            os.close(fd)
-        # stale 로 판정돼 다른 프로세스가 가져간 락을 지우지 않는다
-        with contextlib.suppress(OSError, ValueError, AttributeError):
-            with open(lock, encoding="utf-8-sig") as f:
-                owner = json.load(f).get("token")
-            if owner == token:
-                os.unlink(lock)
+    return lib_store.file_lock(os.path.join(p["store"], "snapshot.lock"), LOCK_WAIT_SEC, LOCK_STALE_SEC,
+                               "다른 스냅샷이 진행 중입니다")
 
 def _take_snapshot(p, message, force=False):
     """스냅샷 코어. 새 스냅샷 id 를 반환(변경 없고 force 아니면 None). cmd_snapshot/cmd_restore 공용."""

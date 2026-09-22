@@ -160,25 +160,19 @@ def _load_libs(store):
 def _register_lib(store, lib):
     """라이브러리 경로를 store config.json 에 등록(멱등).
     store 미초기화면 lib_store.StoreNotInitialized 가 올라간다 - 호출부가 ok:false 로 보고한다."""
-    cfg = lib_store.load_cfg(store)
-    libs = cfg.setdefault("libraries", [])
-    if all(_norm(x) != _norm(lib) for x in libs):
-        libs.append(lib)
-        lib_store.save_cfg(store, cfg)
-    elif not os.path.exists(lib_store.store_config_path(store)):
-        raise lib_store.StoreNotInitialized(f"스토어가 초기화되지 않음: {store}")
+    with lib_store.edit_cfg(store) as cfg:
+        libs = cfg.setdefault("libraries", [])
+        if all(_norm(x) != _norm(lib) for x in libs):
+            libs.append(lib)
     return True
 
 
 def _unregister_lib(store, lib):
     """store config.json 의 libraries 에서 경로 제거(멱등). env 지정 경로는 여기서 못 지운다."""
-    cfg = lib_store.load_cfg(store)
-    libs = cfg.get("libraries", [])
-    keep = [x for x in libs if _norm(x) != _norm(lib)]
-    if len(keep) == len(libs):
+    if all(_norm(x) != _norm(lib) for x in lib_store.load_cfg(store).get("libraries", [])):
         return False
-    cfg["libraries"] = keep
-    lib_store.save_cfg(store, cfg)
+    with lib_store.edit_cfg(store) as cfg:
+        cfg["libraries"] = [x for x in cfg.get("libraries", []) if _norm(x) != _norm(lib)]
     return True
 
 
@@ -379,24 +373,23 @@ def cmd_unregister(a):
     origin 을 그대로 보내므로, 예전처럼 market:<id> 로 뭉뚱그려 mid 만 뽑으면 플러그인 하나를
     지우려다 마켓 등록 전체(레포 + 다른 모든 플러그인)를 날려버린다."""
     if a.origin:
-        cfg = lib_store.load_cfg(a.store)
         origin = a.origin
 
         if origin.startswith("remote:"):
             rid = origin[len("remote:"):]
-            arr = cfg.get("remotes", [])
-            hit = next((x for x in arr if x.get("id") == rid), None)
-            if not hit:
-                emit(True, "noop", "이미 없음 (no-op)", removed=False)
-            caches = [hit["cache"]] if hit.get("cache") else []
-            held = []
-            for c in caches:
-                held += lib_store.ledger_refs_root(cfg, c)
-            if held:
-                emit(False, "held", f"이 캐시를 참조하는 설치 항목이 {len(held)}건 있어 해제할 수 없습니다",
-                     target=origin, held_by=[h["key"] for h in held])
-            arr.remove(hit)
-            lib_store.save_cfg(a.store, cfg)
+            with lib_store.edit_cfg(a.store) as cfg:
+                arr = cfg.get("remotes", [])
+                hit = next((x for x in arr if x.get("id") == rid), None)
+                if not hit:
+                    emit(True, "noop", "이미 없음 (no-op)", removed=False)
+                caches = [hit["cache"]] if hit.get("cache") else []
+                held = []
+                for c in caches:
+                    held += lib_store.ledger_refs_root(cfg, c)
+                if held:
+                    emit(False, "held", f"이 캐시를 참조하는 설치 항목이 {len(held)}건 있어 해제할 수 없습니다",
+                         target=origin, held_by=[h["key"] for h in held])
+                arr.remove(hit)
             for c in caches:
                 _rmtree_force(c)
             emit(True, "ok", f"등록 해제됨: {origin}", removed=True)
@@ -404,27 +397,40 @@ def cmd_unregister(a):
         if origin.startswith("market:"):
             rest = origin[len("market:"):]
             mid, _, pname = rest.partition("/")
-            mks = cfg.get("marketplaces", [])
-            mhit = next((x for x in mks if x.get("id") == mid), None)
-            if not mhit:
-                emit(True, "noop", "이미 없음 (no-op)", removed=False)
+            with lib_store.edit_cfg(a.store) as cfg:
+                mks = cfg.get("marketplaces", [])
+                mhit = next((x for x in mks if x.get("id") == mid), None)
+                if not mhit:
+                    emit(True, "noop", "이미 없음 (no-op)", removed=False)
+
+                if pname:
+                    # 플러그인 단위: 그 플러그인만 빼고 마켓 등록·매니페스트 캐시·다른 플러그인은 안 건드린다.
+                    pl = mhit.get("plugins", [])
+                    phit = next((p for p in pl if p.get("name") == pname), None)
+                    if not phit:
+                        emit(True, "noop", "이미 없음 (no-op)", removed=False)
+                    pcache = phit.get("cache")
+                    # 가드는 이 플러그인의 캐시만 본다 - 다른 플러그인이나 마켓 루트를 붙잡은 원장
+                    # 항목이 이 해제를 막으면 안 된다(ledger_refs_root 는 containment 라 pcache 를
+                    # 넘기면 pcache 의 하위만 잡고 마켓 루트 같은 조상은 절대 안 잡는다).
+                    held = lib_store.ledger_refs_root(cfg, pcache) if pcache else []
+                    if held:
+                        emit(False, "held", f"이 캐시를 참조하는 설치 항목이 {len(held)}건 있어 해제할 수 없습니다",
+                             target=origin, held_by=[h["key"] for h in held])
+                    pl.remove(phit)
+                else:
+                    # 마켓 단위(플러그인 세그먼트 없음): 레포 + 모든 플러그인이 한 덩이라 전부 지운다.
+                    caches = [mhit.get("cache")] + [p.get("cache") for p in mhit.get("plugins", [])]
+                    caches = [c for c in caches if c]
+                    held = []
+                    for c in caches:
+                        held += lib_store.ledger_refs_root(cfg, c)
+                    if held:
+                        emit(False, "held", f"이 캐시를 참조하는 설치 항목이 {len(held)}건 있어 해제할 수 없습니다",
+                             target=origin, held_by=[h["key"] for h in held])
+                    mks.remove(mhit)
 
             if pname:
-                # 플러그인 단위: 그 플러그인만 빼고 마켓 등록·매니페스트 캐시·다른 플러그인은 안 건드린다.
-                pl = mhit.get("plugins", [])
-                phit = next((p for p in pl if p.get("name") == pname), None)
-                if not phit:
-                    emit(True, "noop", "이미 없음 (no-op)", removed=False)
-                pcache = phit.get("cache")
-                # 가드는 이 플러그인의 캐시만 본다 - 다른 플러그인이나 마켓 루트를 붙잡은 원장
-                # 항목이 이 해제를 막으면 안 된다(ledger_refs_root 는 containment 라 pcache 를
-                # 넘기면 pcache 의 하위만 잡고 마켓 루트 같은 조상은 절대 안 잡는다).
-                held = lib_store.ledger_refs_root(cfg, pcache) if pcache else []
-                if held:
-                    emit(False, "held", f"이 캐시를 참조하는 설치 항목이 {len(held)}건 있어 해제할 수 없습니다",
-                         target=origin, held_by=[h["key"] for h in held])
-                pl.remove(phit)
-                lib_store.save_cfg(a.store, cfg)
                 # 번들(str-path)은 마켓 레포 워킹트리를 공유한다 - 손으로 지우면 매니페스트나
                 # 다른 플러그인까지 같이 날아간다. 등록만 빼고 디스크는 건드리지 않는다.
                 # 외부는 plugins/<name>/ 전체가 이 플러그인 전용이라 통째로 지운다.
@@ -433,17 +439,6 @@ def cmd_unregister(a):
                     _rmtree_force(os.path.join(plugins_dir, pname))
                 emit(True, "ok", f"등록 해제됨: {origin}", removed=True)
 
-            # 마켓 단위(플러그인 세그먼트 없음): 레포 + 모든 플러그인이 한 덩이라 전부 지운다.
-            caches = [mhit.get("cache")] + [p.get("cache") for p in mhit.get("plugins", [])]
-            caches = [c for c in caches if c]
-            held = []
-            for c in caches:
-                held += lib_store.ledger_refs_root(cfg, c)
-            if held:
-                emit(False, "held", f"이 캐시를 참조하는 설치 항목이 {len(held)}건 있어 해제할 수 없습니다",
-                     target=origin, held_by=[h["key"] for h in held])
-            mks.remove(mhit)
-            lib_store.save_cfg(a.store, cfg)
             # market 은 repo + plugins 가 <store>/lib-cache/markets/<id>/ 아래 한 덩이라 그 루트를 지운다.
             _rmtree_force(_lib_cache(a.store, "markets", mid))
             emit(True, "ok", f"등록 해제됨: {origin}", removed=True)
@@ -519,15 +514,15 @@ def cmd_install(a):
         shutil.copytree(src, tgt)
     leaf = os.path.basename(a.path.replace("\\", "/").strip("/"))
     warn = None
+    src_hash = _hash_file(src) if kind == "file" else _hash_dir(src)
     try:
-        cfg = lib_store.load_cfg(a.store)
-        lib_store.ledger_put(cfg, a.target, a.category, leaf, {
-            "origin": origin,
-            "relpath": a.path,
-            "src_hash": _hash_file(src) if kind == "file" else _hash_dir(src),
-            "at": _now(),
-        })
-        lib_store.save_cfg(a.store, cfg)
+        with lib_store.edit_cfg(a.store) as cfg:
+            lib_store.ledger_put(cfg, a.target, a.category, leaf, {
+                "origin": origin,
+                "relpath": a.path,
+                "src_hash": src_hash,
+                "at": _now(),
+            })
     except lib_store.StoreNotInitialized:
         # 파일은 이미 설치됐다. 원장만 못 남긴 상태를 숨기지 않는다 -
         # 이 항목은 다음 scan 에서 하위호환(해시 비교) 경로로 흐른다.
@@ -555,8 +550,8 @@ def cmd_uninstall(a):
         snapshot_before(a.store)
     dst = trash(tgt)
     try:
-        lib_store.ledger_del(cfg, a.target, a.category, a.name)
-        lib_store.save_cfg(a.store, cfg)
+        with lib_store.edit_cfg(a.store) as cfg:
+            lib_store.ledger_del(cfg, a.target, a.category, a.name)
     except lib_store.StoreNotInitialized:
         pass          # 원장이 애초에 없었다는 뜻 - 지울 것도 없다
     msg = f"제거됨(.trash 이동): {a.category}/{a.name}"
@@ -651,17 +646,16 @@ def cmd_remote_add(a):
     if cmap:
         layout["map"] = {**layout["map"], **cmap}
     try:
-        cfg = lib_store.load_cfg(a.store)
-        remotes = cfg.setdefault("remotes", [])
-        rec = {"id": rid, "url": a.url, "ref": a.ref or None, "sha": sha,
-               "fetched_at": _now(), "cache": cache, "map": layout["map"] or None}
-        for i, r in enumerate(remotes):
-            if r.get("id") == rid:
-                remotes[i] = rec
-                break
-        else:
-            remotes.append(rec)
-        lib_store.save_cfg(a.store, cfg)
+        with lib_store.edit_cfg(a.store) as cfg:
+            remotes = cfg.setdefault("remotes", [])
+            rec = {"id": rid, "url": a.url, "ref": a.ref or None, "sha": sha,
+                   "fetched_at": _now(), "cache": cache, "map": layout["map"] or None}
+            for i, r in enumerate(remotes):
+                if r.get("id") == rid:
+                    remotes[i] = rec
+                    break
+            else:
+                remotes.append(rec)
     except lib_store.StoreNotInitialized as e:
         emit(False, "store_uninitialized", str(e), cache=cache)
     # clone 이 끝난 뒤에야 매니페스트 유무를 알 수 있다(사전 판별하려면 받아보는 수밖에 없다).
@@ -754,20 +748,19 @@ def cmd_market_add(a):
     if kind == "local":
         sha = _local_manifest_sha(manifest_path)
     try:
-        cfg = lib_store.load_cfg(a.store)
-        mks = cfg.setdefault("marketplaces", [])
-        prev = next((m for m in mks if m.get("id") == mid), None)
-        # kind 를 남긴다. 없는(구버전) 레코드는 읽는 쪽에서 git 으로 간주한다 - 그때는 git 만 있었다.
-        # ref 는 git 에서만 의미가 있다(json/local 에는 브랜치라는 게 없다).
-        rec = {"id": mid, "url": url, "ref": (a.ref or None) if kind == "git" else None,
-               "kind": kind, "sha": sha, "fetched_at": _now(),
-               "cache": cache, "name": mf["name"],
-               "plugins": (prev or {}).get("plugins", [])}   # 이미 fetch 한 플러그인은 보존
-        if prev:
-            mks[mks.index(prev)] = rec
-        else:
-            mks.append(rec)
-        lib_store.save_cfg(a.store, cfg)
+        with lib_store.edit_cfg(a.store) as cfg:
+            mks = cfg.setdefault("marketplaces", [])
+            prev = next((m for m in mks if m.get("id") == mid), None)
+            # kind 를 남긴다. 없는(구버전) 레코드는 읽는 쪽에서 git 으로 간주한다 - 그때는 git 만 있었다.
+            # ref 는 git 에서만 의미가 있다(json/local 에는 브랜치라는 게 없다).
+            rec = {"id": mid, "url": url, "ref": (a.ref or None) if kind == "git" else None,
+                   "kind": kind, "sha": sha, "fetched_at": _now(),
+                   "cache": cache, "name": mf["name"],
+                   "plugins": (prev or {}).get("plugins", [])}   # 이미 fetch 한 플러그인은 보존
+            if prev:
+                mks[mks.index(prev)] = rec
+            else:
+                mks.append(rec)
     except lib_store.StoreNotInitialized as e:
         emit(False, "store_uninitialized", str(e), cache=cache)
     cat = marketplace.catalog(mf, {}, limit=0)
@@ -972,14 +965,13 @@ def cmd_plugin_fetch(a):
     rec = {"name": canon, "sha": sha, "fetched_at": _now(), "cache": root, "staging": staging,
            "map": layout["map"] or None, "sparse": sparse, "kind": spec["kind"]}
     try:
-        cfg = lib_store.load_cfg(a.store)      # 다시 읽는다(위에서 시간이 흘렀다)
-        m2 = next(x for x in cfg["marketplaces"] if x.get("id") == mid)
-        pl = m2.setdefault("plugins", [])
-        if prev and prev in pl:
-            pl[pl.index(prev)] = rec
-        else:
-            pl.append(rec)
-        lib_store.save_cfg(a.store, cfg)       # 3단계: 원장/레지스트리 갱신
+        with lib_store.edit_cfg(a.store) as cfg:   # 3단계: 원장/레지스트리 갱신
+            m2 = next(x for x in cfg["marketplaces"] if x.get("id") == mid)
+            pl = m2.setdefault("plugins", [])
+            if prev and prev in pl:
+                pl[pl.index(prev)] = rec
+            else:
+                pl.append(rec)
     except lib_store.StoreNotInitialized as e:
         emit(False, "store_uninitialized", str(e))
 
@@ -1026,9 +1018,13 @@ def cmd_fetch(a):
             sha = remote_fetch.materialize(r["cache"], r["url"], ref=r.get("ref") or None)
         except remote_fetch.GitError as e:
             emit(False, "external_failed", str(e), target=rid, detail=e)
-        r["sha"], r["fetched_at"] = sha, _now()
-        r["map"] = remote_fetch.detect_layout(r["cache"])["map"] or r.get("map")
-        lib_store.save_cfg(a.store, cfg)
+        cmap = remote_fetch.detect_layout(r["cache"])["map"]
+        with lib_store.edit_cfg(a.store) as cfg:
+            r = next((x for x in cfg.get("remotes", []) if x.get("id") == rid), None)
+            if not r:
+                emit(False, "not_found", f"등록되지 않은 원격: {rid}", target=rid)
+            r["sha"], r["fetched_at"] = sha, _now()
+            r["map"] = cmap or r.get("map")
         emit(True, "ok", f"갱신됨: {rid}", origin=origin, sha=sha)
     if origin.startswith("market:"):
         rest = origin[len("market:"):]
@@ -1139,14 +1135,14 @@ def cmd_hooks_install(a):
     save_atomic(sp, s)
 
     warn = None
+    src_hash = _hash_file(os.path.join(root, plugin_units.HOOKS_REL))
     try:
-        cfg = lib_store.load_cfg(a.store)
-        lib_store.ledger_put(cfg, a.target, "hooks", name, {
-            "kind": "hooks", "origin": a.origin, "root": root,
-            "events": sorted((hooks_cfg.get("hooks") or {}).keys()),
-            "src_hash": _hash_file(os.path.join(root, plugin_units.HOOKS_REL)), "at": _now(),
-        })
-        lib_store.save_cfg(a.store, cfg)
+        with lib_store.edit_cfg(a.store) as cfg:
+            lib_store.ledger_put(cfg, a.target, "hooks", name, {
+                "kind": "hooks", "origin": a.origin, "root": root,
+                "events": sorted((hooks_cfg.get("hooks") or {}).keys()),
+                "src_hash": src_hash, "at": _now(),
+            })
     except lib_store.StoreNotInitialized:
         warn = "스토어 미초기화로 출처를 기록하지 못했습니다 - 제거 시 --root 로 경로를 직접 지정해야 합니다"
 
@@ -1214,8 +1210,8 @@ def cmd_hooks_uninstall(a):
         if not a.no_snapshot:
             snapshot_after(a.store, f"hooks 제거됨: {name} ({removed}건)")
     try:
-        lib_store.ledger_del(cfg, a.target, "hooks", name)
-        lib_store.save_cfg(a.store, cfg)
+        with lib_store.edit_cfg(a.store) as cfg:
+            lib_store.ledger_del(cfg, a.target, "hooks", name)
     except lib_store.StoreNotInitialized:
         pass
     degraded = not cache_present
@@ -1262,14 +1258,13 @@ def cmd_mcp_install(a):
 
     warn = None
     try:
-        cfg = lib_store.load_cfg(a.store)
-        prev = lib_store.ledger_get(cfg, a.target, "mcp", name) or {}
-        merged = sorted(set(prev.get("servers", [])) | set(servers))
-        lib_store.ledger_put(cfg, a.target, "mcp", name, {
-            "kind": "mcp", "origin": a.origin, "root": root, "scope": a.scope,
-            "target": tgt, "servers": merged, "at": _now(),
-        })
-        lib_store.save_cfg(a.store, cfg)
+        with lib_store.edit_cfg(a.store) as cfg:
+            prev = lib_store.ledger_get(cfg, a.target, "mcp", name) or {}
+            merged = sorted(set(prev.get("servers", [])) | set(servers))
+            lib_store.ledger_put(cfg, a.target, "mcp", name, {
+                "kind": "mcp", "origin": a.origin, "root": root, "scope": a.scope,
+                "target": tgt, "servers": merged, "at": _now(),
+            })
     except lib_store.StoreNotInitialized:
         warn = "스토어 미초기화로 출처를 기록하지 못했습니다(설치 자체는 완료)"
     if not a.no_snapshot:
@@ -1300,15 +1295,16 @@ def cmd_mcp_uninstall(a):
         if not a.no_snapshot:
             snapshot_after(a.store, f"MCP 서버 제거됨: {name} ({removed}개)")
     try:
-        if a.server and rec.get("servers"):
-            rec["servers"] = [s for s in rec["servers"] if s != a.server]
-            if rec["servers"]:
-                lib_store.ledger_put(cfg, a.target, "mcp", name, rec)
+        with lib_store.edit_cfg(a.store) as cfg:
+            rec = lib_store.ledger_get(cfg, a.target, "mcp", name) or {}
+            if a.server and rec.get("servers"):
+                rec["servers"] = [s for s in rec["servers"] if s != a.server]
+                if rec["servers"]:
+                    lib_store.ledger_put(cfg, a.target, "mcp", name, rec)
+                else:
+                    lib_store.ledger_del(cfg, a.target, "mcp", name)
             else:
                 lib_store.ledger_del(cfg, a.target, "mcp", name)
-        else:
-            lib_store.ledger_del(cfg, a.target, "mcp", name)
-        lib_store.save_cfg(a.store, cfg)
     except lib_store.StoreNotInitialized:
         pass
     emit(True, "ok", f"MCP 서버 제거됨: {name} ({removed}개)", origin=a.origin, target=tgt, removed=removed,
@@ -1385,4 +1381,4 @@ def main():
 
 
 if __name__ == "__main__":
-    guard(main, {lib_store.StoreNotInitialized: "store_uninitialized"})
+    guard(main, {lib_store.StoreNotInitialized: "store_uninitialized", TimeoutError: "lock_timeout"})

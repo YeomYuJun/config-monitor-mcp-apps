@@ -77,6 +77,19 @@ class TestPrefs(unittest.TestCase):
                                capture_output=True, text=True, encoding="utf-8")
             self.assertEqual(json.loads(p.stdout)["ok"], False)
 
+    def test_cli_set_reports_lock_timeout_while_config_is_locked(self):
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "config.json"), "w", encoding="utf-8") as f:
+                json.dump({"version": 1}, f)
+            with open(os.path.join(d, "config.lock"), "w", encoding="utf-8") as f:
+                f.write('{"pid": 1}')
+            p = subprocess.run([sys.executable, os.path.join(SRC, "prefs.py"), "set",
+                                "--store", d, "--json", '{"sections":{"preset":"custom"}}'],
+                               capture_output=True, text=True, encoding="utf-8",
+                               env=dict(os.environ, CLAUDE_CAS_LOCK_WAIT="0.3"))
+            self.assertEqual((p.returncode, json.loads(p.stdout)["code"]), (1, "lock_timeout"))
+            self.assertEqual(prefs.load_ui(d)["sections"]["preset"], "all")
+
     def test_cli_get_returns_defaults_without_store(self):
         with tempfile.TemporaryDirectory() as d:
             p = subprocess.run([sys.executable, os.path.join(SRC, "prefs.py"), "get",

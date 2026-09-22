@@ -13,7 +13,11 @@ r"""lib_store.py - 라이브러리 스토어(store/config.json) 소유 모듈.
 네트워크도 git 도 여기 없다(scan 경로에서 import 되므로).
 """
 from __future__ import annotations
-import json, os
+import contextlib, json, os, time, uuid
+from datetime import datetime
+
+LOCK_WAIT_SEC = float(os.environ.get("CLAUDE_CAS_LOCK_WAIT", "8"))
+LOCK_STALE_SEC = 60.0
 
 
 class StoreNotInitialized(Exception):
@@ -47,10 +51,62 @@ def save_cfg(store: str, cfg: dict) -> None:
     p = store_config_path(store)
     if not os.path.exists(p):
         raise StoreNotInitialized(f"스토어가 초기화되지 않음: {p}")
-    tmp = p + ".tmp"
+    tmp = f"{p}.{os.getpid()}.tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(cfg, f, ensure_ascii=False, indent=2)
     os.replace(tmp, p)
+
+
+@contextlib.contextmanager
+def file_lock(lock, wait_sec, stale_sec, busy):
+    deadline = time.monotonic() + wait_sec
+    fd = None
+    while True:
+        try:
+            fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            break
+        except FileExistsError:
+            # 죽은 프로세스가 남긴 락은 **나이로만** 판정한다(pid 재사용을 신뢰하지 않는다).
+            try:
+                if time.time() - os.path.getmtime(lock) > stale_sec:
+                    os.unlink(lock)
+                    continue
+            except OSError:
+                pass                                 # 그 사이 남이 풀었다 - 다음 루프에서 재시도
+            if time.monotonic() > deadline:
+                raise TimeoutError(f"{busy}({wait_sec:.0f}s 대기): {lock}")
+            time.sleep(0.05)
+    token = uuid.uuid4().hex
+    try:
+        os.write(fd, json.dumps({"pid": os.getpid(), "at": datetime.now().isoformat(), "token": token}).encode())
+        os.close(fd)
+        fd = None
+        yield
+    finally:
+        if fd is not None:
+            os.close(fd)
+        # stale 로 판정돼 다른 프로세스가 가져간 락을 지우지 않는다
+        with contextlib.suppress(OSError, ValueError, AttributeError):
+            with open(lock, encoding="utf-8-sig") as f:
+                owner = json.load(f).get("token")
+            if owner == token:
+                os.unlink(lock)
+
+
+def config_lock(store: str):
+    """config.json 읽기-수정-쓰기 구간. 스냅샷 락과 함께 잡을 때는 항상 스냅샷 락이 먼저다."""
+    return file_lock(os.path.join(store, "config.lock"), LOCK_WAIT_SEC, LOCK_STALE_SEC,
+                     "다른 작업이 config.json 을 쓰는 중입니다")
+
+
+@contextlib.contextmanager
+def edit_cfg(store: str):
+    if not os.path.exists(store_config_path(store)):
+        raise StoreNotInitialized(f"스토어가 초기화되지 않음: {store_config_path(store)}")
+    with config_lock(store):
+        cfg = load_cfg(store)
+        yield cfg
+        save_cfg(store, cfg)
 
 
 # ── 출처 원장 ───────────────────────────────────────────────────────────────
