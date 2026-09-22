@@ -72,8 +72,10 @@ async function refreshInner(): Promise<void> {
   if (restoreView) {
     if (typeof restoreView.scope === "string") setScopeFilter(restoreView.scope);
     if (typeof restoreView.libTarget === "string") setLibTarget(restoreView.libTarget);
-    if (typeof restoreView.detailOpen === "boolean") { setDetailOpen(restoreView.detailOpen); applyDetailState(); }
   }
+  // 패널과 선택 파일은 전체화면으로 다시 올라온 위젯에서만 되살린다. inline 은 좁아서 사용자가 행을 누르기 전에는 닫아 둔다.
+  const restoreDetail = !!restoreView && !STANDALONE && (app.getHostContext() as any)?.displayMode === "fullscreen";
+  if (restoreDetail && typeof restoreView.detailOpen === "boolean") { setDetailOpen(restoreView.detailOpen); applyDetailState(); }
   booted = true;
   try {
     // libProjectTargets(추적 프로젝트 .claude 경로들)는 앞선 renderTracked 에서 채워짐 -> 프로젝트 스코프 설정 포함.
@@ -93,7 +95,7 @@ async function refreshInner(): Promise<void> {
   if (scroller) scroller.scrollTop = scrollTop;
   refreshWatcher();
   // 되살릴 파일이 아직 추적 중일 때만 연다(추적 해제된 경로면 빈 패널 대신 그냥 지나간다).
-  if (restoreView && restoreView.selectedPath && lastTrk && bucketOf(lastTrk, restoreView.selectedPath)) {
+  if (restoreDetail && restoreView.selectedPath && lastTrk && bucketOf(lastTrk, restoreView.selectedPath)) {
     void selectFile(restoreView.selectedPath);
   }
   if (pollTimer === undefined) pollTimer = window.setInterval(pollStatus, POLL_MS);
