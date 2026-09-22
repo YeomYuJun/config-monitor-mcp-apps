@@ -10,6 +10,9 @@ import { selectFile } from "./detail";
 // 파일 상태 배지 라벨(현재 lang 반영). 상태값 new/deleted 는 i18n 키 newFile/deleted 에 매핑된다(키 이름이 상태값과 다름).
 const statusLabel = (st: string): string =>
   (({ new: t("newFile"), modified: t("modified"), deleted: t("deleted"), unchanged: t("unchanged") } as Record<string, string>)[st] || st);
+// 추가 결과 안내. refreshApp 이 renderTracked 로 입력행을 새로 만들면 안내 슬롯도 새것이 되므로 여기에 넘겨 둔다.
+let carriedNotice: { msg: string; kind: "err" | "warn" | "ok" } | null = null;
+
 // 경로 추가 입력행: 프로젝트 폴더/.claude/파일 경로 -> config_track(프리셋 자동 감지).
 // extra = 입력/추가 버튼과 같은 행에 놓을 부가 버튼(프로젝트에서 추가 토글).
 function buildTrackAdder(extra?: HTMLElement): HTMLElement {
@@ -22,6 +25,7 @@ function buildTrackAdder(extra?: HTMLElement): HTMLElement {
   btn.className = "addbtn";
   btn.textContent = t("trackAdd");
   const notice = mkNotice(input);
+  if (carriedNotice) { notice.show(carriedNotice.msg, carriedNotice.kind); carriedNotice = null; }
   const submit = async () => {
     const v = input.value.trim();
     if (!v) return;
@@ -55,12 +59,14 @@ function buildTrackAdder(extra?: HTMLElement): HTMLElement {
       if (already.length) parts.push(`${t("trackAlreadyN")} ${already.length}`);
       if (missing.length) {
         parts.push(`${t("trackNotFoundN")} ${missing.length}`);
-        notice.show(`${parts.join(" · ")}\n${missing.join("\n")}\n${t("trackNotFoundHint")}`, "warn");
+        carriedNotice = { msg: `${parts.join(" · ")}\n${missing.join("\n")}\n${t("trackNotFoundHint")}`, kind: "warn" };
       } else {
-        notice.show(`${parts.join(" · ")}\n${(added.length ? added : already).join("\n")}`, "ok");
+        carriedNotice = { msg: `${parts.join(" · ")}\n${(added.length ? added : already).join("\n")}`, kind: "ok" };
       }
+      notice.show(carriedNotice.msg, carriedNotice.kind);
       input.value = "";
       await refreshApp?.();
+      carriedNotice = null;
     } catch (e) {
       notice.show(String(e));
       clearPending(btn, t("failed"));
