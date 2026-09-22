@@ -5,7 +5,7 @@ r"""prefs.py - 대시보드 표시 설정(store/config.json 의 "ui" 블록) 소
 UI 는 ok:false 를 받아 세션 한정 상태로 떨어진다.
 """
 from __future__ import annotations
-import argparse, copy, json, os, sys
+import copy, json, os, sys
 
 # Windows 콘솔 기본 인코딩(cp949)에서 한글/em-dash 출력 시 UnicodeEncodeError 방지.
 for _s in (sys.stdout, sys.stderr):
@@ -15,6 +15,7 @@ for _s in (sys.stdout, sys.stderr):
         pass
 
 import lib_store
+from cli_result import emit, guard, JsonArgumentParser
 
 HOME = os.path.expanduser("~")
 DEFAULT_STORE = os.environ.get("CLAUDE_SNAPSHOT_STORE") or (
@@ -82,7 +83,7 @@ def save_ui(store, patch):
 
 
 def main():
-    ap = argparse.ArgumentParser(prog="prefs", description="대시보드 표시 설정 조회/저장")
+    ap = JsonArgumentParser(prog="prefs", description="대시보드 표시 설정 조회/저장")
     sub = ap.add_subparsers(dest="cmd", required=True)
     for name in ("get", "set"):
         sp = sub.add_parser(name)
@@ -92,15 +93,17 @@ def main():
     args = ap.parse_args()
 
     if args.cmd == "get":
-        print(json.dumps({"ok": True, "ui": load_ui(args.store)}, ensure_ascii=False))
-        return
+        emit(True, "ok", "표시 설정", ui=load_ui(args.store))
     try:
-        ui = save_ui(args.store, json.loads(args.json))
-    except Exception as e:
-        print(json.dumps({"ok": False, "message": str(e)}, ensure_ascii=False))
-        sys.exit(1)
-    print(json.dumps({"ok": True, "ui": ui}, ensure_ascii=False))
+        patch = json.loads(args.json)
+    except ValueError as e:
+        emit(False, "invalid_arg", f"--json 파싱 실패: {e}", target="--json")
+    try:
+        ui = save_ui(args.store, patch)
+    except lib_store.StoreNotInitialized as e:
+        emit(False, "store_uninitialized", str(e))
+    emit(True, "ok", "표시 설정 저장됨", ui=ui)
 
 
 if __name__ == "__main__":
-    main()
+    guard(main)

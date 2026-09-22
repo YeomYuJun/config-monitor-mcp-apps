@@ -190,7 +190,7 @@ export function buildTools(scriptDir: string): ToolDef[] {
       const res = await d.run(a);
       if (!d.meta.annotations.readOnlyHint && !NO_SIGNAL.has(d.name)) {
         const sc = res.structuredContent as any;
-        if (sc?.ok === true && sc.code !== "noop" && sc.code !== "dry_run") await bumpChange(d.name);
+        if (sc?.ok === true && sc.code === "ok") await bumpChange(d.name);
       }
       return res;
     };

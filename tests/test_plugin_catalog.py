@@ -385,7 +385,7 @@ class Cli(Fixture):
     """출력은 JSON 한 줄이고 **키 이름이 호출부(TypeScript UI)와의 계약**이다.
 
     이름이 어긋나면 UI 가 예외 없이 빈 화면을 낸다 - 그래서 값뿐 아니라 키 집합을 고정한다.
-    종료코드는 실패해도 0 이다(조회 실패는 치명적 오류가 아니다)."""
+    종료코드는 ok 와 일치한다(ok:false 면 1)."""
 
     PID = "code-review@claude-plugins-official"
 
@@ -399,15 +399,16 @@ class Cli(Fixture):
         rc, so, se = run(CLI, *args)
         self.assertTrue(so.strip(), f"stdout 없음 (rc={rc}): {se}")
         self.assertEqual(len(so.strip().splitlines()), 1, f"JSON 한 줄이 아니다: {so!r}")
-        self.assertEqual(rc, 0, f"조회 CLI 는 실패해도 0 이어야 한다: {so}")
-        return json.loads(so)
+        r = json.loads(so)
+        self.assertEqual(rc, 0 if r["ok"] else 1, so)
+        return r
 
     # -- summary -------------------------------------------------------------
 
     def test_summary_keys_are_pinned(self):
         r = self.call("summary", "--cache", self.cache)
-        self.assertEqual(sorted(r), ["entries", "fetched_at", "generated_at",
-                                     "installs_at", "models", "ok"])
+        self.assertEqual(sorted(r), ["code", "entries", "fetched_at", "generated_at",
+                                     "installs_at", "message", "models", "ok"])
         self.assertTrue(r["ok"])
         self.assertEqual(sorted(r["entries"]), [self.PID])
         self.assertEqual(sorted(r["entries"][self.PID]), ["components", "installs", "total"])
@@ -422,6 +423,7 @@ class Cli(Fixture):
         # entries 를 빼면 호출부가 undefined 를 순회한다.
         r = self.call("summary", "--cache", os.path.join(self.tmp, "gone.json"))
         self.assertFalse(r["ok"])
+        self.assertEqual(r["code"], "cache_unavailable")
         self.assertEqual(r["entries"], {})
         self.assertIn("gone.json", r["message"])
 
@@ -434,7 +436,7 @@ class Cli(Fixture):
     def test_details_record_is_flattened_to_top_level(self):
         r = self.call("details", self.PID, "--cache", self.cache)
         self.assertEqual(sorted(r), sorted(
-            ["ok", "id", "name", "marketplace", "description", "author", "homepage",
+            ["ok", "code", "message", "id", "name", "marketplace", "description", "author", "homepage",
              "category", "installs", "last_updated", "version", "sha", "source_sha",
              "components", "counts", "total", "tokens"]))
         self.assertTrue(r["ok"])
@@ -455,13 +457,15 @@ class Cli(Fixture):
 
     def test_unknown_id_reports_failure_with_the_requested_id(self):
         r = self.call("details", "nope@other-market", "--cache", self.cache)
-        self.assertEqual(sorted(r), ["id", "message", "ok"])
+        self.assertEqual(sorted(r), ["code", "id", "message", "ok", "target"])
         self.assertFalse(r["ok"])
+        self.assertEqual(r["code"], "not_found")
         self.assertEqual(r["id"], "nope@other-market")
 
     def test_details_on_a_missing_cache_reports_failure(self):
         r = self.call("details", self.PID, "--cache", os.path.join(self.tmp, "gone.json"))
         self.assertFalse(r["ok"])
+        self.assertEqual(r["code"], "cache_unavailable")
         self.assertEqual(r["id"], self.PID)
         self.assertIn("gone.json", r["message"])
 

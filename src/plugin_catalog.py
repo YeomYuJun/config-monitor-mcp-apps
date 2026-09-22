@@ -31,6 +31,8 @@ details() 가 None 을 돌려주는 것을 정상 경로로 다뤄야 한다.
 from __future__ import annotations
 import argparse, json, os, sys
 
+from cli_result import emit, guard, JsonArgumentParser, check_fields
+
 for _s in (sys.stdout, sys.stderr):
     try:
         _s.reconfigure(encoding="utf-8")
@@ -206,18 +208,14 @@ def summary(path=None) -> dict:
 
 # --- CLI ---------------------------------------------------------------------
 
-def out(ok, **extra):
-    """JSON 한 줄. **실패해도 종료코드는 0 이다.**
-
-    형제 CLI(plugin_cli / config_edit)는 실패에 1 을 쓰지만 여기는 조회 전용이고, 캐시가
-    아직 없는 것은 정상 상태다. 0 이 아니면 호출부(UI)가 조회 실패를 치명적 오류로 다뤄
-    카탈로그 화면 전체가 빈 채로 뜬다. 실패 여부는 ok 로만 전달한다."""
-    print(json.dumps({"ok": ok, **extra}, ensure_ascii=False))
-    sys.exit(0)
+def out(ok, code, message, **extra):
+    """cli_result 계약 그대로(실패는 exit 1). 캐시가 아직 없는 것도 ok:false 다 - runPy 는
+    exit code 와 무관하게 JSON 을 돌려주므로 카탈로그 화면은 entries={} 로 그대로 그려진다."""
+    emit(ok, code, message, **extra)
 
 
 def main():
-    ap = argparse.ArgumentParser(prog="plugin_catalog",
+    ap = JsonArgumentParser(prog="plugin_catalog",
                                  description="플러그인 카탈로그 캐시 조회(읽기 전용)")
     # --cache 를 서브커맨드 앞/뒤 어디에 써도 받는다. 서브파서 쪽 기본값을 SUPPRESS 로 둬야
     # 앞에 준 값이 뒤의 기본값 None 에 덮이지 않는다.
@@ -238,9 +236,9 @@ def main():
     if a.op == "summary":
         # 실패해도 entries 를 빼지 않는다 - 없으면 호출부가 undefined 를 순회한다.
         if not cat["ok"]:
-            out(False, entries={}, message=broken, fetched_at="", generated_at="",
+            out(False, "cache_unavailable", broken, entries={}, fetched_at="", generated_at="",
                 installs_at="", models=[])
-        out(True, entries=_light(cat["entries"]), fetched_at=cat["fetched_at"],
+        out(True, "ok", f"플러그인 {len(cat['entries'])}개", entries=_light(cat["entries"]), fetched_at=cat["fetched_at"],
             generated_at=cat["generated_at"], installs_at=cat["installs_at"],
             models=cat["models"])
 
@@ -248,12 +246,13 @@ def main():
     if rec is None:
         # 다른 마켓 플러그인이면 캐시에 없는 게 정상이다(모듈 docstring 함정 2). 그래도
         # ok=False 로 보고하고, 무엇을 찾다 못 찾았는지 id 를 그대로 되돌려준다.
-        out(False, id=a.id,
-            message=broken if not cat["ok"] else
-            f"카탈로그에 없는 플러그인: {a.id} (공식 마켓 외 플러그인은 캐시되지 않습니다)")
+        if not cat["ok"]:
+            out(False, "cache_unavailable", broken, id=a.id)
+        out(False, "not_found", f"카탈로그에 없는 플러그인: {a.id} (공식 마켓 외 플러그인은 캐시되지 않습니다)",
+            target=a.id, id=a.id)
     # 레코드를 top level 로 편다(중첩 금지) - UI 가 필드 이름을 그대로 읽는다.
-    out(True, **rec)
+    out(True, "ok", a.id, **check_fields(rec))
 
 
 if __name__ == "__main__":
-    main()
+    guard(main)

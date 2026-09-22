@@ -18,7 +18,7 @@ CLI:
   python claude_config.py dump                # 정규화 상태(JSON)  ← MCP get_config 가 사용
 """
 from __future__ import annotations
-import argparse, json, os, glob as globmod, re, sys, tempfile
+import json, os, glob as globmod, re, sys, tempfile
 from dataclasses import dataclass
 
 # Windows 콘솔 기본 인코딩(cp949)에서 한글/em-dash 출력 시 UnicodeEncodeError 방지.
@@ -30,6 +30,7 @@ for _s in (sys.stdout, sys.stderr):
 from datetime import datetime
 
 import paths  # Win32/MSIX 겸용 Claude Desktop 디렉토리 해석(read↔write 동일 경로 보장)
+from cli_result import emit, guard, JsonArgumentParser
 import plugin_state  # 플러그인 레지스트리 조회(읽기 전용). 순수 모듈 - 네트워크/subprocess 없음
 
 HOME = os.path.expanduser("~")
@@ -1168,7 +1169,7 @@ def list_projects(found, include_missing=False):
     return out
 
 def main():
-    ap = argparse.ArgumentParser(prog="claude_config", description="Claude 설정 introspection")
+    ap = JsonArgumentParser(prog="claude_config", description="Claude 설정 introspection")
     sub = ap.add_subparsers(dest="cmd", required=True)
     for name in ("discover", "dump", "summary", "projects"):
         sp = sub.add_parser(name)
@@ -1192,17 +1193,18 @@ def main():
         print(json.dumps(found, ensure_ascii=False, indent=2))
     elif args.cmd == "projects":
         # MCP structuredContent 는 객체여야 함(배열 금지) -> {projects:[...]} 로 감쌈.
-        print(json.dumps({"projects": list_projects(found, args.include_missing)}, ensure_ascii=False, indent=2))
+        rows = list_projects(found, args.include_missing)
+        emit(True, "ok", f"프로젝트 {len(rows)}개", indent=2, projects=rows)
     elif args.cmd == "summary":
-        print(json.dumps(summarize(parse(found, projects, args.include_missing)), ensure_ascii=False, indent=2))
+        emit(True, "ok", "설정 요약", indent=2, **summarize(parse(found, projects, args.include_missing)))
     elif args.cmd == "dump":
         state = parse(found, projects, args.include_missing)
         if args.sections or args.scope or args.query:
             state = filter_state(state, args.sections, args.scope, args.query)
         if args.compact:
             state = compact_state(state)
-        print(json.dumps(state, ensure_ascii=False, indent=2))
+        emit(True, "ok", "설정 상세", indent=2, **state)
 
 
 if __name__ == "__main__":
-    main()
+    guard(main)
