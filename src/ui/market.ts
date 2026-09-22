@@ -403,8 +403,8 @@ function mkCatalogRow(row: any): HTMLElement {
         }
         // components_failed 가 있으면 개수는 "모름"이지 "0개"가 아니다 - warning 을 성공 메시지에
         // 묻어 버리면 "가져왔는데 텅 빔" 처럼 보인다(사실은 "가져왔는데 일부를 못 읽음").
-        flashToast(rr?.warning ? `${okText(rr, "done")} · ${row.name} ⚠ ${rr.warning}`
-          : `${okText(rr, "done")} · ${row.name}`);
+        const msg = okText(rr, "done", ` · ${row.name}`);
+        flashToast(rr?.warning ? `${msg} ⚠ ${rr.warning}` : msg);
         await refreshApp?.();
       } catch (e) { flashToast(t("failed")); clearPending(b, t("failed")); console.error("[config-monitor] plugin fetch", e); }
     });
@@ -598,7 +598,7 @@ function mkInstallScopes(row: any, market: string, close: () => void): HTMLEleme
       }));
       if (rr && rr.ok === false) { flashToast(errText(rr)); clearPending(btn, label); return; }
       close();
-      flashToast(`${okText(rr, "done")} · ${row.name}@${market}`);
+      flashToast(okText(rr, "done", ` · ${row.name}@${market}`));
       await refreshApp?.();
       await reloadCatalog();
     } catch (e) { clearPending(btn, label); flashToast(t("failed")); console.error("[config-monitor] install scope", e); }

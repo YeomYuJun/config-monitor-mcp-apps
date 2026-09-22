@@ -1,4 +1,4 @@
-// src/ui/i18n.ts - i18n (ko/en): UI 크롬 라벨과 결과 code 별 문장(err.<code>, 모르는 code 는 백엔드 message 로 폴백)만. 파일명/경로/설정 데이터/섹션 타이틀은 번역 대상 아님.
+// src/ui/i18n.ts - i18n (ko/en): UI 크롬 라벨과 결과 code 별 문장(err.<code>, 영어 모드에서만. 한국어 모드와 모르는 code 는 백엔드 message)만. 파일명/경로/설정 데이터/섹션 타이틀은 번역 대상 아님.
 //   t(k)    없는 키는 lang -> ko -> 키 자체 순으로 떨어진다.
 //   lang    import 시점에 한 번 정해진다(결정 규칙은 아래 주석). 이후 바뀌는 건 setLang 뿐이다.
 //   setLang 값만 바꾼다 - 저장(localStorage)과 재렌더는 호출부의 몫이다.
@@ -355,10 +355,10 @@ export const tf = (k: string, params: Record<string, unknown>): string =>
   t(k).replace(/\{(\w+)\}/g, (_, n) => String(params[n] ?? "")).replace(/[:\s]+$/, "");
 export function errText(r: any, fallback = t("failed")): string {
   const key = r?.code ? `err.${r.code}` : "";
-  if (!key || !has(key)) return r?.message || fallback;
-  const s = tf(key, { target: r.target });
-  return r.detail ? `${s}\n${r.detail}` : s;
+  const s = lang !== "ko" && key && has(key) ? tf(key, { target: r.target }) : r?.message || fallback;
+  return r?.detail && !s.includes(r.detail) ? `${s}\n${r.detail}` : s;
 }
-export const okText = (r: any, key: string): string => t(key) + (r?.code === "noop" ? t("noopSuffix") : "");
+export const okText = (r: any, key: string, tail = ""): string =>
+  lang === "ko" && r?.message ? r.message : t(key) + (r?.code === "noop" ? t("noopSuffix") : "") + tail;
 export const getLang = (): string => lang;
 export const setLang = (v: string): void => { lang = v; };

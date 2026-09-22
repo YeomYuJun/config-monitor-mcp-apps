@@ -523,7 +523,7 @@ function renderLibrary(host: HTMLElement, res: any): void {
             chip.replaceWith(mkPathChip(l));
             return;
           }
-          flashToast(okText(r, "libPathRemoved") + " · " + basename(l.lib));
+          flashToast(okText(r, "libPathRemoved", " · " + basename(l.lib)));
           await refreshApp?.();
         } catch (e) { flashToast(t("failed")); console.error("[config-monitor] lib unregister", e); chip.replaceWith(mkPathChip(l)); }
       });
