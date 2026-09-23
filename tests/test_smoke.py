@@ -479,6 +479,14 @@ class ConfigEditExtended(unittest.TestCase):
         self.assertNotEqual(rc, 0)
         self.assertFalse(json.loads(out)["ok"])
 
+    def test_global_synced_dir_is_not_removable(self):
+        synced = os.path.join(self.skills, "synced")
+        os.makedirs(synced)
+        rc, out, err = run(EDIT, "--skills-dir", self.skills, "--no-snapshot", "skill-remove", "synced",
+                           env={"HOME": self.tmp, "USERPROFILE": self.tmp})
+        self.assertEqual(json.loads(out)["code"], "invalid_arg")
+        self.assertTrue(os.path.isdir(synced))
+
     def test_bad_skills_dir_rejected(self):
         """--skills-dir 가 MCP 도구로 노출되므로 <...>/.claude/skills 아닌 경로는 trash() 전에 거부."""
         victim = os.path.join(self.tmp, "notclaude", "skills", "myskill")

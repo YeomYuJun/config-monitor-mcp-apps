@@ -385,6 +385,10 @@ def main():
     a.settings = _safe_settings_path(a.settings)
     if a.op in ("skill-scaffold", "skill-remove"):
         a.skills_dir = _safe_config_dir(a.skills_dir, "skills")
+        if a.name in paths.RESERVED_SKILL_DIRS and \
+           os.path.normcase(a.skills_dir) == os.path.normcase(os.path.normpath(DEFAULT_SKILLS)):
+            out(False, f"'{a.name}' 은 claude.ai 계정 스킬이 동기화되는 폴더라 편집할 수 없습니다",
+                "invalid_arg", target=os.path.join(a.skills_dir, a.name))
     elif a.op in ("agent-scaffold", "agent-remove"):
         a.agents_dir = _safe_config_dir(a.agents_dir, "agents")
     elif a.op in ("item-scaffold", "item-remove"):

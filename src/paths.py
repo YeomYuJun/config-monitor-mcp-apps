@@ -20,6 +20,10 @@ import os, glob as globmod
 
 DESKTOP_CONFIG_NAME = "claude_desktop_config.json"
 
+# ~/.claude/skills 아래의 예약 폴더. claude.ai 계정 스킬이 내려오는 자리라 사용자 스킬이 아니고,
+# 편집해도 다음 동기화가 덮는다. 프로젝트 .claude/skills 에서는 예약어가 아니다.
+RESERVED_SKILL_DIRS = ("synced",)
+
 
 def _default(env_key, home, *tail):
     return os.environ.get(env_key, os.path.join(home, *tail))

@@ -96,6 +96,16 @@ class TestBuilders(unittest.TestCase):
             self.assertEqual(cc._file_card(os.path.join(d, "nope.json"), "kb"), [])
             self.assertEqual(len(cc._file_card(os.path.join(d, "one.json"), "kb")), 1)
 
+    def test_synced_is_hidden_only_in_the_global_skills_dir(self):
+        with tempfile.TemporaryDirectory() as d:
+            for n in ("synced", "mine"):
+                os.makedirs(os.path.join(d, n))
+                open(os.path.join(d, n, "SKILL.md"), "w").close()
+            names = lambda scope: sorted(c["name"] for c in cc._skill_cards(d, scope)
+                                         if not cc._is_add_card(c))
+            self.assertEqual(names(None), ["mine"])
+            self.assertEqual(names("project"), ["mine", "synced"])
+
     def test_builders_tolerate_missing_directories(self):
         self.assertEqual(cc._md_dir_cards(os.path.join("nope", "gone"), "rule"), [])
         self.assertEqual(cc._glob_cards(None, "*.js", "workflow"), [])

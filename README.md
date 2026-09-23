@@ -332,7 +332,7 @@ The dashboard does not dump whole files — it extracts only the fields it needs
 | Claude Code | `~/.claude.json` | global summary + global `mcpServers` (`command`/`args`) + project cards (path, allowedTools count, mcpServers names, trust; projects with a `.claude` folder unless the display setting says otherwise, never under the temp folder or Desktop `scratch-workspaces`) |
 | Permissions | `~/.claude/settings.json` | `permissions.allow` / `deny` / `ask` rules |
 | Hooks | `~/.claude/settings.json` | matcher count + command list per `hooks.<event>` |
-| Skills (code) | `~/.claude/skills/` | immediate subfolders; `SKILL.md` `description` |
+| Skills (code) | `~/.claude/skills/` | immediate subfolders except `synced/` (claude.ai account skills, overwritten on each sync, not editable here); `SKILL.md` `description` |
 | Agents | `~/.claude/agents/` | frontmatter `name`, `description`, `tools` |
 | Commands | `~/.claude/commands/` | frontmatter `description` (subfolders are namespaces) |
 | Plugins | `~/.claude/plugins/{installed_plugins,known_marketplaces}.json` + each plugin's `.claude-plugin/plugin.json` | per-plugin market, version, install path, enabled state, and the components it contributes — skills, agents, commands, hooks, MCP servers, and (if a plugin ever ships them) rules, output styles, and workflows, each merged into its own section with a `plugin` badge |

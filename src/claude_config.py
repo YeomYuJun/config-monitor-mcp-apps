@@ -310,7 +310,7 @@ def _skill_cards(sd, scope=None, project=None):
     cards = []
     if sd and os.path.isdir(sd):
         for name in sorted(os.listdir(sd)):
-            if name.startswith("."):
+            if name.startswith(".") or (scope != "project" and name in paths.RESERVED_SKILL_DIRS):
                 continue
             full = os.path.join(sd, name)
             if os.path.isdir(full):
