@@ -41,8 +41,7 @@ from lib_store import norm as _norm   # 정규화 규칙을 한 곳에서만 정
 
 HOME = os.path.expanduser("~")
 DEFAULT_TARGET = os.path.join(HOME, ".claude")
-DEFAULT_STORE = os.environ.get("CLAUDE_SNAPSHOT_STORE") or (
-    "D:\\.claude-snapshot" if os.name == "nt" else os.path.join(HOME, ".claude-snapshot"))
+DEFAULT_STORE = lib_store.default_store()
 DEFAULT_CLAUDE_JSON = os.path.join(HOME, ".claude.json")
 DEFAULT_DESKTOP_CONFIG = paths.desktop_config_path()
 

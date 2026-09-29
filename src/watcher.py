@@ -10,7 +10,7 @@ FileSystemWatcher(PS 상주 스크립트) 대신 폴링을 쓰는 이유:
 heartbeat 계약(watcher.json)은 기존과 동일: pid/started/heartbeat/debounceMs/dirs/lastEvent.
 cas.py watcher-status(_watcher_state) 가 이 파일로 실행 여부를 판정한다.
 
-사용: python watcher.py [--store D:\.claude-snapshot] [--interval-ms 2000]
+사용: python watcher.py [--store <스토어>] [--interval-ms 2000]
       이 프로세스가 떠 있는 동안만 동작(상주). 종료는 Ctrl+C 또는 MCP watcher_stop.
 """
 from __future__ import annotations

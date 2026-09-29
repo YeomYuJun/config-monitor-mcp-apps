@@ -17,9 +17,7 @@ for _s in (sys.stdout, sys.stderr):
 import lib_store
 from cli_result import emit, guard, JsonArgumentParser
 
-HOME = os.path.expanduser("~")
-DEFAULT_STORE = os.environ.get("CLAUDE_SNAPSHOT_STORE") or (
-    "D:\\.claude-snapshot" if os.name == "nt" else os.path.join(HOME, ".claude-snapshot"))
+DEFAULT_STORE = lib_store.default_store()
 
 # preset 은 '어느 범주를 볼까'만 정한다. '빈 섹션을 감출까'(hideEmpty)는 독립 축이라
 # 프리셋 값으로 겸하지 않는다 - 겸하면 preset=X 인데 화면은 Y 인 상태가 저장된다.

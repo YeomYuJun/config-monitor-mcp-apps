@@ -10,7 +10,7 @@ __pycache__/
 # generated outputs
 *.export.html
 
-# local snapshot store (default D:\.claude-snapshot; override via CLAUDE_SNAPSHOT_STORE)
+# local snapshot store (override via CLAUDE_SNAPSHOT_STORE)
 .claude-snapshot/
 
 # personal / machine-local

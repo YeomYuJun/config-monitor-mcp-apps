@@ -47,6 +47,17 @@ class LibStore(unittest.TestCase):
         self.assertIn("libraries", again)
         self.assertIn("tracked", again)             # cas init 이 만든 키 보존
 
+    def test_default_store_falls_back_to_home_without_the_legacy_folder(self):
+        import lib_store
+        from unittest import mock
+        with mock.patch.dict(os.environ, {"CLAUDE_SNAPSHOT_STORE": self.store}):
+            self.assertEqual(lib_store.default_store(), self.store)
+        env = {k: v for k, v in os.environ.items() if k != "CLAUDE_SNAPSHOT_STORE"}
+        with mock.patch.dict(os.environ, env, clear=True), \
+             mock.patch("lib_store.os.path.isdir", return_value=False):
+            self.assertEqual(lib_store.default_store(),
+                             os.path.join(os.path.expanduser("~"), ".claude-snapshot"))
+
 
 class Ledger(unittest.TestCase):
     """출처 원장: 키는 타깃 경로, origin 은 필드. 방향이 뒤집히면 conflict 가 죽는다."""

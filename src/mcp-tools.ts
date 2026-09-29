@@ -8,6 +8,8 @@ import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import path from "node:path";
 import fs from "node:fs/promises";
+import { existsSync } from "node:fs";
+import os from "node:os";
 import {
   registerAppTool,
   registerAppResource,
@@ -60,9 +62,11 @@ export function buildTools(scriptDir: string): ToolDef[] {
   // Windows 콘솔 기본 인코딩(cp949)은 한글/em-dash 출력 시 UnicodeEncodeError 로 Python 을 죽인다.
   // 자식 stdout/stderr 를 UTF-8 로 강제(PYTHONUTF8=1, PYTHONIOENCODING=utf-8).
   const PY_ENV = { ...process.env, PYTHONUTF8: "1", PYTHONIOENCODING: "utf-8" };
-  // watcher.py 기본값과 동일한 스토어를 가리키도록.
+  // lib_store.default_store() 와 같은 규칙이어야 Python 쪽과 같은 스토어를 가리킨다.
+  const LEGACY_WIN_STORE = "D:\\.claude-snapshot";
   const STORE = process.env.CLAUDE_SNAPSHOT_STORE ||
-    (process.platform === "win32" ? "D:\\.claude-snapshot" : path.join(process.env.HOME || "", ".claude-snapshot"));
+    (process.platform === "win32" && existsSync(LEGACY_WIN_STORE) ? LEGACY_WIN_STORE
+      : path.join(os.homedir(), ".claude-snapshot"));
   // timeout 은 그 호출 안에서 순차로 도는 하위 작업 상한의 합보다 커야 한다. 작으면 정상 진행 중인
   // git clone 을 끊는다. 60초는 LOCK_STALE_SEC 와 같아 끊긴 호출이 남긴 락을 다음 호출이 회수할 수 있다.
   const QUERY_OPS: Record<string, Set<string>> = {

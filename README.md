@@ -94,7 +94,7 @@ npm run build
 ```
 
 - `args` path → your unzipped folder's `src/server-stdio.ts`.
-- `CLAUDE_SNAPSHOT_STORE` → where snapshots are stored (must be an existing drive; defaults to `D:\.claude-snapshot` if unset).
+- `CLAUDE_SNAPSHOT_STORE` → where snapshots are stored (must be an existing drive). If unset: `D:\.claude-snapshot` when that folder already exists on Windows, otherwise `~/.claude-snapshot`.
 - *(optional)* to use a library, add `"CLAUDE_CONFIG_LIBRARIES": "C:/.../my-library/.claude"` to `env`.
 - *(optional)* to start the dashboard in English, add `"CONFIG_MONITOR_LANG": "en"` to `env`. Accepted values are case-insensitive and ignore the region suffix — `en` / `EN` / `en-US` start in English, `ko` / `KO` / `ko-KR` in Korean. **Unset, empty, or an unrecognized value starts in Korean.**
 - *(optional)* add `"CONFIG_MONITOR_WATCHER": "auto"` to `env` and the file watcher starts together with the MCP server, so out-of-dashboard changes are captured without pressing the toolbar toggle. Default (unset) keeps the watcher manual. The watcher is a detached process, so it keeps running after Claude Desktop quits — stop it from the toolbar.

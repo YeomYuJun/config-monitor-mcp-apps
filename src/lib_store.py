@@ -28,6 +28,21 @@ class StoreNotInitialized(Exception):
     ok:false 로 보고하게 강제한다."""
 
 
+LEGACY_WIN_STORE = "D:\\.claude-snapshot"
+
+
+def default_store() -> str:
+    """CLAUDE_SNAPSHOT_STORE > (Windows) 이미 있는 D:\\.claude-snapshot > ~/.claude-snapshot.
+    D:\\ 고정 기본값은 D: 드라이브가 없는 PC 에서 깨진다. 그 자리에 스토어가 이미 있는 설치만 계속 쓴다.
+    mcp-tools.ts 의 STORE 가 같은 규칙을 따로 갖고 있다 - 바꾸면 둘 다 바꾼다."""
+    env = os.environ.get("CLAUDE_SNAPSHOT_STORE")
+    if env:
+        return env
+    if os.name == "nt" and os.path.isdir(LEGACY_WIN_STORE):
+        return LEGACY_WIN_STORE
+    return os.path.join(os.path.expanduser("~"), ".claude-snapshot")
+
+
 def store_config_path(store: str) -> str:
     return os.path.join(store, "config.json")
 

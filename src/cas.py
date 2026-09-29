@@ -6,7 +6,7 @@ git 과 다른 점:
   - 단일 work-tree 루트를 가정하지 않는다. 흩어진 임의의 절대경로/디렉토리/glob 를
     각각 독립적으로 추적한다. (10~20개 규모 대상)
   - 저장소는 추적 대상과 분리된 한 곳에 모인다. 기본값: CLAUDE_SNAPSHOT_STORE 환경변수,
-    없으면 Windows 는 D:\.claude-snapshot / 그 외는 ~/.claude-snapshot (--store 로 오버라이드).
+    없으면 lib_store.default_store() 규칙(--store 로 오버라이드).
 
 변경 탐지 원리 (git index 모델):
   1) stat fast-path: size + mtime_ns 가 index 와 같으면 내용을 안 읽고 unchanged.
@@ -27,15 +27,13 @@ for _s in (sys.stdout, sys.stderr):
     except (AttributeError, ValueError):
         pass
 
-DEFAULT_STORE = os.environ.get("CLAUDE_SNAPSHOT_STORE") or (
-    "D:\\.claude-snapshot" if os.name == "nt" else os.path.expanduser("~/.claude-snapshot")
-)
-
 # 존재하면 자동 추적할 기본 대상. untrack 으로 명시 제외한 항목(ignore_defaults)은 다시 넣지 않는다.
 # CLAUDE_CAS_NO_DEFAULT_TRACK=1 이면 병합 자체를 끈다(테스트/특수 상황용).
 from cli_result import emit, guard, JsonArgumentParser
 import lib_store
 import paths  # Win32/MSIX 겸용 Desktop config 경로 해석(read/write 와 동일 대상)
+
+DEFAULT_STORE = lib_store.default_store()
 
 _HOME = os.path.expanduser("~")
 DEFAULT_TRACKED = [
