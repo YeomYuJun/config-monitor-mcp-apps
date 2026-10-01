@@ -33,6 +33,7 @@ Sources can be local folders, remote git repos, or plugin marketplaces. Remote o
   - [History / Diff](#history--diff)
   - [Safety](#safety)
 - [Talking to Claude](#talking-to-claude)
+  - [Exporting to another PC](#exporting-to-another-pc)
 - [Coverage Map](#coverage-map)
 - [What It Reads](#what-it-reads)
 - [Notes](#notes)
@@ -249,6 +250,14 @@ Tools that only serve the widget (`open_in_browser`, `get_prefs`, `set_prefs`) s
 A companion skill named `config-monitor` (a single `SKILL.md`, kept in the `Skills/` folder of the my-tools library) makes summoning the widget a one-liner: `/config-monitor` in Claude Code, or the same skill uploaded to Claude Desktop through Customize > Skills. It does one thing, call `show_config_monitor`, and defers every configuration question to the tools above.
 
 If the widget seems to reload on its own, the server keeps a small diagnostic log at `widget.log` in the snapshot store: one line per widget boot or full refresh with a per-instance id, so you can tell a host remount (repeated `boot` lines) from several live widgets polling at once (many different ids). Polls are not logged. The widget also remembers the file, panel state, scope filter, and library target you were looking at, and restores them after a remount.
+
+### Exporting to another PC
+
+**`config_export`** (or `python src/transfer.py export --out <path>`) writes the settings you would carry to a new PC into one bundle: a zip when the path ends in `.cmbundle`, a folder otherwise. It only reads the sources. What goes in: personal skills (not `skills/synced/`), agents, commands, rules, output styles, workflows, themes, `CLAUDE.md`, `keybindings.json`, `settings.json` (without machine-only keys), files under `~/.claude` that hooks or the status line run, MCP server definitions from `~/.claude.json` and the Desktop config, and the library/marketplace list from the snapshot store. Paths under your home, `~/.claude`, and the Desktop folder are stored as `${HOME}`, `${CLAUDE_HOME}`, `${DESKTOP_DIR}` so a different user name does not break them.
+
+Plugins travel as declarations only (`enabledPlugins`, `extraKnownMarketplaces`); Claude Code downloads them on the next start. Declarations with no install record are dropped, and installed plugins with no declaration get an explicit `true`. Secret-looking values (keys containing `TOKEN`, `KEY`, `SECRET`, `PASSWORD`, `AUTHORIZATION`, or values shaped like `ghp_…`, `sk-…`) are replaced by `${CM_SECRET:…}` placeholders unless `includeSecrets` is set. `settings.local.json` is left out unless `withOptional: ["local"]`.
+
+Files outside those folders are not bundled. The result's `report` lists them by kind (MCP server executables and data folders, hook scripts, `CLAUDE_CODE_PLUGIN_DIRS` folders, library folders), and they have to be prepared at the same paths on the new PC. `dryRun: true` produces the same report without writing a bundle. Import is not implemented yet.
 
 ## Coverage Map
 

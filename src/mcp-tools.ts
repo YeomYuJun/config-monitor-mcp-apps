@@ -78,6 +78,7 @@ export function buildTools(scriptDir: string): ToolDef[] {
   const timeoutMs = (script: string, args: string[]): number => {
     if (script === "claude_config.py" || script === "plugin_catalog.py") return 30_000;
     if (script === "plugin_cli.py") return 660_000;
+    if (script === "transfer.py") return args.includes("export") ? 120_000 : 30_000;
     if (script === "library.py" && args.some((x) => NET_OPS.has(x))) return 1_860_000;
     if (args.some((x) => QUERY_OPS[script]?.has(x))) return 30_000;
     return 60_000;
@@ -418,6 +419,33 @@ export function buildTools(scriptDir: string): ToolDef[] {
       },
       run: async (a: { path: string; from: string }) =>
         jsonResult(await runPy("cas.py", ["restore", a.path, "--from", a.from])),
+    },
+    {
+      name: "config_export",
+      meta: {
+        title: "Export Config Bundle",
+        description: "다른 PC 로 옮길 설정을 번들(out 이 .cmbundle 이면 zip, 아니면 폴더)로 만든다. 소스는 읽기만 한다. " +
+          "결과의 report 는 항목별 개수와 번들에 담지 못한 외부 경로(MCP 실행 파일, 훅 스크립트, 플러그인 폴더, 라이브러리) 목록이다. " +
+          "시크릿은 기본으로 값을 빼고 자리표시자만 남긴다. dryRun=true 면 번들을 쓰지 않고 목록만 낸다",
+        inputSchema: z.object({
+          out: z.string().optional().describe("번들 경로(dryRun 이 아니면 필수, 이미 있으면 거부)"),
+          dryRun: z.boolean().optional().describe("true 면 쓰지 않고 이관 대상과 외부 경로만 보고"),
+          includeSecrets: z.boolean().optional().describe("true 면 시크릿 값을 번들의 secrets.json 에 평문으로 넣는다"),
+          withOptional: z.array(z.enum(["local"])).optional().describe("기본 제외 항목 포함. local = ~/.claude/settings.local.json"),
+        }), annotations: WRITE,
+      },
+      run: async (a: { out?: string; dryRun?: boolean; includeSecrets?: boolean; withOptional?: string[] }) => {
+        const args = ["--store", STORE, a.dryRun ? "inventory" : "export"];
+        if (!a.dryRun) {
+          // 상대경로는 이 서버 프로세스의 작업 폴더 기준으로 풀려 엉뚱한 곳에 생긴다.
+          if (!a.out || !path.isAbsolute(a.out))
+            return jsonResult(JSON.stringify({ ok: false, code: "invalid_arg", message: "out 은 절대경로여야 합니다", target: "out" }));
+          args.push("--out", a.out);
+          if (a.includeSecrets) args.push("--include-secrets");
+        }
+        if (a.withOptional?.length) args.push("--with-optional", a.withOptional.join(","));
+        return jsonResult(await runPy("transfer.py", args));
+      },
     },
 
     // ----- watcher 제어 -----
