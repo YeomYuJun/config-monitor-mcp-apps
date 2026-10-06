@@ -4,6 +4,7 @@
 번들은 공유 폴더로 나간다. 시크릿 값이 어디에도 없어야 하고, 번들에 담지 못하는 외부 경로는
 빠짐없이 보고돼야 한다.
 """
+import hashlib
 import json
 import os
 import shutil
@@ -38,13 +39,29 @@ def make_home(root, ext):
         "statusLine": {"type": "command", "command": f'node "{os.path.join(ch, "hooks", "guard.py")}"'},
         "hooks": {"Stop": [{"hooks": [{"type": "command", "command": f'node "{os.path.join(ext, "hook.js")}"'}]}]},
         "env": {"API_TOKEN": SECRET},
+        "model": "sonnet",
+        "permissions": {"allow": ["Bash(ls)"]},
     }))
     write(os.path.join(home, ".claude.json"), json.dumps({
         "oauthAccount": {"emailAddress": "a@b"},
         "mcpServers": {"srv": {"command": "node", "args": [os.path.join(ext, "srv", "index.js")],
                                "env": {"GITHUB_TOKEN": SECRET}}},
     }))
+    desk = os.path.join(home, "AppData", "Roaming", "Claude")
+    write(os.path.join(desk, "claude_desktop_config.json"), json.dumps({
+        "mcpServers": {"dsk": {"command": "node", "args": [os.path.join(desk, "dsk.js")]}}}))
     return home
+
+
+def tree_state(root):
+    out = {}
+    for d, dirs, files in os.walk(root):
+        out.update({os.path.relpath(os.path.join(d, x), root): "dir" for x in dirs})
+        for fn in files:
+            p = os.path.join(d, fn)
+            with open(p, "rb") as f:
+                out[os.path.relpath(p, root)] = hashlib.sha256(f.read()).hexdigest()
+    return out
 
 
 def run(home, *args):
@@ -111,6 +128,130 @@ class TestExport(unittest.TestCase):
         self.assertTrue(run(self.home, "export", "--out", out)["ok"])
         self.assertTrue(os.path.isfile(os.path.join(out, "manifest.json")))
         self.assertEqual(run(self.home, "export", "--out", out)["code"], "exists")
+
+
+class TestPlan(unittest.TestCase):
+    """A 의 번들을 B(사용자명이 다른 빈 PC)에서 plan 한다."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="transfer_plan_")
+        self.ext = os.path.join(self.tmp, "tools")
+        self.a = make_home(os.path.join(self.tmp, "a"), self.ext)
+        self.bundle = os.path.join(self.tmp, "a-bundle")
+        self.assertTrue(run(self.a, "export", "--out", self.bundle)["ok"])
+        self.b = os.path.join(self.tmp, "b", "Users", "other")
+        os.makedirs(self.b)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def states(self, res):
+        return {i["id"]: i["state"] for i in res["items"]}
+
+    def test_plan_on_empty_pc_writes_nothing(self):
+        before = tree_state(os.path.dirname(self.b))
+        res = run(self.b, "plan", "--bundle", self.bundle)
+        self.assertTrue(res["ok"], res)
+        self.assertEqual(before, tree_state(os.path.dirname(self.b)))
+        st = self.states(res)
+        self.assertEqual(st["cc.skills/qa"], "new")
+        self.assertEqual(st["cc.settings"], "new")
+        self.assertEqual(st["cc.skills/synced"], "skipped")
+        srv = next(i for i in res["items"] if i["id"] == "cc.mcp-user/srv")
+        self.assertEqual((srv["state"], srv["code"]), ("blocked", "secret_missing"))
+        secrets = json.dumps({"cc.mcp-user/srv": {"env.GITHUB_TOKEN": "x"}})
+        self.assertEqual(self.states(run(self.b, "plan", "--bundle", self.bundle, "--secrets", secrets))
+                         ["cc.mcp-user/srv"], "new")
+
+    def test_changed_skill_and_settings_conflict(self):
+        write(os.path.join(self.b, ".claude", "skills", "qa", "SKILL.md"), "other\n")
+        write(os.path.join(self.b, ".claude", "settings.json"),
+              json.dumps({"model": "opus", "permissions": {"allow": ["Read"]}}))
+        res = run(self.b, "plan", "--bundle", self.bundle)
+        qa = next(i for i in res["items"] if i["id"] == "cc.skills/qa")
+        self.assertEqual((qa["state"], qa["files"]["modified"]), ("changed", ["SKILL.md"]))
+        st = next(i for i in res["items"] if i["id"] == "cc.settings")
+        self.assertEqual((st["state"], st["conflicts"]), ("changed", ["model"]))
+        self.assertTrue(any("Bash(ls)" in l for l in st["diff"]))
+
+    def test_rejects_bundle_that_writes_outside_its_folder(self):
+        mp = os.path.join(self.bundle, "manifest.json")
+        with open(mp, encoding="utf-8") as f:
+            m = json.load(f)
+        next(i for i in m["items"] if i["id"] == "cc.skills/qa")["rel"] = "${CLAUDE_HOME}/../evil"
+        with open(mp, "w", encoding="utf-8") as f:
+            json.dump(m, f)
+        self.assertEqual(run(self.b, "plan", "--bundle", self.bundle)["code"], "bundle_invalid")
+        m["version"] = 2
+        with open(mp, "w", encoding="utf-8") as f:
+            json.dump(m, f)
+        self.assertEqual(run(self.b, "plan", "--bundle", self.bundle)["code"], "bundle_version")
+
+
+class TestApply(TestPlan):
+    """B 는 사용자명이 다르고 Desktop 이 MSIX 설치본이다."""
+
+    def setUp(self):
+        super().setUp()
+        self.msix = os.path.join(self.b, "AppData", "Local", "Packages", "Claude_x", "LocalCache", "Roaming", "Claude")
+        os.makedirs(self.msix)
+
+    def apply(self, bundle, *extra):
+        pid = run(self.b, "plan", "--bundle", bundle, *extra)["plan_id"]
+        return run(self.b, "apply", "--bundle", bundle, "--plan-id", pid, *extra)
+
+    def load(self, *parts):
+        with open(os.path.join(self.b, *parts), encoding="utf-8-sig") as f:
+            return json.load(f)
+
+    def test_apply_on_empty_pc_then_plan_is_all_same(self):
+        sb = os.path.join(self.tmp, "a-secrets.cmbundle")
+        self.assertTrue(run(self.a, "export", "--out", sb, "--include-secrets")["ok"])
+        res = self.apply(sb)
+        self.assertEqual(res["code"], "ok", res)
+        self.assertTrue(res["post_snapshot"])
+        again = run(self.b, "plan", "--bundle", sb)
+        self.assertEqual({i["state"] for i in again["items"]} - {"skipped"}, {"same"}, again["items"])
+
+        settings = self.load(".claude", "settings.json")
+        self.assertNotIn("${", json.dumps(settings))
+        self.assertIn(os.path.join(self.b, ".claude", "hooks", "guard.py").lower(),
+                      settings["statusLine"]["command"].lower())
+        self.assertEqual(self.load(".claude.json")["mcpServers"]["srv"]["env"]["GITHUB_TOKEN"], SECRET)
+        dsk = self.load("AppData", "Local", "Packages", "Claude_x", "LocalCache", "Roaming", "Claude",
+                        "claude_desktop_config.json")["mcpServers"]["dsk"]
+        self.assertTrue(dsk["args"][0].lower().startswith(self.msix.lower()), dsk)
+        self.assertFalse(os.path.exists(os.path.join(self.b, "AppData", "Roaming", "Claude")))
+
+    def test_merge_trash_and_undo_restore_bytes(self):
+        skill = os.path.join(self.b, ".claude", "skills", "qa", "SKILL.md")
+        sp = os.path.join(self.b, ".claude", "settings.json")
+        write(skill, "other\n")
+        write(sp, json.dumps({"model": "opus", "permissions": {"allow": ["Read"]}}))
+        with open(sp, "rb") as f, open(skill, "rb") as g:
+            orig, orig_skill = f.read(), g.read()
+        res = self.apply(self.bundle)
+        self.assertEqual(res["code"], "ok", res)
+        settings = self.load(".claude", "settings.json")
+        self.assertEqual(settings["model"], "opus")
+        self.assertEqual(settings["permissions"]["allow"], ["Read", "Bash(ls)"])
+        self.assertFalse(os.path.exists(os.path.join(self.b, ".claude.json")))  # 시크릿 없는 서버는 쓰지 않는다
+        self.assertEqual(len(os.listdir(os.path.join(self.b, ".claude", "skills", ".trash"))), 1)
+
+        undo = run(self.b, "undo", "--import-id", res["import_id"])
+        self.assertEqual(undo["code"], "ok", undo)
+        with open(skill, "rb") as f:
+            self.assertEqual(f.read(), orig_skill)
+        with open(sp, "rb") as f:
+            self.assertEqual(f.read(), orig)
+        self.assertFalse(os.path.exists(os.path.join(self.b, ".claude", "agents", "rev.md")))
+        self.assertEqual(run(self.b, "undo", "--import-id", res["import_id"])["code"], "noop")
+
+    def test_apply_refuses_when_target_changed_after_plan(self):
+        pid = run(self.b, "plan", "--bundle", self.bundle)["plan_id"]
+        write(os.path.join(self.b, ".claude", "skills", "qa", "SKILL.md"), "late\n")
+        res = run(self.b, "apply", "--bundle", self.bundle, "--plan-id", pid)
+        self.assertEqual(res["code"], "plan_stale")
 
 
 if __name__ == "__main__":

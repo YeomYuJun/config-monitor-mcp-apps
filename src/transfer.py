@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
-r"""transfer.py - PC 간 설정 이관 번들(cmbundle v1) 만들기.
+r"""transfer.py - PC 간 설정 이관 번들(cmbundle v1) 만들기·가져오기.
 
   inventory [--with-optional local]                   이관 대상 목록(읽기 전용)
   export --out P [--with-optional local] [--include-secrets]
                                                       번들 쓰기. P 가 .cmbundle 이면 zip, 아니면 폴더
+  inspect --bundle P                                  번들 요약
+  plan --bundle P [--secrets JSON] [--choices JSON]   이 PC 와 비교(읽기 전용). 항목별 new/same/changed/blocked/skipped
+  apply --bundle P --plan-id X [--ids a,b] [...]      plan 그대로 적용. 스냅샷 전/후, 스토어 imports[] 원장
+  undo --import-id X [--force]                        원장의 휴지통·백업으로 되돌린다
 
 번들에는 ~/.claude, ~/.claude.json 의 mcpServers, Desktop config 의 mcpServers, 스토어 설정만 담는다.
 설정이 가리키는 그 밖의 파일(훅 스크립트, MCP 서버 실행 파일, 플러그인 폴더, 라이브러리)은 담지 않고
@@ -13,7 +17,7 @@ JSON 값은 시크릿 치환 -> 경로 토큰화 -> 외부 경로 추출 순서�
 시크릿 값이 섞이지 않는다. 파일·트리 항목은 원문 바이트 그대로 담고 원문으로 해시한다.
 """
 from __future__ import annotations
-import hashlib, json, os, re, shutil, socket, sys, zipfile
+import contextlib, difflib, hashlib, json, os, re, shutil, socket, sys, zipfile
 from datetime import datetime
 
 for _s in (sys.stdout, sys.stderr):
@@ -24,6 +28,7 @@ for _s in (sys.stdout, sys.stderr):
 
 from cli_result import emit, guard, JsonArgumentParser
 import cas
+import config_edit
 import lib_store
 import paths
 import plugin_state
@@ -64,6 +69,9 @@ SECRET_VAL = re.compile(r"(?<![A-Za-z0-9])(sk-[A-Za-z0-9_\-]{16,}|gh[pousr]_[A-Z
 HIGH_ENTROPY = re.compile(r"^[A-Za-z0-9+/_=\-]{40,}$")
 PATH_START = re.compile(r"[A-Za-z]:[\\/]|\$\{(?:HOME|CLAUDE_HOME|DESKTOP_DIR)\}|~[\\/]")
 STORE_MARKET_KEYS = ("id", "url", "ref", "name")
+STORE_REMOTE_KEYS = ("id", "url", "ref", "map")
+MCP_CATS = ("cc.mcp-user", "desk.mcp")
+SETTINGS_CATS = ("cc.settings", "cc.settings-local")
 
 
 def _sha(b: bytes) -> str:
@@ -81,6 +89,42 @@ def _load(p):
 
 def _norm_disp(p: str) -> str:
     return os.path.normpath(p)
+
+
+def _walk_key(rel):
+    """os.walk(디렉토리 정렬) 순서: 한 폴더 안에서 파일이 하위 폴더보다 먼저 온다."""
+    parts = rel.split("/")
+    return [(1, d) for d in parts[:-1]] + [(0, parts[-1])]
+
+
+def tree_digest(rows):
+    """rows = [(트리 안 상대경로 '/', 파일 해시)]. export 와 import 가 같은 값을 내야 한다."""
+    rows = sorted(rows, key=lambda r: _walk_key(r[0]))
+    return _sha("".join(f"{r}\0{h}\n" for r, h in rows).encode("utf-8"))
+
+
+def tree_rows(p):
+    """(rows, 총 바이트)."""
+    rows, size = [], 0
+    for root, dirs, files in os.walk(p):
+        dirs.sort()
+        for fn in sorted(files):
+            fp = os.path.join(root, fn)
+            with open(fp, "rb") as f:
+                data = f.read()
+            rows.append((os.path.relpath(fp, p).replace(os.sep, "/"), _sha(data)))
+            size += len(data)
+    return rows, size
+
+
+def prepare_json(cat, iid, obj, tokens):
+    """시크릿 치환 -> 토큰화. (결과, {경로: 원래 값}). 대상 PC 의 현재 값도 같은 함수로 해시해 비교한다."""
+    found = {}
+    if cat in MCP_CATS:
+        obj = scrub(obj, iid, found)
+    if cat in SETTINGS_CATS and isinstance(obj.get("env"), dict):
+        obj = {**obj, "env": scrub(obj["env"], iid, found, "env")}
+    return (map_strings(obj, lambda s: tokenize(s, tokens)) if tokens else obj), found
 
 
 # ── 경로 토큰 ────────────────────────────────────────────────────────────────
@@ -218,28 +262,15 @@ class Collector:
         self.items.append({"id": iid, "category": cat, "strategy": "file", "rel": self.rel(p),
                            "hash": _sha(data), "size": len(data), "files": 1, "_src": p})
 
-    def add_tree(self, cat, iid, p):
-        rows, size, n = [], 0, 0
-        for root, dirs, files in os.walk(p):
-            dirs.sort()
-            for fn in sorted(files):
-                fp = os.path.join(root, fn)
-                with open(fp, "rb") as f:
-                    data = f.read()
-                rows.append(f"{os.path.relpath(fp, p).replace(os.sep, '/')}\0{_sha(data)}\n")
-                size += len(data)
-                n += 1
+    def add_tree(self, cat, iid, p, **extra):
+        rows, size = tree_rows(p)
         self.items.append({"id": iid, "category": cat, "strategy": "tree", "rel": self.rel(p),
-                           "hash": _sha("".join(rows).encode("utf-8")), "size": size, "files": n, "_src": p})
+                           "hash": tree_digest(rows), "size": size, "files": len(rows), **extra, "_src": p})
         if size > SIZE_WARN:
             self.warnings.append(f"{iid}: {size // (1024 * 1024)}MB")
 
     def add_json(self, cat, iid, key, obj, refs):
-        found = {}
-        obj = scrub(obj, iid, found) if cat in ("cc.mcp-user", "desk.mcp") else obj
-        if cat in ("cc.settings", "cc.settings-local") and isinstance(obj.get("env"), dict):
-            obj = {**obj, "env": scrub(obj["env"], iid, found, "env")}
-        obj = map_strings(obj, lambda s: tokenize(s, self.tokens))
+        obj, found = prepare_json(cat, iid, obj, self.tokens)
         if found:
             self.secrets[iid] = found
         self.items.append({"id": iid, "category": cat, "strategy": "json-keys", "key": key,
@@ -367,7 +398,8 @@ class Collector:
             self.skipped.append({"id": "cm.store", "reason": f"스토어 설정 없음: {self.store}"})
             return
         obj = {"libraries": cfg.get("libraries") or [],
-               "remotes": cfg.get("remotes") or [],
+               "remotes": [{k: r.get(k) for k in STORE_REMOTE_KEYS}
+                           for r in cfg.get("remotes") or [] if isinstance(r, dict)],
                "marketplaces": [{k: m.get(k) for k in STORE_MARKET_KEYS}
                                 for m in cfg.get("marketplaces") or [] if isinstance(m, dict)],
                "ui": cfg.get("ui") or {}}
@@ -544,6 +576,632 @@ def write_bundle(col, out, include_secrets):
         raise
 
 
+# ── 번들 읽기 ────────────────────────────────────────────────────────────────
+
+class BundleError(Exception):
+    def __init__(self, code, message):
+        super().__init__(message)
+        self.code = code
+
+
+def _safe_member(name):
+    """번들은 공유 폴더에서 오는 입력이다. 상대 이동·드라이브·역슬래시가 섞인 이름은 받지 않는다."""
+    parts = name.split("/")
+    if not name or "\\" in name or any(p in ("", ".", "..") or ":" in p for p in parts):
+        raise BundleError("bundle_invalid", f"번들 안 경로가 유효하지 않음: {name}")
+    return parts
+
+
+class Bundle:
+    def __init__(self, path):
+        self.path = os.path.abspath(path)
+        self.zip = None
+        if os.path.isfile(self.path) and zipfile.is_zipfile(self.path):
+            self.zip = zipfile.ZipFile(self.path)
+        elif not os.path.isdir(self.path):
+            raise BundleError("bundle_invalid", f"번들이 아님(폴더나 .cmbundle zip 이어야 함): {self.path}")
+        raw = self.read("manifest.json")
+        try:
+            m = json.loads(raw.decode("utf-8-sig"))
+        except ValueError as e:
+            raise BundleError("bundle_invalid", f"manifest.json 을 읽지 못함: {e}")
+        if not isinstance(m, dict) or m.get("format") != FORMAT:
+            raise BundleError("bundle_invalid", f"cmbundle manifest 가 아님: {self.path}")
+        if m.get("version") != VERSION:
+            raise BundleError("bundle_version", f"번들 버전 {m.get('version')} 은 읽지 못함(지원: {VERSION})")
+        self.manifest, self.hash = m, _sha(raw)
+        self.secrets = self.json("secrets.json") if self.exists("secrets.json") else {}
+
+    def _fs(self, name):
+        return os.path.join(self.path, *_safe_member(name))
+
+    def exists(self, name):
+        if self.zip:
+            _safe_member(name)
+            return name in self.zip.NameToInfo
+        return os.path.isfile(self._fs(name))
+
+    def read(self, name):
+        try:
+            if self.zip:
+                _safe_member(name)
+                return self.zip.read(name)
+            with open(self._fs(name), "rb") as f:
+                return f.read()
+        except (KeyError, FileNotFoundError):
+            raise BundleError("bundle_invalid", f"번들에 없음: {name}")
+
+    def json(self, name):
+        try:
+            return json.loads(self.read(name).decode("utf-8-sig"))
+        except ValueError as e:
+            raise BundleError("bundle_invalid", f"{name} 을 읽지 못함: {e}")
+
+    def tree(self, rel):
+        """[(트리 안 상대경로, bytes)]."""
+        pref = f"files/{rel}/"
+        if self.zip:
+            names = [n for n in self.zip.namelist() if n.startswith(pref) and not n.endswith("/")]
+        else:
+            base, names = self._fs(f"files/{rel}"), []
+            for root, _dirs, files in os.walk(base):
+                names += [pref + os.path.relpath(os.path.join(root, fn), base).replace(os.sep, "/") for fn in files]
+        out = []
+        for n in names:
+            _safe_member(n[len(pref):])
+            out.append((n[len(pref):], self.read(n)))
+        return out
+
+
+# ── import plan ─────────────────────────────────────────────────────────────
+
+PH = re.compile(r"^\$\{CM_SECRET:([^:}]+):([^}]*)\}$")
+DIFF_MAX = 400
+STORE_KEYS = ("libraries", "remotes", "marketplaces", "ui")
+SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+# cc.refs 가 쓰면 안 되는 ~/.claude 바로 아래 이름. 설정 파일은 병합 경로로만 바꾸고 상태 폴더는 건드리지 않는다.
+REF_DENY = {"settings.json", "settings.local.json", "plugins", "projects", "backups", "history.jsonl"}
+CAT_SUB = {c: (sub, d) for c, sub, _l, d in TREE_CATS}
+CAT_FILE = {c: fn for c, fn, _l in FILE_CATS}
+
+
+def _read_bytes(p):
+    try:
+        with open(p, "rb") as f:
+            return f.read()
+    except (FileNotFoundError, IsADirectoryError, PermissionError):
+        return None
+
+
+def text_diff(a, b):
+    if b"\0" in (a or b"") or b"\0" in (b or b""):
+        return ["(바이너리 파일)"]
+    lines = list(difflib.unified_diff(cas._diff_lines(a or b""), cas._diff_lines(b or b""),
+                                      "현재", "번들", lineterm="", n=2))
+    return lines[:DIFF_MAX] + ([f"... {len(lines) - DIFF_MAX}줄 생략"] if len(lines) > DIFF_MAX else [])
+
+
+def json_diff(a, b):
+    dump = lambda o: json.dumps(o, ensure_ascii=False, indent=2, sort_keys=True).encode("utf-8")
+    return text_diff(dump(a), dump(b))
+
+
+def resolve_secrets(obj, sources):
+    """자리표시자를 값으로 바꾼다. sources 는 {item id: {경로: 값}} 목록이고 앞쪽이 우선. 못 푼 경로도 돌려준다."""
+    missing = []
+
+    def fn(s):
+        m = PH.match(s)
+        if not m:
+            return s
+        for src in sources:
+            v = (src.get(m.group(1)) or {}).get(m.group(2))
+            if isinstance(v, str):
+                return v
+        missing.append(m.group(2))
+        return s
+    return map_strings(obj, fn), missing
+
+
+def _is_hook_entry(x):
+    return isinstance(x, dict) and isinstance(x.get("hooks"), list)
+
+
+def _entry_key(x):
+    return _canon({k: v for k, v in x.items() if k != "hooks"})
+
+
+def union(cur, inc):
+    """배열은 합집합(대상 순서 유지). 훅 항목은 matcher 가 같으면 한 항목 안에서 hooks 를 합친다 -
+    따로 붙이면 같은 훅이 두 번 돈다."""
+    out = list(cur)
+    for x in inc:
+        if any(_canon(x) == _canon(y) for y in out):
+            continue
+        if _is_hook_entry(x):
+            j = next((i for i, y in enumerate(out) if _is_hook_entry(y) and _entry_key(y) == _entry_key(x)), None)
+            if j is not None:
+                out[j] = {**out[j], "hooks": union(out[j]["hooks"], x["hooks"])}
+                continue
+        out.append(x)
+    return out
+
+
+def merge(cur, inc, take, conflicts, path=""):
+    """객체는 키 단위, 배열은 합집합, 스칼라가 다르면 take(path) 가 참일 때만 번들 값."""
+    if isinstance(cur, dict) and isinstance(inc, dict):
+        out = dict(cur)
+        for k, v in inc.items():
+            sub = f"{path}.{k}" if path else k
+            out[k] = merge(cur[k], v, take, conflicts, sub) if k in cur else v
+        return out
+    if isinstance(cur, list) and isinstance(inc, list):
+        return union(cur, inc)
+    if cur == inc:
+        return cur
+    conflicts.append(path)
+    return inc if take(path) else cur
+
+
+def chooser(choice):
+    if isinstance(choice, dict):
+        return lambda p: choice.get(p) == "take"
+    return lambda p: choice == "take"
+
+
+def merge_store(cur, inc, store, take, conflicts):
+    """libraries 는 경로 합집합. remotes·marketplaces 는 대상에 없는 id 만 보태고 캐시는 이 PC 스토어
+    자리로 둔다(라이브러리 fetch 가 그 자리에 받는다). ui 는 일반 병합. (병합 결과, 새로 보탠 origin)."""
+    libs = list(cur.get("libraries") or [])
+    seen = {lib_store.norm(x) for x in libs if isinstance(x, str)}
+    for x in inc.get("libraries") or []:
+        if isinstance(x, str) and lib_store.norm(x) not in seen:
+            libs.append(x)
+            seen.add(lib_store.norm(x))
+    added = []
+    rem, mks = list(cur.get("remotes") or []), list(cur.get("marketplaces") or [])
+    have_r = {r.get("id") for r in rem if isinstance(r, dict)}
+    have_m = {m.get("id") for m in mks if isinstance(m, dict)}
+    for r in inc.get("remotes") or []:
+        rid = isinstance(r, dict) and r.get("id")
+        if rid and SAFE_ID.match(rid) and rid not in have_r:
+            rem.append({**{k: r.get(k) for k in STORE_REMOTE_KEYS},
+                        "cache": os.path.join(store, "lib-cache", "remotes", rid), "sha": None, "fetched_at": None})
+            added.append(f"remote:{rid}")
+    for m in inc.get("marketplaces") or []:
+        mid = isinstance(m, dict) and m.get("id")
+        if mid and SAFE_ID.match(mid) and mid not in have_m:
+            mks.append({**{k: m.get(k) for k in STORE_MARKET_KEYS}, "cache": None, "plugins": []})
+            added.append(f"market:{mid}")
+    ui = merge(cur.get("ui") or {}, inc.get("ui") or {}, take, conflicts, "ui")
+    return {"libraries": libs, "remotes": rem, "marketplaces": mks, "ui": ui}, added
+
+
+def _mask(cat, iid, obj):
+    return prepare_json(cat, iid, obj, None)[0] if isinstance(obj, dict) else obj
+
+
+class Planner:
+    """번들 항목마다 이 PC 의 현재 상태와 비교한다. 아무것도 쓰지 않는다(스냅샷·스토어 초기화 경로도
+    타지 않는다). 각 항목의 _fp 는 plan 이 읽은 대상 상태의 지문이고 plan_id 가 이를 묶는다."""
+
+    def __init__(self, bundle, store, secrets=None, choices=None):
+        self.b = bundle
+        self.store = store
+        self.secrets = secrets or {}
+        self.choices = choices or {}
+        self.desktop_dir = paths.resolve_desktop_dir()
+        self.desktop_config = os.path.join(self.desktop_dir, paths.DESKTOP_CONFIG_NAME)
+        self.tokens = make_tokens(self.desktop_dir)
+        self.items, self.warnings, self.external = [], [], []
+        self._files = {}
+
+    def detok(self, obj):
+        return map_strings(obj, lambda s: detokenize(s, self.tokens))
+
+    def json_file(self, p):
+        """(내용 또는 None, 오류 문구 또는 None)."""
+        if p not in self._files:
+            try:
+                self._files[p] = (_load(p), None) if os.path.isfile(p) else (None, None)
+            except (OSError, ValueError) as e:
+                self._files[p] = (None, f"대상 파일을 읽지 못함: {p} ({e})")
+        return self._files[p]
+
+    def target_of(self, it):
+        cat, rel = it.get("category"), it.get("rel") or ""
+        head, _, tail = rel.partition("/")
+        bad = BundleError("bundle_invalid", f"{it.get('id')}: 쓰기 경로가 허용 범위 밖: {rel}")
+        if head != "${CLAUDE_HOME}" or not tail:
+            raise bad
+        parts = _safe_member(tail)
+        if cat in CAT_SUB:
+            sub, dirs_only = CAT_SUB[cat]
+            ok = len(parts) == 2 and parts[0] == sub and not parts[1].startswith(".") and \
+                (cat != "cc.skills" or parts[1] not in paths.RESERVED_SKILL_DIRS) and \
+                (it["strategy"] == "tree" or not dirs_only)
+        elif cat in CAT_FILE:
+            ok = parts == [CAT_FILE[cat]] and it["strategy"] == "file"
+        elif cat == "cc.refs":
+            ok = parts[0] not in REF_DENY and not parts[0].startswith(".") and \
+                not (parts[0] == "skills" and len(parts) > 1 and parts[1] in paths.RESERVED_SKILL_DIRS)
+        else:
+            ok = False
+        if not ok:
+            raise bad
+        return os.path.join(CLAUDE_HOME, *parts)
+
+    def run(self):
+        m = self.b.manifest
+        for it in m.get("items") or []:
+            if not isinstance(it, dict) or not isinstance(it.get("id"), str):
+                raise BundleError("bundle_invalid", "manifest items 형식이 아님")
+            row = {"id": it["id"], "category": it.get("category"), "strategy": it.get("strategy")}
+            row.update(self._plan(it))
+            self.items.append(row)
+        for s in m.get("skipped") or []:
+            if isinstance(s, dict):
+                self.items.append({"id": s.get("id"), "category": str(s.get("id")).partition("/")[0],
+                                   "state": "skipped", "reason": s.get("reason")})
+        for e in m.get("external") or []:
+            if not isinstance(e, dict):
+                continue
+            p = _norm_disp(os.path.expanduser(detokenize(str(e.get("token") or e.get("path") or ""), self.tokens)))
+            self.external.append({**{k: e.get(k) for k in ("kind", "owners", "scopes", "fields")},
+                                  "path": p, "source_path": e.get("path"), "exists": os.path.exists(p)})
+        miss = [e for e in self.external if not e["exists"]]
+        if miss:
+            self.warnings.append(f"설정이 가리키는 외부 경로 {len(miss)}개가 이 PC 에 없습니다. 같은 경로에 준비해야 동작합니다")
+        cats = {r["category"] for r in self.items if r.get("state") in ("new", "changed")}
+        if cats & set(MCP_CATS):
+            self.warnings.append("Claude Code·Desktop 이 실행 중이면 적용 직후 설정 파일을 다시 쓸 수 있습니다. 적용 뒤 재시작하세요")
+        if "desk.mcp" in cats and not os.path.isdir(self.desktop_dir):
+            self.warnings.append(f"Claude Desktop 설치 폴더가 없어 새로 만듭니다: {self.desktop_dir}")
+        if not os.path.isfile(lib_store.store_config_path(self.store)):
+            self.warnings.append(f"스토어가 아직 없어 적용할 때 새로 만듭니다: {self.store}")
+        fps = "".join(f"{r['id']}\0{r['_fp']}\n" for r in sorted(self.items, key=lambda r: r["id"]) if "_fp" in r)
+        self.plan_id = _sha((self.b.hash + "\n" + fps).encode("utf-8"))[7:23]
+        return self
+
+    def _plan(self, it):
+        s, cat = it.get("strategy"), it.get("category")
+        if s == "file":
+            return self._plan_file(it)
+        if s == "tree":
+            return self._plan_tree(it)
+        if s == "json-keys" and cat in SETTINGS_CATS:
+            return self._plan_settings(it)
+        if s == "json-keys" and cat in MCP_CATS:
+            return self._plan_mcp(it)
+        if s == "json-keys" and cat == "cm.store":
+            return self._plan_store(it)
+        raise BundleError("bundle_invalid", f"알 수 없는 항목: {it['id']}")
+
+    def _plan_file(self, it):
+        tgt = self.target_of(it)
+        data = self.b.read(f"files/{it['rel']}")
+        if _sha(data) != it.get("hash"):
+            raise BundleError("bundle_invalid", f"{it['id']}: 내용 해시가 manifest 와 다름")
+        if os.path.isdir(tgt):
+            return {"target": tgt, "state": "blocked", "reason": "같은 이름의 폴더가 있음", "_fp": "dir"}
+        cur = _read_bytes(tgt)
+        row = {"target": tgt, "_fp": _sha(cur) if cur is not None else None, "_data": data}
+        if cur is None:
+            row["state"] = "new"
+        elif row["_fp"] == it["hash"]:
+            row["state"] = "same"
+        else:
+            row.update(state="changed", diff=text_diff(cur, data))
+        return row
+
+    def _plan_tree(self, it):
+        tgt = self.target_of(it)
+        files = self.b.tree(it["rel"])
+        rows = [(r, _sha(d)) for r, d in files]
+        if tree_digest(rows) != it.get("hash"):
+            raise BundleError("bundle_invalid", f"{it['id']}: 내용 해시가 manifest 와 다름")
+        if os.path.isfile(tgt):
+            return {"target": tgt, "state": "blocked", "reason": "같은 이름의 파일이 있음", "_fp": "file"}
+        cur = tree_rows(tgt)[0] if os.path.isdir(tgt) else None
+        row = {"target": tgt, "_fp": tree_digest(cur) if cur is not None else None, "_data": files}
+        if cur is None:
+            row["state"] = "new"
+        elif row["_fp"] == it["hash"]:
+            row["state"] = "same"
+        else:
+            a, c = dict(rows), dict(cur)
+            row.update(state="changed", files={"added": sorted(set(a) - set(c)), "removed": sorted(set(c) - set(a)),
+                                               "modified": sorted(k for k in a if k in c and a[k] != c[k])})
+        return row
+
+    def _plan_settings(self, it):
+        iid, cat = it["id"], it["category"]
+        tgt = os.path.join(CLAUDE_HOME, "settings.json" if cat == "cc.settings" else "settings.local.json")
+        cur, err = self.json_file(tgt)
+        if err or (cur is not None and not isinstance(cur, dict)):
+            return {"target": tgt, "state": "blocked", "reason": err or "대상 파일이 JSON 객체가 아님", "_fp": "bad"}
+        inc = self.detok(self.b.json(f"json/{iid}.json"))
+        if not isinstance(inc, dict):
+            raise BundleError("bundle_invalid", f"{iid}: JSON 객체가 아님")
+        cur_d = cur or {}
+        inc, missing = resolve_secrets(inc, [self.secrets, self.b.secrets, {iid: prepare_json(cat, iid, cur_d, None)[1]}])
+        row = {"target": tgt, "_fp": _sha(_canon(cur)) if cur is not None else None}
+        if missing and isinstance(inc.get("env"), dict):
+            left = {k: v for k, v in inc["env"].items() if not (isinstance(v, str) and PH.match(v))}
+            row["warnings"] = ["시크릿 값이 없어 env 의 다음 키는 가져오지 않음: " +
+                               ", ".join(k for k in inc["env"] if k not in left)]
+            inc = {**inc, "env": left}
+        conflicts = []
+        merged = merge(cur_d, inc, chooser(self.choices.get(iid)), conflicts)
+        row["_value"] = merged
+        if cur is None:
+            row["state"] = "new"
+        elif merged == cur_d and not conflicts:
+            row["state"] = "same"
+        else:
+            row.update(state="changed", diff=json_diff(_mask(cat, iid, cur_d), _mask(cat, iid, merged)))
+        if conflicts:
+            row["conflicts"] = conflicts
+        return row
+
+    def _plan_mcp(self, it):
+        iid, cat = it["id"], it["category"]
+        key, name = it.get("key") or "", iid.partition("/")[2]
+        if key != f"mcpServers.{name}" or not name:
+            raise BundleError("bundle_invalid", f"{iid}: key 가 서버 이름과 맞지 않음")
+        tgt = CLAUDE_JSON if cat == "cc.mcp-user" else self.desktop_config
+        doc, err = self.json_file(tgt)
+        if err or (doc is not None and not isinstance(doc, dict)):
+            return {"target": tgt, "state": "blocked", "reason": err or "대상 파일이 JSON 객체가 아님", "_fp": "bad"}
+        servers = (doc or {}).get("mcpServers")
+        cur = servers.get(name) if isinstance(servers, dict) else None
+        inc = self.detok(self.b.json(f"json/{iid}.json"))
+        if not isinstance(inc, dict):
+            raise BundleError("bundle_invalid", f"{iid}: JSON 객체가 아님")
+        tfound = prepare_json(cat, iid, cur, None)[1] if isinstance(cur, dict) else {}
+        inc, missing = resolve_secrets(inc, [self.secrets, self.b.secrets, {iid: tfound}])
+        row = {"target": tgt, "key": name, "_fp": _sha(_canon(cur)) if cur is not None else None, "_value": inc}
+        if cur is None:
+            row["state"] = "new"
+        elif isinstance(cur, dict) and _sha(_canon(prepare_json(cat, iid, cur, self.tokens)[0])) == it.get("hash"):
+            row["state"] = "same"
+        else:
+            row.update(state="changed", diff=json_diff(_mask(cat, iid, cur), _mask(cat, iid, inc)))
+        if missing and row["state"] != "same":
+            row.update(state="blocked", code="secret_missing", missing_secrets=missing,
+                       reason="시크릿 값이 없음: " + ", ".join(missing))
+        return row
+
+    def _plan_store(self, it):
+        tgt = lib_store.store_config_path(self.store)
+        cur, err = self.json_file(tgt)
+        if err or (cur is not None and not isinstance(cur, dict)):
+            return {"target": tgt, "state": "blocked", "reason": err or "대상 파일이 JSON 객체가 아님", "_fp": "bad"}
+        inc = self.detok(self.b.json("json/cm.store.json"))
+        if not isinstance(inc, dict):
+            raise BundleError("bundle_invalid", "cm.store: JSON 객체가 아님")
+        cur_d = cur or {}
+        conflicts = []
+        merged, added = merge_store(cur_d, inc, self.store, chooser(self.choices.get("cm.store")), conflicts)
+        before = {"libraries": cur_d.get("libraries") or [], "remotes": cur_d.get("remotes") or [],
+                  "marketplaces": cur_d.get("marketplaces") or [], "ui": cur_d.get("ui") or {}}
+        row = {"target": tgt, "_fp": _sha(_canon({k: cur_d.get(k) for k in STORE_KEYS})) + str(cur is not None),
+               "_value": merged}
+        if merged == before and not conflicts:
+            row["state"] = "same"
+        else:
+            row.update(state="new" if cur is None else "changed", diff=json_diff(before, merged))
+        if conflicts:
+            row["conflicts"] = conflicts
+        if added:
+            row["warnings"] = ["내용을 받으려면 라이브러리 fetch 가 필요함: " + ", ".join(added)]
+        return row
+
+    def public(self):
+        return [{k: v for k, v in r.items() if not k.startswith("_")} for r in self.items]
+
+    def summary(self):
+        s = {k: 0 for k in ("new", "same", "changed", "blocked", "skipped")}
+        for r in self.items:
+            s[r["state"]] = s.get(r["state"], 0) + 1
+        return s
+
+
+# ── import apply / undo ─────────────────────────────────────────────────────
+
+IMPORTS_KEEP = 50
+
+
+class Changed(Exception):
+    pass
+
+
+def _ts():
+    return datetime.now().strftime("%Y%m%d%H%M%S")
+
+
+def _unique(base):
+    dst, n = base, 1
+    while os.path.exists(dst):
+        dst, n = f"{base}.{n}", n + 1
+    return dst
+
+
+def _trash(path):
+    """config_edit.trash 와 같은 자리(.trash/<이름>.<시각>). 같은 초에 다시 와도 겹치지 않게 번호를 붙인다."""
+    tdir = os.path.join(os.path.dirname(os.path.normpath(path)), ".trash")
+    os.makedirs(tdir, exist_ok=True)
+    dst = _unique(os.path.join(tdir, f"{os.path.basename(os.path.normpath(path))}.{_ts()}"))
+    shutil.move(path, dst)
+    return dst
+
+
+def _backup(path):
+    if not os.path.exists(path):
+        return None
+    dst = _unique(f"{path}.{_ts()}.bak")
+    shutil.copy2(path, dst)
+    return dst
+
+
+def _put_bytes(target, data):
+    tmp = f"{target}.import.tmp"
+    with open(tmp, "wb") as f:
+        f.write(data)
+    os.replace(tmp, target)
+
+
+def _write_file(target, data):
+    """새 내용을 먼저 다 쓴 뒤 기존 것을 휴지통으로 옮기고 교체한다. (휴지통 경로 또는 None)."""
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    tmp = f"{target}.import.tmp"
+    with open(tmp, "wb") as f:
+        f.write(data)
+    old = _trash(target) if os.path.exists(target) else None
+    os.replace(tmp, target)
+    return old
+
+
+def _write_tree(target, files):
+    parent = os.path.dirname(target)
+    tmp = os.path.join(parent, f".{os.path.basename(target)}.import-{os.getpid()}")
+    if os.path.isdir(tmp):
+        shutil.rmtree(tmp)
+    os.makedirs(tmp)
+    for rel, data in files:
+        dst = os.path.join(tmp, *rel.split("/"))
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        with open(dst, "wb") as f:
+            f.write(data)
+    old = _trash(target) if os.path.exists(target) else None
+    os.replace(tmp, target)
+    return old
+
+
+def _file_hash(p):
+    b = _read_bytes(p)
+    return _sha(b) if b is not None else None
+
+
+def _tree_hash(p):
+    return tree_digest(tree_rows(p)[0]) if os.path.isdir(p) else None
+
+
+def ensure_store(store):
+    """새 PC 에는 스토어가 없다. 원장과 스냅샷을 남길 자리라 cas init 과 같은 최소 구성을 만든다."""
+    p = cas.store_paths(store)
+    for d in (p["store"], p["objects"], p["snapshots"], p["log"]):
+        os.makedirs(d, exist_ok=True)
+    if not os.path.exists(p["config"]):
+        cas.save_json(p["config"], {"version": 1, "store": store, "tracked": []})
+    if not os.path.exists(p["index"]):
+        cas.save_json(p["index"], {})
+    return p
+
+
+def _write_one(r):
+    tgt = r["target"]
+    existed = os.path.exists(tgt)
+    if r["strategy"] == "file":
+        old = _write_file(tgt, r["_data"])
+        post = _file_hash(tgt)
+    else:
+        old = _write_tree(tgt, r["_data"])
+        post = _tree_hash(tgt)
+    return [{"id": r["id"], "kind": r["strategy"], "target": tgt, "trash": old,
+             "action": "replaced" if existed else "created", "post_hash": post}]
+
+
+def _write_settings(r):
+    tgt = r["target"]
+    existed = os.path.exists(tgt)
+    bak = _backup(tgt)
+    config_edit.save_atomic(tgt, r["_value"])
+    return [{"id": r["id"], "kind": "json-file", "target": tgt, "backup": bak,
+             "action": "merged" if existed else "created", "post_hash": _file_hash(tgt)}]
+
+
+def _write_servers(tgt, group):
+    """같은 파일의 서버는 한 번에 쓴다(백업·저장 1회)."""
+    doc = config_edit.load(tgt)
+    servers = config_edit._slot_dict(doc, "mcpServers")
+    for r in group:
+        servers[r["key"]] = r["_value"]
+    bak = _backup(tgt)
+    config_edit.save_atomic(tgt, doc)
+    return [{"id": r["id"], "kind": "json-key", "target": tgt, "key": r["key"], "backup": bak,
+             "action": "replaced" if r["state"] == "changed" else "created",
+             "post_hash": _sha(_canon(r["_value"]))} for r in group]
+
+
+def _write_store(r, store):
+    with lib_store.edit_cfg(store) as cfg:
+        prev = {k: cfg[k] for k in STORE_KEYS if k in cfg}
+        cfg.update(r["_value"])
+    return [{"id": r["id"], "kind": "store", "target": r["target"], "prev": prev, "action": "merged",
+             "post_hash": _sha(_canon({k: r["_value"].get(k) for k in STORE_KEYS}))}]
+
+
+def apply_rows(rows, store):
+    """(적용 기록, 실패). 파일 하나가 실패해도 나머지는 계속한다."""
+    jobs = [([r], lambda r=r: _write_one(r)) for r in rows if r["strategy"] in ("file", "tree")]
+    jobs += [([r], lambda r=r: _write_settings(r)) for r in rows if r["category"] in SETTINGS_CATS]
+    by_file = {}
+    for r in rows:
+        if r["category"] in MCP_CATS:
+            by_file.setdefault(r["target"], []).append(r)
+    jobs += [(g, lambda t=t, g=g: _write_servers(t, g)) for t, g in by_file.items()]
+    jobs += [([r], lambda r=r: _write_store(r, store)) for r in rows if r["category"] == "cm.store"]
+    applied, failed = [], []
+    for group, fn in jobs:
+        try:
+            applied += fn()
+        except Exception as e:                      # 실패는 결과에 담고 다음 파일로 간다
+            failed += [{"id": r["id"], "code": "write_failed", "reason": f"{type(e).__name__}: {e}"} for r in group]
+    return applied, failed
+
+
+def undo_record(rec, force):
+    kind, tgt = rec["kind"], rec["target"]
+    if kind in ("file", "tree"):
+        cur = _file_hash(tgt) if kind == "file" else _tree_hash(tgt)
+        if cur != rec.get("post_hash") and not force:
+            raise Changed(tgt)
+        if os.path.exists(tgt):
+            _trash(tgt)
+        if rec.get("trash"):
+            shutil.move(rec["trash"], tgt)
+    elif kind == "json-file":
+        if _file_hash(tgt) != rec.get("post_hash") and not force:
+            raise Changed(tgt)
+        if rec.get("backup"):
+            _put_bytes(tgt, _read_bytes(rec["backup"]))
+        elif os.path.exists(tgt):
+            _trash(tgt)
+    elif kind == "json-key":
+        # 파일째 되돌리면 그 사이 Claude Code 가 이 파일에 쓴 다른 키까지 되돌아간다. 서버 하나만 되돌린다.
+        doc = config_edit.load(tgt)
+        servers = config_edit._slot_dict(doc, "mcpServers")
+        if _sha(_canon(servers.get(rec["key"]))) != rec.get("post_hash") and not force:
+            raise Changed(tgt)
+        prev = ((config_edit.load(rec["backup"]).get("mcpServers") or {}).get(rec["key"])
+                if rec.get("backup") else None)
+        if prev is None:
+            servers.pop(rec["key"], None)
+        else:
+            servers[rec["key"]] = prev
+        config_edit.save_atomic(tgt, doc)
+    elif kind == "store":
+        with lib_store.edit_cfg(os.path.dirname(tgt)) as cfg:
+            if _sha(_canon({k: cfg.get(k) for k in STORE_KEYS})) != rec.get("post_hash") and not force:
+                raise Changed(tgt)
+            for k in STORE_KEYS:
+                if k in rec.get("prev", {}):
+                    cfg[k] = rec["prev"][k]
+                else:
+                    cfg.pop(k, None)
+
+
 # ── CLI ─────────────────────────────────────────────────────────────────────
 
 def _summary_fields(col, out=None):
@@ -553,18 +1211,39 @@ def _summary_fields(col, out=None):
             "report": col.report(out)}
 
 
-def main():
-    ap = JsonArgumentParser(prog="transfer")
-    ap.add_argument("--store", default=lib_store.default_store())
-    sub = ap.add_subparsers(dest="op", required=True)
-    for name in ("inventory", "export"):
-        p = sub.add_parser(name)
-        p.add_argument("--with-optional", default="", help="쉼표 구분: " + ",".join(OPTIONAL))
-        if name == "export":
-            p.add_argument("--out", required=True, help=".cmbundle 이면 zip, 아니면 폴더")
-            p.add_argument("--include-secrets", action="store_true")
-    a = ap.parse_args()
+def _json_arg(v, name):
+    if not v:
+        return {}
+    try:
+        o = json.loads(v)
+    except ValueError as e:
+        emit(False, "invalid_arg", f"{name} JSON 파싱 실패: {e}", target=name)
+    if not isinstance(o, dict):
+        emit(False, "invalid_arg", f"{name} 은 JSON 객체여야 함", target=name)
+    return o
 
+
+def _open_bundle(path):
+    try:
+        return Bundle(path)
+    except BundleError as e:
+        emit(False, e.code, str(e), target=path)
+
+
+def _make_plan(a, b):
+    try:
+        return Planner(b, a.store, _json_arg(a.secrets, "--secrets"), _json_arg(a.choices, "--choices")).run()
+    except BundleError as e:
+        emit(False, e.code, str(e), target=b.path)
+
+
+def _plan_message(pl):
+    s = pl.summary()
+    return (f"plan {pl.plan_id}: 새로 {s['new']} · 바뀜 {s['changed']} · 같음 {s['same']} · "
+            f"막힘 {s['blocked']} · 제외 {s['skipped']}")
+
+
+def cmd_export(a):
     opts = [x.strip() for x in a.with_optional.split(",") if x.strip()]
     bad = [x for x in opts if x not in OPTIONAL]
     if bad:
@@ -586,6 +1265,182 @@ def main():
     extra = {"secrets_file": "secrets.json"} if a.include_secrets and col.secrets else {}
     emit(True, "ok", f"번들을 만들었습니다: {out} (항목 {len(col.items)}개, 외부 경로 {len(col.external)}개)",
          target=out, bundle=out, **extra, **_summary_fields(col, out))
+
+
+def cmd_inspect(a):
+    b = _open_bundle(a.bundle)
+    m = b.manifest
+    counts = {}
+    for it in m.get("items") or []:
+        counts[it.get("category")] = counts.get(it.get("category"), 0) + 1
+    emit(True, "ok", f"번들 {os.path.basename(b.path)}: {m.get('source', {}).get('host')} 에서 "
+         f"{m.get('created')} 에 만듦, 항목 {sum(counts.values())}개",
+         target=b.path, bundle=b.path, hash=b.hash, created=m.get("created"), source=m.get("source"),
+         counts=counts, skipped=m.get("skipped") or [], external=m.get("external") or [],
+         plugins=m.get("plugins") or {}, has_secrets=bool(b.secrets))
+
+
+def cmd_plan(a):
+    b = _open_bundle(a.bundle)
+    pl = _make_plan(a, b)
+    emit(True, "ok", _plan_message(pl), target=b.path, bundle=b.path, plan_id=pl.plan_id,
+         source=b.manifest.get("source"), items=pl.public(), summary=pl.summary(),
+         external=pl.external, warnings=pl.warnings)
+
+
+def _now_iso():
+    return datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+def _open_span(p, message):
+    """스냅샷 락을 잡고 pre 스냅샷을 찍는다. 락은 쓰기와 post 스냅샷이 끝날 때까지 쥔다 -
+    풀어 두면 watcher 가 사이에 찍어 리비전에 이 작업의 이름이 남지 않는다."""
+    span = cas._snapshot_lock(p)
+    try:
+        span.__enter__()
+        pre, _ = cas._take_snapshot_locked(p, message)
+    except TimeoutError as e:
+        with contextlib.suppress(Exception):
+            span.__exit__(None, None, None)
+        emit(False, "lock_timeout", "되돌릴 지점(스냅샷)을 만들지 못해 아무것도 바꾸지 않았습니다", detail=e)
+    return span, pre
+
+
+def _close_span(span, p, message):
+    try:
+        post, _ = cas._take_snapshot_locked(p, message)
+    except TimeoutError:
+        post = None
+    finally:
+        with contextlib.suppress(Exception):
+            span.__exit__(None, None, None)
+    return post
+
+
+def _public_rec(rec):
+    return {k: rec[k] for k in ("id", "action", "target", "key", "trash", "backup") if rec.get(k) is not None}
+
+
+def cmd_apply(a):
+    b = _open_bundle(a.bundle)
+    pl = _make_plan(a, b)
+    if a.plan_id != pl.plan_id:
+        emit(False, "plan_stale", "plan 뒤에 이 PC 의 대상이 바뀌었습니다. 다시 plan 해서 확인하세요",
+             target=b.path, plan_id=pl.plan_id)
+    rows = {r["id"]: r for r in pl.items}
+    want = [x.strip() for x in a.ids.split(",") if x.strip()] if a.ids else \
+        [r["id"] for r in pl.items if r["state"] in ("new", "changed")]
+    unknown = [x for x in want if x not in rows]
+    if unknown:
+        emit(False, "invalid_arg", f"plan 에 없는 항목: {', '.join(unknown)}", target="--ids")
+    sel = [rows[x] for x in want if rows[x]["state"] in ("new", "changed")]
+    failed = [{"id": x, "code": rows[x].get("code") or "blocked", "reason": rows[x].get("reason")}
+              for x in want if rows[x]["state"] == "blocked"]
+    if not sel:
+        if failed:
+            emit(False, "partial", "적용할 수 있는 항목이 없습니다", applied=[], failed=failed)
+        emit(True, "noop", "바꿀 항목이 없습니다", applied=[], failed=[])
+
+    p = ensure_store(a.store)
+    short = b.hash[7:15]
+    span, pre = _open_span(p, f"before import {short}")
+    applied, wfailed = [], []
+    try:
+        applied, wfailed = apply_rows(sel, a.store)
+    finally:
+        done = {x["id"] for x in applied}
+        n_new = sum(1 for r in sel if r["id"] in done and r["state"] == "new")
+        post = _close_span(span, p, f"import {short}: +{n_new} ~{len(done) - n_new}")
+    failed += wfailed
+
+    rec = {"at": _now_iso(), "bundle": b.path, "bundle_hash": b.hash,
+           "source_host": (b.manifest.get("source") or {}).get("host"), "plan_id": pl.plan_id,
+           "pre_snapshot": pre, "post_snapshot": post, "applied": applied}
+    import_id = None
+    if applied:
+        with lib_store.edit_cfg(a.store) as cfg:
+            imps = cfg.setdefault("imports", [])
+            have = {x.get("id") for x in imps}
+            import_id = base = f"{_ts()}-{short}"
+            n = 1
+            while import_id in have:
+                import_id, n = f"{base}.{n}", n + 1
+            imps.append({"id": import_id, **rec})
+            del imps[:-IMPORTS_KEEP]
+    msg = f"가져오기 {import_id}: {len(done)}개 적용" if import_id else "적용된 항목이 없습니다"
+    if failed:
+        msg += f", {len(failed)}개 실패"
+    emit(not failed, "partial" if failed else "ok", msg, target=b.path, import_id=import_id,
+         applied=[_public_rec(x) for x in applied], failed=failed, pre_snapshot=pre, post_snapshot=post,
+         warnings=pl.warnings)
+
+
+def cmd_undo(a):
+    ent = next((x for x in lib_store.load_cfg(a.store).get("imports") or [] if x.get("id") == a.import_id), None)
+    if not ent:
+        emit(False, "not_found", f"가져오기 기록이 없음: {a.import_id}", target=a.import_id)
+    if ent.get("undone_at"):
+        emit(True, "noop", f"이미 되돌렸습니다: {a.import_id} ({ent['undone_at']})", target=a.import_id)
+    p = cas.store_paths(a.store)
+    restored, failed = [], []
+    span, pre = _open_span(p, f"before undo import {a.import_id}")
+    try:
+        for i in reversed(range(len(ent["applied"]))):
+            rec = ent["applied"][i]
+            if rec.get("undone"):
+                continue
+            try:
+                undo_record(rec, a.force)
+                restored.append(i)
+            except Changed:
+                failed.append({"id": rec["id"], "code": "changed_since_import", "target": rec["target"],
+                               "reason": "가져온 뒤에 바뀌어 되돌리지 않았습니다(force 로 덮어쓸 수 있음)"})
+            except Exception as e:                  # 실패는 결과에 담고 나머지를 계속 되돌린다
+                failed.append({"id": rec["id"], "code": "write_failed", "target": rec["target"],
+                               "reason": f"{type(e).__name__}: {e}"})
+    finally:
+        post = _close_span(span, p, f"undo import {a.import_id}")
+    with lib_store.edit_cfg(a.store) as cfg:
+        cur = next((x for x in cfg.get("imports") or [] if x.get("id") == a.import_id), None)
+        if cur:
+            for i in restored:
+                cur["applied"][i]["undone"] = True
+            if not failed:
+                cur["undone_at"] = _now_iso()
+    out = [ent["applied"][i]["id"] for i in restored]
+    msg = f"가져오기 {a.import_id} 되돌림: {len(out)}개" + (f", {len(failed)}개 실패" if failed else "")
+    emit(not failed, "partial" if failed else "ok", msg, target=a.import_id, restored=out, failed=failed,
+         pre_snapshot=pre, post_snapshot=post)
+
+
+def main():
+    ap = JsonArgumentParser(prog="transfer")
+    ap.add_argument("--store", default=lib_store.default_store())
+    sub = ap.add_subparsers(dest="op", required=True)
+    for name in ("inventory", "export"):
+        p = sub.add_parser(name)
+        p.add_argument("--with-optional", default="", help="쉼표 구분: " + ",".join(OPTIONAL))
+        if name == "export":
+            p.add_argument("--out", required=True, help=".cmbundle 이면 zip, 아니면 폴더")
+            p.add_argument("--include-secrets", action="store_true")
+    p = sub.add_parser("inspect")
+    p.add_argument("--bundle", required=True)
+    p = sub.add_parser("plan")
+    p.add_argument("--bundle", required=True)
+    p.add_argument("--secrets", default="", help='{"<item id>": {"<경로>": "<값>"}}')
+    p.add_argument("--choices", default="", help='스칼라 충돌: {"<item id>": "take" | {"<경로>": "take"}}. 기본 keep')
+    p = sub.add_parser("apply")
+    p.add_argument("--bundle", required=True)
+    p.add_argument("--plan-id", required=True, help="plan 결과의 plan_id. 그 뒤 대상이 바뀌었으면 plan_stale")
+    p.add_argument("--ids", default="", help="쉼표 구분 항목 id. 생략하면 new/changed 전부")
+    p.add_argument("--secrets", default="")
+    p.add_argument("--choices", default="")
+    p = sub.add_parser("undo")
+    p.add_argument("--import-id", required=True)
+    p.add_argument("--force", action="store_true", help="가져온 뒤 바뀐 항목도 되돌린다")
+    a = ap.parse_args()
+    {"inventory": cmd_export, "export": cmd_export, "inspect": cmd_inspect, "plan": cmd_plan,
+     "apply": cmd_apply, "undo": cmd_undo}[a.op](a)
 
 
 if __name__ == "__main__":
