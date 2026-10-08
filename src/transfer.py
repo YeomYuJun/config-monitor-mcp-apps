@@ -8,6 +8,7 @@ r"""transfer.py - PC 간 설정 이관 번들(cmbundle v1) 만들기·가져오�
   plan --bundle P [--secrets JSON] [--choices JSON]   이 PC 와 비교(읽기 전용). 항목별 new/same/changed/blocked/skipped
   apply --bundle P --plan-id X [--ids a,b] [...]      plan 그대로 적용. 스냅샷 전/후, 스토어 imports[] 원장
   undo --import-id X [--force]                        원장의 휴지통·백업으로 되돌린다
+  history                                             가져오기(imports[])·내보내기(exports[]) 기록
 
 번들에는 ~/.claude, ~/.claude.json 의 mcpServers, Desktop config 의 mcpServers, 스토어 설정만 담는다.
 설정이 가리키는 그 밖의 파일(훅 스크립트, MCP 서버 실행 파일, 플러그인 폴더, 라이브러리)은 담지 않고
@@ -529,9 +530,9 @@ def disp_id(iid: str) -> str:
 
 # ── 번들 쓰기 ────────────────────────────────────────────────────────────────
 
-def _entries(col, include_secrets):
+def _entries(col, include_secrets, mbytes):
     """(번들 안 상대경로, bytes 또는 원본 파일 경로)."""
-    yield "manifest.json", json.dumps(col.manifest(), ensure_ascii=False, indent=2).encode("utf-8")
+    yield "manifest.json", mbytes
     yield "report.json", json.dumps({"lines": col.report(), "external": col.external,
                                      "skipped": col.skipped}, ensure_ascii=False, indent=2).encode("utf-8")
     for it in col.items:
@@ -549,17 +550,19 @@ def _entries(col, include_secrets):
 
 
 def write_bundle(col, out, include_secrets):
+    """번들 해시(= manifest 바이트 해시, import 의 plan_id 와 같은 기준)를 돌려준다."""
     tmp = f"{out}.{os.getpid()}.tmp"
+    mbytes = json.dumps(col.manifest(), ensure_ascii=False, indent=2).encode("utf-8")
     try:
         if out.lower().endswith(".cmbundle"):
             with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as z:
-                for name, src in _entries(col, include_secrets):
+                for name, src in _entries(col, include_secrets, mbytes):
                     if isinstance(src, bytes):
                         z.writestr(name, src)
                     else:
                         z.write(src, name)
         else:
-            for name, src in _entries(col, include_secrets):
+            for name, src in _entries(col, include_secrets, mbytes):
                 dst = os.path.join(tmp, *name.split("/"))
                 os.makedirs(os.path.dirname(dst), exist_ok=True)
                 if isinstance(src, bytes):
@@ -568,6 +571,7 @@ def write_bundle(col, out, include_secrets):
                 else:
                     shutil.copyfile(src, dst)
         os.replace(tmp, out)
+        return _sha(mbytes)
     except BaseException:
         if os.path.isdir(tmp):
             shutil.rmtree(tmp, ignore_errors=True)
@@ -1261,10 +1265,38 @@ def cmd_export(a):
     out = os.path.abspath(a.out)
     if os.path.exists(out):
         emit(False, "exists", f"이미 있음: {out}", target=out)
-    write_bundle(col, out, a.include_secrets)
+    bundle_hash = write_bundle(col, out, a.include_secrets)
     extra = {"secrets_file": "secrets.json"} if a.include_secrets and col.secrets else {}
+    record_export(a.store, {"at": _now_iso(), "path": out, "hash": bundle_hash, "items": len(col.items),
+                            "secrets": bool(a.include_secrets and col.secrets)})
     emit(True, "ok", f"번들을 만들었습니다: {out} (항목 {len(col.items)}개, 외부 경로 {len(col.external)}개)",
          target=out, bundle=out, **extra, **_summary_fields(col, out))
+
+
+EXPORTS_KEEP = 20
+
+
+def record_export(store, rec):
+    """위젯이 최근 번들 목록을 보여 줄 수 있게 남긴다. 스토어가 없는 PC 에서는 남기지 않는다(export 는 소스를
+    바꾸지 않는다)."""
+    try:
+        with lib_store.edit_cfg(store) as cfg:
+            ex = cfg.setdefault("exports", [])
+            ex.append(rec)
+            del ex[:-EXPORTS_KEEP]
+    except (lib_store.StoreNotInitialized, TimeoutError, OSError, ValueError):
+        pass
+
+
+def cmd_history(a):
+    cfg = lib_store.load_cfg(a.store)
+    imports = [{"id": x.get("id"), "at": x.get("at"), "bundle": x.get("bundle"), "source_host": x.get("source_host"),
+                "items": [r.get("id") for r in x.get("applied") or []], "undone_at": x.get("undone_at"),
+                "undone": [r.get("id") for r in x.get("applied") or [] if r.get("undone")]}
+               for x in reversed(cfg.get("imports") or [])]
+    exports = list(reversed(cfg.get("exports") or []))
+    emit(True, "ok", f"가져오기 기록 {len(imports)}개, 내보내기 기록 {len(exports)}개",
+         imports=imports, exports=exports, sync=cfg.get("sync"))
 
 
 def cmd_inspect(a):
@@ -1435,12 +1467,13 @@ def main():
     p.add_argument("--ids", default="", help="쉼표 구분 항목 id. 생략하면 new/changed 전부")
     p.add_argument("--secrets", default="")
     p.add_argument("--choices", default="")
+    sub.add_parser("history")
     p = sub.add_parser("undo")
     p.add_argument("--import-id", required=True)
     p.add_argument("--force", action="store_true", help="가져온 뒤 바뀐 항목도 되돌린다")
     a = ap.parse_args()
     {"inventory": cmd_export, "export": cmd_export, "inspect": cmd_inspect, "plan": cmd_plan,
-     "apply": cmd_apply, "undo": cmd_undo}[a.op](a)
+     "apply": cmd_apply, "undo": cmd_undo, "history": cmd_history}[a.op](a)
 
 
 if __name__ == "__main__":

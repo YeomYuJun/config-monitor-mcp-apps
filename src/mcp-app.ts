@@ -17,6 +17,7 @@ import { selectFile, renderHistory, renderDiffFor, applyDetailState } from "./ui
 import { renderCatalog } from "./ui/market";
 import { renderTracked } from "./ui/tracked";
 import { refreshLibrary } from "./ui/library";
+import { openTransfer, isTransferOpen, renderTransfer } from "./ui/transfer";
 import { INSTANCE_ID, persistView } from "./ui/view";
 // ----- load / refresh -----
 function showErr(hostId: string, label: string, e: unknown): void {
@@ -369,7 +370,8 @@ function applyLang(): void {
   const linesEl = document.getElementById("opt-lines") as HTMLInputElement | null;
   if (linesEl) $("opt-lines-val").textContent = linesEl.value + t("linesSuffix");
   // sel-name/sel-path 는 파일 선택 시 파일명/경로(데이터)로 덮이므로, 미선택 상태의 안내문일 때만 번역.
-  if (!selectedPath) {
+  if (isTransferOpen()) renderTransfer();
+  else if (!selectedPath) {
     $("sel-name").textContent = t("selectFilePrompt");
     $("sel-path").textContent = t("selectFileHint");
   }
@@ -392,6 +394,7 @@ $("collapse-all").addEventListener("click", () => {
   document.querySelectorAll("#config .sec[data-col]").forEach((el) => el.classList.add("collapsed"));
 });
 $("refresh").addEventListener("click", () => { refresh(); flashToast(t("toastRefreshed")); });
+$("transfer").addEventListener("click", openTransfer);
 $("snap").addEventListener("click", async () => {
   const raw = await callTool("snapshot_now", { message: t("snapshotMsg") });
   const r = jparse(raw);

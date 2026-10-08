@@ -238,6 +238,7 @@ class TestApply(TestPlan):
         self.assertFalse(os.path.exists(os.path.join(self.b, ".claude.json")))  # 시크릿 없는 서버는 쓰지 않는다
         self.assertEqual(len(os.listdir(os.path.join(self.b, ".claude", "skills", ".trash"))), 1)
 
+        self.assertEqual(run(self.b, "history")["imports"][0]["id"], res["import_id"])
         undo = run(self.b, "undo", "--import-id", res["import_id"])
         self.assertEqual(undo["code"], "ok", undo)
         with open(skill, "rb") as f:

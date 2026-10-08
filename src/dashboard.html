@@ -532,6 +532,28 @@
   .rconfirm .no{border:none;background:none;color:var(--mut);font-size:11px;cursor:pointer}
 
   /* diff */
+  .xftabs{display:flex;gap:4px;border-bottom:1px solid var(--line2);margin-bottom:12px}
+  .xftab{border:none;background:none;padding:7px 12px;font-size:12.5px;color:var(--mut);cursor:pointer;border-bottom:2px solid transparent}
+  .xftab.sel{color:var(--fg);border-bottom-color:var(--accent);font-weight:600}
+  .xfrow{display:flex;gap:6px;margin-bottom:8px}
+  .xfinput{flex:1;min-width:0;font-family:var(--mono);font-size:12px;padding:6px 8px;border:1px solid var(--line2);border-radius:6px}
+  .xfopts{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:8px;font-size:12px}
+  .xfbtns{display:flex;gap:6px;margin:8px 0}
+  .xfbtn{font-size:12px;padding:5px 12px;border:1px solid var(--line2);border-radius:6px;background:var(--panel);cursor:pointer;white-space:nowrap}
+  .xfbtn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .xfout,.xfres,.xfrecent,.xfhist{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+  .xfreport{font-family:var(--mono);font-size:11.5px;white-space:pre-wrap;word-break:break-all;background:#F7F8FA;border:1px solid var(--line2);border-radius:6px;padding:8px 10px;margin:0}
+  .xfsum{font-size:12px;color:var(--mut)}
+  .xflist{display:flex;flex-direction:column;gap:4px}
+  .xfitem{border:1px solid var(--line2);border-radius:6px;padding:6px 8px;display:flex;flex-direction:column;gap:5px}
+  .xfitem.blocked{border-color:rgba(192,57,43,.35)}
+  .xfline{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .xfid{font-family:var(--mono);font-size:12px;word-break:break-all}
+  .xftgt{font-family:var(--mono);font-size:11px;color:var(--mut2);word-break:break-all;flex:1;min-width:0}
+  .xffiles{font-family:var(--mono);font-size:11px;color:var(--mut)}
+  .xfconf{display:flex;flex-direction:column;gap:4px}
+  .xfconfrow{display:flex;align-items:center;gap:8px}
+  .xfdetail .diffwrap{margin-top:0}
   .diffwrap{border:1px solid var(--line2);border-radius:6px;overflow:hidden;background:var(--panel);margin-top:12px}
   .diffhead{display:flex;align-items:center;gap:9px;padding:8px 13px;background:#F3F4F6;
     border-bottom:1px solid var(--line2);font-family:var(--mono);font-size:11px;color:var(--mut)}
@@ -637,6 +659,9 @@
         </button>
         <button id="refresh" title="새로고침" data-i18n-title="refresh">
           <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 4 21 10 15 10"/><polyline points="3 20 3 14 9 14"/><path d="M4 9a8 8 0 0 1 13.1-3.1L21 10M3 14l3.9 4.1A8 8 0 0 0 20 15"/></svg>
+        </button>
+        <button id="transfer" title="이관·동기화" data-i18n-title="xfOpen">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h13"/><polyline points="13 4 17 8 13 12"/><path d="M20 16H7"/><polyline points="11 12 7 16 11 20"/></svg>
         </button>
         <button id="open-browser" title="브라우저에서 열기" data-i18n-title="openBrowser">
           <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>

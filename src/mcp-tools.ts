@@ -75,10 +75,14 @@ export function buildTools(scriptDir: string): ToolDef[] {
     "library.py": new Set(["scan", "catalog", "market-discover"]),
   };
   const NET_OPS = new Set(["remote-add", "market-add", "plugin-fetch", "fetch"]);
+  const TRANSFER_WRITE_OPS = new Set(["export", "apply", "undo", "sync-push", "sync-pull"]);
   const timeoutMs = (script: string, args: string[]): number => {
     if (script === "claude_config.py" || script === "plugin_catalog.py") return 30_000;
     if (script === "plugin_cli.py") return 660_000;
-    if (script === "transfer.py") return args.includes("export") ? 120_000 : 30_000;
+    if (script === "transfer.py") {
+      if (args.includes("--install-plugins")) return 1_260_000;
+      return args.some((x) => TRANSFER_WRITE_OPS.has(x)) ? 120_000 : 30_000;
+    }
     if (script === "library.py" && args.some((x) => NET_OPS.has(x))) return 1_860_000;
     if (args.some((x) => QUERY_OPS[script]?.has(x))) return 30_000;
     return 60_000;
@@ -107,6 +111,11 @@ export function buildTools(scriptDir: string): ToolDef[] {
       return JSON.stringify({ ok: false, code: "crash", message: `${op} 가 exit ${exit} 으로 끝났습니다`, detail });
     }
   };
+
+  const importArgs = (a: { secrets?: object; choices?: object }): string[] => [
+    ...(a.secrets && Object.keys(a.secrets).length ? ["--secrets", JSON.stringify(a.secrets)] : []),
+    ...(a.choices && Object.keys(a.choices).length ? ["--choices", JSON.stringify(a.choices)] : []),
+  ];
 
   // 추적 중인 프로젝트 .claude 디렉토리(전역 기본 추적분 제외). 대시보드가 get_tracked 로 같은
   // 목록을 만들어 넘기던 것을 서버가 스스로 구해, 대화에서 projects 를 몰라도 되게 한다.
@@ -446,6 +455,65 @@ export function buildTools(scriptDir: string): ToolDef[] {
         if (a.withOptional?.length) args.push("--with-optional", a.withOptional.join(","));
         return jsonResult(await runPy("transfer.py", args));
       },
+    },
+    {
+      name: "config_import_plan",
+      meta: {
+        title: "Plan Config Import",
+        description: "번들을 이 PC 와 항목별로 비교한다. 아무것도 쓰지 않는다. 항목 상태는 new / same / changed(diff 포함) / blocked(시크릿 없음 등) / skipped. " +
+          "settings 는 병합 결과와 비교하고 값이 다른 스칼라는 conflicts 에 경로로 나온다(기본은 이 PC 값 유지). 결과의 plan_id 를 config_import_apply 에 넘긴다",
+        inputSchema: z.object({
+          bundle: z.string().describe("번들 경로(.cmbundle zip 또는 폴더, 절대경로)"),
+          secrets: z.record(z.record(z.string())).optional().describe('자리표시자 값 {"<item id>": {"<경로>": "<값>"}}'),
+          choices: z.record(z.union([z.enum(["keep", "take"]), z.record(z.enum(["keep", "take"]))])).optional()
+            .describe('스칼라 충돌 선택 {"<item id>": "take"} 또는 {"<item id>": {"<경로>": "take"}}. 생략 시 keep'),
+        }), annotations: READ,
+      },
+      run: async (a: { bundle: string; secrets?: object; choices?: object }) =>
+        jsonResult(await runPy("transfer.py", ["--store", STORE, "plan", "--bundle", a.bundle, ...importArgs(a)])),
+    },
+    {
+      name: "config_import_apply",
+      meta: {
+        title: "Apply Config Import",
+        description: "config_import_plan 결과를 그대로 적용한다. plan 뒤에 이 PC 의 대상이 바뀌었으면 plan_stale 로 거부한다. ids 를 생략하면 new/changed 전부. " +
+          "바뀌는 파일·폴더는 .trash 나 .bak 으로 남기고 전후 스냅샷을 찍는다. 결과의 import_id 로 config_import_undo 할 수 있다",
+        inputSchema: z.object({
+          bundle: z.string(),
+          planId: z.string().describe("config_import_plan 의 plan_id"),
+          ids: z.array(z.string()).optional().describe("적용할 항목 id. 생략 시 new/changed 전부"),
+          secrets: z.record(z.record(z.string())).optional(),
+          choices: z.record(z.union([z.enum(["keep", "take"]), z.record(z.enum(["keep", "take"]))])).optional(),
+        }), annotations: EDIT,
+      },
+      run: async (a: { bundle: string; planId: string; ids?: string[]; secrets?: object; choices?: object }) => {
+        const args = ["--store", STORE, "apply", "--bundle", a.bundle, "--plan-id", a.planId, ...importArgs(a)];
+        if (a.ids?.length) args.push("--ids", a.ids.join(","));
+        return jsonResult(await runPy("transfer.py", args));
+      },
+    },
+    {
+      name: "config_import_undo",
+      meta: {
+        title: "Undo Config Import",
+        description: "가져오기 한 번을 되돌린다(.trash 와 .bak 에서 원래 것을 되살리고, .claude.json 은 그 서버 키만 되돌린다). " +
+          "가져온 뒤 바뀐 항목은 건너뛰고 failed 에 changed_since_import 로 알린다. force=true 면 그래도 되돌린다",
+        inputSchema: z.object({
+          importId: z.string().describe("config_import_apply 결과나 config_import_history 의 id"),
+          force: z.boolean().optional(),
+        }), annotations: EDIT,
+      },
+      run: async (a: { importId: string; force?: boolean }) =>
+        jsonResult(await runPy("transfer.py", ["--store", STORE, "undo", "--import-id", a.importId, ...(a.force ? ["--force"] : [])])),
+    },
+    {
+      name: "config_import_history",
+      meta: {
+        title: "Import / Export History",
+        description: "가져오기(imports, 되돌릴 수 있는 id 포함)와 내보내기(exports, 번들 경로) 기록. 최근 것이 먼저",
+        inputSchema: z.object({}), annotations: READ,
+      },
+      run: async () => jsonResult(await runPy("transfer.py", ["--store", STORE, "history"])),
     },
 
     // ----- watcher 제어 -----
