@@ -1,6 +1,7 @@
 // src/ui/transfer.ts - 이관·동기화 뷰. 우측 detail 패널 자리에 그린다.
 //   Export  config_export(dryRun 포함) + 최근 번들
 //   Import  config_import_plan -> 항목 선택·충돌 선택·시크릿 입력 -> config_import_apply, 기록과 되돌리기
+//   Sync    config_sync_setup / push / status(4상태). 다른 PC 가져오기는 Import 탭을 syncFrom 으로 연다
 // 파일 선택 다이얼로그는 위젯 iframe 에서 쓸 수 없어 경로는 문자열로 받는다.
 import { callTool, jparse } from "./bridge";
 import { t, errText } from "./i18n";
@@ -9,8 +10,9 @@ import { ABS_PATH_RE } from "./helpers";
 import { setDetailOpen, setSelectedPath } from "./state";
 import { applyDetailState } from "./detail";
 
-type Tab = "export" | "import";
+type Tab = "export" | "import" | "sync";
 let tab: Tab = "export";
+let syncFrom = "";
 let outPath = "";
 let bundlePath = "";
 let plan: any = null;
@@ -21,6 +23,10 @@ const secrets: Record<string, Record<string, string>> = {};
 const openDiff = new Set<string>();
 let applyBtn: HTMLButtonElement | null = null;
 
+const SYNC_BADGE: Record<string, [string, string]> = {
+  "in-sync": ["xfSyncInSync", ""], "local-ahead": ["xfSyncLocal", "ok"], "remote-ahead": ["xfSyncRemote", "warn"],
+  diverged: ["xfSyncDiverged", "err"], untracked: ["xfSyncUntracked", ""],
+};
 const STATE_BADGE: Record<string, [string, string]> = {
   new: ["xfStNew", "ok"], changed: ["xfStChanged", "warn"], same: ["xfStSame", ""],
   blocked: ["xfStBlocked", "err"], skipped: ["xfStSkipped", ""],
@@ -45,7 +51,7 @@ export function renderTransfer(): void {
   const root = el("div", "xfer");
   root.id = "xfer";
   const tabs = el("div", "xftabs");
-  for (const [k, label] of [["export", "xfTabExport"], ["import", "xfTabImport"]] as [Tab, string][]) {
+  for (const [k, label] of [["export", "xfTabExport"], ["import", "xfTabImport"], ["sync", "xfTabSync"]] as [Tab, string][]) {
     const b = el("button", "xftab" + (tab === k ? " sel" : ""), t(label));
     b.addEventListener("click", () => { tab = k; renderTransfer(); });
     tabs.appendChild(b);
@@ -54,7 +60,8 @@ export function renderTransfer(): void {
   root.append(tabs, pane);
   body.appendChild(root);
   if (tab === "export") renderExport(pane);
-  else renderImport(pane);
+  else if (tab === "import") renderImport(pane);
+  else void renderSync(pane);
 }
 
 function el(tag: string, cls = "", text?: string): HTMLElement {
@@ -157,7 +164,7 @@ async function fillRecent(box: HTMLElement): Promise<void> {
   for (const x of h.exports) {
     const c = el("button", "chip pick", x.path);
     c.title = `${x.at} · ${x.items}`;
-    c.addEventListener("click", () => { bundlePath = x.path; plan = null; tab = "import"; renderTransfer(); });
+    c.addEventListener("click", () => { bundlePath = x.path; syncFrom = ""; plan = null; tab = "import"; renderTransfer(); });
     box.appendChild(c);
   }
 }
@@ -166,23 +173,26 @@ async function fillRecent(box: HTMLElement): Promise<void> {
 
 function renderImport(pane: HTMLElement): void {
   const row = el("div", "xfrow");
-  const inp = pathInput(bundlePath, t("xfBundlePh"), (v) => { bundlePath = v; });
+  const inp = pathInput(bundlePath, t("xfBundlePh"), (v) => { bundlePath = v; syncFrom = ""; });
   const go = el("button", "xfbtn primary", t("xfPlan")) as HTMLButtonElement;
   row.append(inp, go);
+  if (syncFrom) inp.value = `${t("xfTabSync")}: ${syncFrom}`;
   const out = el("div", "xfout");
   const hist = el("div", "xfhist");
   pane.append(row, out, hist);
   go.addEventListener("click", async () => {
-    if (!ABS_PATH_RE.test(bundlePath)) { out.replaceChildren(notice(t("xfAbsPath"), "err")); return; }
+    if (!syncFrom && !ABS_PATH_RE.test(bundlePath)) { out.replaceChildren(notice(t("xfAbsPath"), "err")); return; }
     setPending(go);
     try { await runPlan(out); } finally { clearPending(go); }
   });
   if (plan) renderPlan(out);
+  else if (syncFrom) go.click();
   void renderHistory(hist);
 }
 
 async function runPlan(out: HTMLElement): Promise<void> {
-  const r = jparse(await callTool("config_import_plan", { bundle: bundlePath, secrets, choices }));
+  const src = syncFrom ? { syncFrom } : { bundle: bundlePath };
+  const r = jparse(await callTool("config_import_plan", { ...src, secrets, choices }));
   if (!r || r.ok === false) { plan = null; out.replaceChildren(notice(errText(r), "err")); return; }
   plan = r;
   checked.clear();
@@ -230,9 +240,9 @@ function renderPlan(out: HTMLElement): void {
     if (!checked.size) { res.replaceChildren(notice(t("xfNothing"))); return; }
     setPending(btn);
     try {
-      const r = jparse(await callTool("config_import_apply", {
-        bundle: bundlePath, planId: plan.plan_id, ids: [...checked], secrets, choices,
-      }));
+      const args = { planId: plan.plan_id, ids: [...checked], secrets, choices };
+      const r = jparse(syncFrom ? await callTool("config_sync_pull", { from: syncFrom, ...args })
+        : await callTool("config_import_apply", { bundle: bundlePath, ...args }));
       res.replaceChildren(notice(errText(r, t("failed")), r?.ok ? "ok" : "err"));
       if (r?.failed?.length) res.appendChild(failedList(r.failed));
       if (r && (r.ok || r.code === "partial")) {
@@ -364,5 +374,82 @@ async function renderHistory(box: HTMLElement): Promise<void> {
     }
     r.append(line, res);
     box.appendChild(r);
+  }
+}
+
+// ----- Sync -----
+
+async function renderSync(pane: HTMLElement): Promise<void> {
+  const st = jparse(await callTool("config_sync_status", {}));
+  const cur = st?.sync || {};
+  const row = el("div", "xfrow");
+  const dir = pathInput(cur.dir || "", t("xfSyncDirPh"), () => undefined);
+  const prof = pathInput(cur.profile || "", t("xfSyncProfilePh"), () => undefined);
+  prof.classList.add("xfshort");
+  const save = el("button", "xfbtn", t("xfSyncSave")) as HTMLButtonElement;
+  row.append(dir, prof, save);
+  const out = el("div", "xfout");
+  pane.append(row, out);
+  save.addEventListener("click", async () => {
+    if (!ABS_PATH_RE.test(dir.value.trim())) { out.replaceChildren(notice(t("xfAbsPath"), "err")); return; }
+    setPending(save);
+    try {
+      const r = jparse(await callTool("config_sync_setup", { dir: dir.value.trim(), profile: prof.value.trim() || undefined }));
+      if (r?.ok) renderTransfer();
+      else out.replaceChildren(notice(errText(r), "err"));
+    } finally { clearPending(save); }
+  });
+  if (!st || st.ok === false) {
+    if (st?.code !== "sync_unconfigured") out.appendChild(notice(errText(st), "err"));
+    return;
+  }
+  const opts = el("div", "xfopts");
+  const sec = checkbox(t("xfInclSecrets"));
+  opts.appendChild(sec.label);
+  const warn = notice(t("xfSecretsWarn"), "err");
+  warn.hidden = true;
+  sec.input.addEventListener("change", () => { warn.hidden = !sec.input.checked; });
+  const push = el("button", "xfbtn primary", t("xfSyncPush")) as HTMLButtonElement;
+  const res = el("div", "xfres");
+  push.addEventListener("click", async () => {
+    setPending(push);
+    try {
+      const r = jparse(await callTool("config_sync_push", { includeSecrets: sec.input.checked }));
+      res.replaceChildren(notice(errText(r, t("failed")), r?.ok ? "ok" : "err"));
+      if (r?.ok) flashToast(r.message);
+    } finally { clearPending(push); }
+  });
+  out.append(opts, warn, push, res);
+
+  const others = (st.profiles || []).filter((p: any) => p.profile !== cur.profile);
+  out.appendChild(el("div", "dlabel", t("xfSyncFrom")));
+  if (!others.length) { out.appendChild(el("div", "empty", t("xfSyncNone"))); return; }
+  const chips = el("div", "xfopts");
+  const table = el("div", "xflist");
+  for (const p of others) {
+    const c = el("button", "chip pick", p.profile);
+    c.title = `${p.host ?? ""} · ${p.created ?? ""}`;
+    c.addEventListener("click", () => void showStatus(p.profile, table));
+    chips.appendChild(c);
+  }
+  out.append(chips, table);
+}
+
+async function showStatus(from: string, box: HTMLElement): Promise<void> {
+  box.replaceChildren(el("div", "empty", t("loading")));
+  const r = jparse(await callTool("config_sync_status", { from }));
+  box.replaceChildren();
+  if (!r || r.ok === false) { box.appendChild(notice(errText(r), "err")); return; }
+  const pull = el("button", "xfbtn primary", t("xfSyncPull"));
+  pull.addEventListener("click", () => { syncFrom = from; plan = null; tab = "import"; renderTransfer(); });
+  box.append(el("div", "xfsum", r.message), pull);
+  for (const it of r.items) {
+    if (it.state === "in-sync" && !showAll) continue;
+    const [k, cls] = SYNC_BADGE[it.state] || [it.state, ""];
+    const line = el("div", "xfitem");
+    const l = el("div", "xfline");
+    l.append(el("span", "badge" + (cls ? " " + cls : ""), t(k)), el("span", "xfid", it.id));
+    line.appendChild(l);
+    box.appendChild(line);
   }
 }

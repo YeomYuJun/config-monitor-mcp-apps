@@ -463,14 +463,16 @@ export function buildTools(scriptDir: string): ToolDef[] {
         description: "번들을 이 PC 와 항목별로 비교한다. 아무것도 쓰지 않는다. 항목 상태는 new / same / changed(diff 포함) / blocked(시크릿 없음 등) / skipped. " +
           "settings 는 병합 결과와 비교하고 값이 다른 스칼라는 conflicts 에 경로로 나온다(기본은 이 PC 값 유지). 결과의 plan_id 를 config_import_apply 에 넘긴다",
         inputSchema: z.object({
-          bundle: z.string().describe("번들 경로(.cmbundle zip 또는 폴더, 절대경로)"),
+          bundle: z.string().optional().describe("번들 경로(.cmbundle zip 또는 폴더, 절대경로)"),
+          syncFrom: z.string().optional().describe("bundle 대신 동기화 폴더의 다른 PC(profile). 적용은 config_sync_pull"),
           secrets: z.record(z.record(z.string())).optional().describe('자리표시자 값 {"<item id>": {"<경로>": "<값>"}}'),
           choices: z.record(z.union([z.enum(["keep", "take"]), z.record(z.enum(["keep", "take"]))])).optional()
             .describe('스칼라 충돌 선택 {"<item id>": "take"} 또는 {"<item id>": {"<경로>": "take"}}. 생략 시 keep'),
         }), annotations: READ,
       },
-      run: async (a: { bundle: string; secrets?: object; choices?: object }) =>
-        jsonResult(await runPy("transfer.py", ["--store", STORE, "plan", "--bundle", a.bundle, ...importArgs(a)])),
+      run: async (a: { bundle?: string; syncFrom?: string; secrets?: object; choices?: object }) =>
+        jsonResult(await runPy("transfer.py", ["--store", STORE, "plan",
+          ...(a.syncFrom ? ["--sync-from", a.syncFrom] : ["--bundle", a.bundle ?? ""]), ...importArgs(a)])),
     },
     {
       name: "config_import_apply",
@@ -505,6 +507,66 @@ export function buildTools(scriptDir: string): ToolDef[] {
       },
       run: async (a: { importId: string; force?: boolean }) =>
         jsonResult(await runPy("transfer.py", ["--store", STORE, "undo", "--import-id", a.importId, ...(a.force ? ["--force"] : [])])),
+    },
+    {
+      name: "config_sync_setup",
+      meta: {
+        title: "Set Sync Folder",
+        description: "PC 간 동기화에 쓸 공유 폴더(OneDrive · Syncthing · git 작업 폴더)와 이 PC 의 이름(profile, 생략 시 호스트명)을 정한다. " +
+          "각 PC 는 <dir>/<profile>/ 에 폴더 번들을 올린다. config-monitor 는 git 명령을 실행하지 않는다",
+        inputSchema: z.object({ dir: z.string().describe("공유 폴더 절대경로(이미 있어야 함)"), profile: z.string().optional() }),
+        annotations: WRITE,
+      },
+      run: async (a: { dir: string; profile?: string }) =>
+        jsonResult(await runPy("transfer.py", ["--store", STORE, "sync-setup", "--dir", a.dir, ...(a.profile ? ["--profile", a.profile] : [])])),
+    },
+    {
+      name: "config_sync_status",
+      meta: {
+        title: "Sync Status",
+        description: "from 이 없으면 동기화 폴더에 있는 PC 목록. from 을 주면 그 PC 와 항목별로 in-sync / local-ahead(이 PC 만 바뀜) / " +
+          "remote-ahead(저쪽만 바뀜) / diverged(양쪽 다 바뀜) / untracked(합의된 기준 없음)",
+        inputSchema: z.object({ from: z.string().optional() }), annotations: READ,
+      },
+      run: async (a: { from?: string }) =>
+        jsonResult(await runPy("transfer.py", ["--store", STORE, "sync-status", ...(a.from ? ["--from", a.from] : [])])),
+    },
+    {
+      name: "config_sync_push",
+      meta: {
+        title: "Sync Push",
+        description: "이 PC 의 설정을 동기화 폴더의 <profile>/ 에 폴더 번들로 올린다(이전 것을 교체). 시크릿은 기본으로 빼고 자리표시자만 남긴다",
+        inputSchema: z.object({
+          includeSecrets: z.boolean().optional(),
+          withOptional: z.array(z.enum(["local"])).optional(),
+        }), annotations: WRITE,
+      },
+      run: async (a: { includeSecrets?: boolean; withOptional?: string[] }) => {
+        const args = ["--store", STORE, "sync-push"];
+        if (a.includeSecrets) args.push("--include-secrets");
+        if (a.withOptional?.length) args.push("--with-optional", a.withOptional.join(","));
+        return jsonResult(await runPy("transfer.py", args));
+      },
+    },
+    {
+      name: "config_sync_pull",
+      meta: {
+        title: "Sync Pull",
+        description: "동기화 폴더의 다른 PC 를 가져온다. 먼저 config_import_plan(syncFrom) 으로 plan_id 를 받는다. 동작은 config_import_apply 와 같고, " +
+          "끝나면 가져온 항목과 내용이 같아진 항목의 기준을 그 PC 와 맞춘다(config_import_undo 로 되돌릴 수 있다)",
+        inputSchema: z.object({
+          from: z.string(),
+          planId: z.string(),
+          ids: z.array(z.string()).optional(),
+          secrets: z.record(z.record(z.string())).optional(),
+          choices: z.record(z.union([z.enum(["keep", "take"]), z.record(z.enum(["keep", "take"]))])).optional(),
+        }), annotations: EDIT,
+      },
+      run: async (a: { from: string; planId: string; ids?: string[]; secrets?: object; choices?: object }) => {
+        const args = ["--store", STORE, "sync-pull", "--from", a.from, "--plan-id", a.planId, ...importArgs(a)];
+        if (a.ids?.length) args.push("--ids", a.ids.join(","));
+        return jsonResult(await runPy("transfer.py", args));
+      },
     },
     {
       name: "config_import_history",

@@ -9,6 +9,10 @@ r"""transfer.py - PC 간 설정 이관 번들(cmbundle v1) 만들기·가져오�
   apply --bundle P --plan-id X [--ids a,b] [...]      plan 그대로 적용. 스냅샷 전/후, 스토어 imports[] 원장
   undo --import-id X [--force]                        원장의 휴지통·백업으로 되돌린다
   history                                             가져오기(imports[])·내보내기(exports[]) 기록
+  sync-setup --dir D [--profile N]                    공유 폴더 지정(스토어 config.json 의 sync)
+  sync-push [--include-secrets]                       이 PC 를 <D>/<N>/ 폴더 번들로 올린다
+  sync-status [--from M]                              PC 목록, 또는 M 과 항목별 in-sync/local-ahead/remote-ahead/diverged/untracked
+  plan --sync-from M / sync-pull --from M --plan-id X M 의 폴더 번들을 plan/apply 하고 기준을 맞춘다
 
 번들에는 ~/.claude, ~/.claude.json 의 mcpServers, Desktop config 의 mcpServers, 스토어 설정만 담는다.
 설정이 가리키는 그 밖의 파일(훅 스크립트, MCP 서버 실행 파일, 플러그인 폴더, 라이브러리)은 담지 않고
@@ -1299,6 +1303,159 @@ def cmd_history(a):
          imports=imports, exports=exports, sync=cfg.get("sync"))
 
 
+# ── sync ────────────────────────────────────────────────────────────────────
+# <sync dir>/<profile>/ 는 PC 마다 하나인 폴더 번들이다. base[<상대 profile>][<item id>] 는 그 PC 와 마지막으로
+# 내용이 같았던 해시이고, 이것으로 어느 쪽이 바뀌었는지 가른다.
+
+def _sync_cfg(store):
+    s = lib_store.load_cfg(store).get("sync") or {}
+    if not s.get("dir"):
+        emit(False, "sync_unconfigured", "동기화 폴더가 설정되지 않았습니다. sync-setup --dir 로 정하세요")
+    return s
+
+
+def _profiles(d):
+    out = []
+    for n in sorted(os.listdir(d)) if os.path.isdir(d) else []:
+        mp = os.path.join(d, n, "manifest.json")
+        if n.startswith(".") or not os.path.isfile(mp):
+            continue
+        try:
+            m = _load(mp)
+        except (OSError, ValueError):
+            continue
+        out.append({"profile": n, "host": (m.get("source") or {}).get("host"), "created": m.get("created"),
+                    "items": len(m.get("items") or [])})
+    return out
+
+
+def _profile_dir(s, name):
+    if not SAFE_ID.match(name or ""):
+        emit(False, "invalid_arg", f"profile 이름이 유효하지 않음: {name}", target=name)
+    p = os.path.join(s["dir"], name)
+    if not os.path.isfile(os.path.join(p, "manifest.json")):
+        emit(False, "not_found", f"동기화 폴더에 그 PC 가 없음: {name}", target=p)
+    return p
+
+
+def _remote_hashes(pdir):
+    try:
+        return {it["id"]: it.get("hash") for it in Bundle(pdir).manifest.get("items") or []}
+    except BundleError as e:
+        emit(False, e.code, str(e), target=pdir)
+
+
+def _local_hashes(store, opts):
+    return {it["id"]: it["hash"] for it in Collector(store, [OPTIONAL[x] for x in opts if x in OPTIONAL]).collect().items}
+
+
+def sync_state(local, remote, base):
+    if local == remote:
+        return "in-sync"
+    if base is None:
+        return "untracked"
+    if remote == base:
+        return "local-ahead"
+    if local == base:
+        return "remote-ahead"
+    return "diverged"
+
+
+def _agree(cfg, profile, local, remote, taken=()):
+    """내용이 같은 항목과 방금 가져온 항목(taken)의 기준을 그 PC 의 해시로 맞춘다."""
+    base = cfg.setdefault("sync", {}).setdefault("base", {}).setdefault(profile, {})
+    for iid in set(local) | set(remote):
+        if iid in taken and remote.get(iid):
+            base[iid] = remote[iid]
+        elif local.get(iid) and local.get(iid) == remote.get(iid):
+            base[iid] = local[iid]
+
+
+def _opts(raw):
+    opts = [x.strip() for x in (raw or "").split(",") if x.strip()]
+    bad = [x for x in opts if x not in OPTIONAL]
+    if bad:
+        emit(False, "invalid_arg", f"알 수 없는 선택 항목: {', '.join(bad)}", target="--with-optional")
+    return opts
+
+
+def cmd_sync_setup(a):
+    d = os.path.abspath(a.dir)
+    if not os.path.isdir(d):
+        emit(False, "not_found", f"동기화 폴더가 없음: {d}", target=d)
+    profile = a.profile or re.sub(r"[^A-Za-z0-9._-]", "-", socket.gethostname())
+    if not SAFE_ID.match(profile):
+        emit(False, "invalid_arg", f"profile 이름이 유효하지 않음: {profile}", target=profile)
+    ensure_store(a.store)
+    with lib_store.edit_cfg(a.store) as cfg:
+        s = cfg.setdefault("sync", {})
+        s.update(dir=d, profile=profile)
+        s.setdefault("base", {})
+    emit(True, "ok", f"동기화 폴더: {d} (이 PC 는 {profile})", target=d,
+         sync={"dir": d, "profile": profile}, profiles=_profiles(d))
+
+
+def cmd_sync_push(a):
+    s = _sync_cfg(a.store)
+    opts = _opts(a.with_optional)
+    col = Collector(a.store, [OPTIONAL[x] for x in opts], include_secrets=a.include_secrets).collect()
+    if col.include_secrets and col.secrets:
+        col.warnings.append("시크릿 값이 secrets.json 에 평문으로 들어갑니다")
+    dst = os.path.join(s["dir"], s["profile"])
+    new = os.path.join(s["dir"], f".{s['profile']}.push")
+    if os.path.isdir(new):
+        shutil.rmtree(new)
+    h = write_bundle(col, new, a.include_secrets)
+    old = None
+    if os.path.isdir(dst):
+        old = os.path.join(s["dir"], f".{s['profile']}.old.{os.getpid()}")
+        os.replace(dst, old)
+    os.replace(new, dst)
+    if old:
+        shutil.rmtree(old, ignore_errors=True)
+    local = {it["id"]: it["hash"] for it in col.items}
+    others = [p["profile"] for p in _profiles(s["dir"]) if p["profile"] != s["profile"]]
+    remotes = {p: _remote_hashes(os.path.join(s["dir"], p)) for p in others}
+    with lib_store.edit_cfg(a.store) as cfg:
+        cfg["sync"].update(with_optional=opts, pushed_at=_now_iso())
+        for p, remote in remotes.items():
+            _agree(cfg, p, local, remote)
+    emit(True, "ok", f"올렸습니다: {dst} (항목 {len(col.items)}개)", target=dst, bundle=dst, hash=h,
+         **_summary_fields(col, dst))
+
+
+def cmd_sync_status(a):
+    s = _sync_cfg(a.store)
+    profiles = _profiles(s["dir"])
+    pub = {k: s.get(k) for k in ("dir", "profile", "pushed_at")}
+    if not a.sync_from:
+        emit(True, "ok", f"동기화 폴더의 PC {len(profiles)}개", target=s["dir"], sync=pub, profiles=profiles)
+    remote = _remote_hashes(_profile_dir(s, a.sync_from))
+    local = _local_hashes(a.store, s.get("with_optional") or [])
+    base = (s.get("base") or {}).get(a.sync_from) or {}
+    items = [{"id": i, "state": sync_state(local.get(i), remote.get(i), base.get(i)),
+              "local": local.get(i), "remote": remote.get(i), "base": base.get(i)}
+             for i in sorted(set(local) | set(remote))]
+    summary = {}
+    for it in items:
+        summary[it["state"]] = summary.get(it["state"], 0) + 1
+    emit(True, "ok", f"{a.sync_from} 와 비교: " + " · ".join(f"{k} {v}" for k, v in sorted(summary.items())),
+         target=a.sync_from, sync=pub, profiles=profiles, items=items, summary=summary)
+
+
+def cmd_sync_pull(a):
+    s = _sync_cfg(a.store)
+    a.bundle = _profile_dir(s, a.sync_from)
+
+    def on_done(ids):
+        local = _local_hashes(a.store, s.get("with_optional") or [])
+        remote = _remote_hashes(a.bundle)
+        with lib_store.edit_cfg(a.store) as cfg:
+            _agree(cfg, a.sync_from, local, remote, set(ids))
+        return {"sync_from": a.sync_from}
+    cmd_apply(a, on_done)
+
+
 def cmd_inspect(a):
     b = _open_bundle(a.bundle)
     m = b.manifest
@@ -1313,6 +1470,10 @@ def cmd_inspect(a):
 
 
 def cmd_plan(a):
+    if a.sync_from:
+        a.bundle = _profile_dir(_sync_cfg(a.store), a.sync_from)
+    elif not a.bundle:
+        emit(False, "invalid_arg", "--bundle 이나 --sync-from 중 하나가 필요합니다", target="--bundle")
     b = _open_bundle(a.bundle)
     pl = _make_plan(a, b)
     emit(True, "ok", _plan_message(pl), target=b.path, bundle=b.path, plan_id=pl.plan_id,
@@ -1353,7 +1514,13 @@ def _public_rec(rec):
     return {k: rec[k] for k in ("id", "action", "target", "key", "trash", "backup") if rec.get(k) is not None}
 
 
-def cmd_apply(a):
+def cmd_apply(a, on_done=None):
+    """on_done(적용된 id 목록) 은 끝날 때 결과 필드를 보탠다(sync-pull 의 기준 갱신)."""
+    def finish(ok, code, msg, ids, **fields):
+        if on_done:
+            fields.update(on_done(ids))
+        emit(ok, code, msg, **fields)
+
     b = _open_bundle(a.bundle)
     pl = _make_plan(a, b)
     if a.plan_id != pl.plan_id:
@@ -1370,8 +1537,8 @@ def cmd_apply(a):
               for x in want if rows[x]["state"] == "blocked"]
     if not sel:
         if failed:
-            emit(False, "partial", "적용할 수 있는 항목이 없습니다", applied=[], failed=failed)
-        emit(True, "noop", "바꿀 항목이 없습니다", applied=[], failed=[])
+            finish(False, "partial", "적용할 수 있는 항목이 없습니다", [], applied=[], failed=failed)
+        finish(True, "noop", "바꿀 항목이 없습니다", [], applied=[], failed=[])
 
     p = ensure_store(a.store)
     short = b.hash[7:15]
@@ -1402,9 +1569,9 @@ def cmd_apply(a):
     msg = f"가져오기 {import_id}: {len(done)}개 적용" if import_id else "적용된 항목이 없습니다"
     if failed:
         msg += f", {len(failed)}개 실패"
-    emit(not failed, "partial" if failed else "ok", msg, target=b.path, import_id=import_id,
-         applied=[_public_rec(x) for x in applied], failed=failed, pre_snapshot=pre, post_snapshot=post,
-         warnings=pl.warnings)
+    finish(not failed, "partial" if failed else "ok", msg, sorted(done), target=b.path, import_id=import_id,
+           applied=[_public_rec(x) for x in applied], failed=failed, pre_snapshot=pre, post_snapshot=post,
+           warnings=pl.warnings)
 
 
 def cmd_undo(a):
@@ -1458,7 +1625,8 @@ def main():
     p = sub.add_parser("inspect")
     p.add_argument("--bundle", required=True)
     p = sub.add_parser("plan")
-    p.add_argument("--bundle", required=True)
+    p.add_argument("--bundle", default="")
+    p.add_argument("--sync-from", default="", help="동기화 폴더의 다른 PC(profile) 를 번들로 쓴다")
     p.add_argument("--secrets", default="", help='{"<item id>": {"<경로>": "<값>"}}')
     p.add_argument("--choices", default="", help='스칼라 충돌: {"<item id>": "take" | {"<경로>": "take"}}. 기본 keep')
     p = sub.add_parser("apply")
@@ -1468,12 +1636,27 @@ def main():
     p.add_argument("--secrets", default="")
     p.add_argument("--choices", default="")
     sub.add_parser("history")
+    p = sub.add_parser("sync-setup")
+    p.add_argument("--dir", required=True)
+    p.add_argument("--profile", default="", help="이 PC 의 폴더 이름. 생략하면 호스트명")
+    p = sub.add_parser("sync-push")
+    p.add_argument("--with-optional", default="")
+    p.add_argument("--include-secrets", action="store_true")
+    p = sub.add_parser("sync-status")
+    p.add_argument("--from", dest="sync_from", default="")
+    p = sub.add_parser("sync-pull")
+    p.add_argument("--from", dest="sync_from", required=True)
+    p.add_argument("--plan-id", required=True)
+    p.add_argument("--ids", default="")
+    p.add_argument("--secrets", default="")
+    p.add_argument("--choices", default="")
     p = sub.add_parser("undo")
     p.add_argument("--import-id", required=True)
     p.add_argument("--force", action="store_true", help="가져온 뒤 바뀐 항목도 되돌린다")
     a = ap.parse_args()
     {"inventory": cmd_export, "export": cmd_export, "inspect": cmd_inspect, "plan": cmd_plan,
-     "apply": cmd_apply, "undo": cmd_undo, "history": cmd_history}[a.op](a)
+     "apply": cmd_apply, "undo": cmd_undo, "history": cmd_history, "sync-setup": cmd_sync_setup,
+     "sync-push": cmd_sync_push, "sync-status": cmd_sync_status, "sync-pull": cmd_sync_pull}[a.op](a)
 
 
 if __name__ == "__main__":

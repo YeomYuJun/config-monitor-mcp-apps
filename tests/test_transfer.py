@@ -255,5 +255,45 @@ class TestApply(TestPlan):
         self.assertEqual(res["code"], "plan_stale")
 
 
+class TestSync(unittest.TestCase):
+    """두 PC 가 공유 폴더 하나로 push / pull 하고, 양쪽이 바뀌면 diverged 로 본다."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="transfer_sync_")
+        self.sync = os.path.join(self.tmp, "sync")
+        os.makedirs(self.sync)
+        self.a = make_home(os.path.join(self.tmp, "a"), os.path.join(self.tmp, "tools"))
+        self.b = os.path.join(self.tmp, "b", "home")
+        os.makedirs(self.b)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def states(self, home, frm):
+        res = run(home, "sync-status", "--from", frm)
+        self.assertTrue(res["ok"], res)
+        return {i["id"]: i["state"] for i in res["items"]}
+
+    def test_push_pull_then_both_sides_change(self):
+        self.assertEqual(run(self.b, "sync-push")["code"], "sync_unconfigured")
+        for home, name in ((self.a, "pc-a"), (self.b, "pc-b")):
+            self.assertTrue(run(home, "sync-setup", "--dir", self.sync, "--profile", name)["ok"])
+        self.assertTrue(run(self.a, "sync-push")["ok"])
+        self.assertEqual([p["profile"] for p in run(self.b, "sync-status")["profiles"]], ["pc-a"])
+
+        pid = run(self.b, "plan", "--sync-from", "pc-a")["plan_id"]
+        self.assertEqual(run(self.b, "sync-pull", "--from", "pc-a", "--plan-id", pid)["code"], "ok")
+        st = self.states(self.b, "pc-a")
+        self.assertEqual((st["cc.skills/qa"], st["cc.agents/rev.md"]), ("in-sync", "in-sync"))
+        self.assertEqual(st["cc.mcp-user/srv"], "untracked")        # 시크릿이 없어 가져오지 못했다
+
+        write(os.path.join(self.a, ".claude", "skills", "qa", "SKILL.md"), "a2\n")
+        write(os.path.join(self.a, ".claude", "agents", "rev.md"), "a2\n")
+        self.assertTrue(run(self.a, "sync-push")["ok"])
+        write(os.path.join(self.b, ".claude", "skills", "qa", "SKILL.md"), "b2\n")
+        st = self.states(self.b, "pc-a")
+        self.assertEqual((st["cc.skills/qa"], st["cc.agents/rev.md"]), ("diverged", "remote-ahead"))
+
+
 if __name__ == "__main__":
     unittest.main()
