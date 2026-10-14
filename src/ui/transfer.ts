@@ -115,7 +115,9 @@ function renderExport(pane: HTMLElement): void {
   const opts = el("div", "xfopts");
   const sec = checkbox(t("xfInclSecrets"));
   const loc = checkbox(t("xfInclLocal"));
-  opts.append(sec.label, loc.label);
+  const mem = checkbox(t("xfInclMemory"));
+  const amem = checkbox(t("xfInclAgentMemory"));
+  opts.append(sec.label, loc.label, mem.label, amem.label);
   const warn = notice(t("xfSecretsWarn"), "err");
   warn.hidden = true;
   sec.input.addEventListener("change", () => { warn.hidden = !sec.input.checked; });
@@ -133,7 +135,8 @@ function renderExport(pane: HTMLElement): void {
     try {
       const r = jparse(await callTool("config_export", {
         dryRun, out: dryRun ? undefined : outPath, includeSecrets: sec.input.checked,
-        withOptional: loc.input.checked ? ["local"] : [],
+        withOptional: [[loc, "local"], [mem, "memory"], [amem, "agent-memory"]]
+          .filter(([c]) => (c as any).input.checked).map(([, k]) => k),
       }));
       out.replaceChildren();
       if (!r || r.ok === false) { out.appendChild(notice(errText(r), "err")); return; }

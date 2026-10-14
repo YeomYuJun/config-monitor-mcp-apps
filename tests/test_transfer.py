@@ -64,8 +64,8 @@ def tree_state(root):
     return out
 
 
-def run(home, *args):
-    env = dict(os.environ, HOME=home, USERPROFILE=home,
+def run(home, *args, **extra_env):
+    env = dict(os.environ, **extra_env, HOME=home, USERPROFILE=home, CLAUDE_CAS_NO_DEFAULT_TRACK="0",
                APPDATA=os.path.join(home, "AppData", "Roaming"),
                LOCALAPPDATA=os.path.join(home, "AppData", "Local"),
                CLAUDE_SNAPSHOT_STORE=os.path.join(home, "store"))
@@ -253,6 +253,63 @@ class TestApply(TestPlan):
         write(os.path.join(self.b, ".claude", "skills", "qa", "SKILL.md"), "late\n")
         res = run(self.b, "apply", "--bundle", self.bundle, "--plan-id", pid)
         self.assertEqual(res["code"], "plan_stale")
+
+
+class TestOptional(TestApply):
+    """기본 제외 항목: 프로젝트 메모리, 에이전트 메모리, 플러그인 설치."""
+    test_plan_on_empty_pc_writes_nothing = test_changed_skill_and_settings_conflict = None
+    test_rejects_bundle_that_writes_outside_its_folder = test_apply_on_empty_pc_then_plan_is_all_same = None
+    test_merge_trash_and_undo_restore_bytes = test_apply_refuses_when_target_changed_after_plan = None
+
+    def setUp(self):
+        super().setUp()
+        ch = os.path.join(self.a, ".claude")
+        self.proj_a = os.path.join(self.a, "work", "p1")
+        os.makedirs(self.proj_a)
+        with open(os.path.join(self.a, ".claude.json"), encoding="utf-8") as f:
+            cj = json.load(f)
+        cj["projects"] = {self.proj_a: {}}
+        write(os.path.join(self.a, ".claude.json"), json.dumps(cj))
+        enc = "".join(c if c.isalnum() and c.isascii() else "-" for c in self.proj_a)
+        write(os.path.join(ch, "projects", enc, "memory", "MEMORY.md"), "- note\n")
+        write(os.path.join(ch, "projects", "orphan", "memory", "MEMORY.md"), "x\n")
+        write(os.path.join(ch, "agent-memory", "rev", "notes.md"), "n\n")
+        write(os.path.join(ch, "plugins", "installed_plugins.json"),
+              json.dumps({"version": 2, "plugins": {"x@mk": [{"scope": "user", "installPath": "c"}]}}))
+        with open(os.path.join(ch, "settings.json"), encoding="utf-8") as f:
+            st = json.load(f)
+        st["extraKnownMarketplaces"] = {"mk": {"source": {"source": "github", "repo": "o/mk"}}}
+        write(os.path.join(ch, "settings.json"), json.dumps(st))
+        self.obundle = os.path.join(self.tmp, "opt-bundle")
+        res = run(self.a, "export", "--out", self.obundle, "--with-optional", "memory,agent-memory")
+        self.assertTrue(res["ok"], res)
+        self.assertIn("cc.project-memory/orphan", {x["id"] for x in res["skipped"]})
+
+    def test_project_memory_follows_the_project_path_on_this_pc(self):
+        mid = next(i["id"] for i in run(self.b, "plan", "--bundle", self.obundle)["items"]
+                   if i["id"].startswith("cc.project-memory/"))
+        st = lambda: {i["id"]: i for i in run(self.b, "plan", "--bundle", self.obundle)["items"]}
+        self.assertEqual(st()[mid]["code"], "project_missing")
+        proj_b = os.path.join(self.b, "work", "p1")
+        os.makedirs(proj_b)
+        row = st()[mid]
+        enc_b = "".join(c if c.isalnum() and c.isascii() else "-" for c in proj_b)
+        self.assertEqual(row["target"], os.path.join(self.b, ".claude", "projects", enc_b, "memory"))
+        self.assertEqual(self.apply(self.obundle)["code"], "ok")
+        self.assertTrue(os.path.isfile(os.path.join(row["target"], "MEMORY.md")))
+        self.assertTrue(os.path.isfile(os.path.join(self.b, ".claude", "agent-memory", "rev", "notes.md")))
+
+    def test_install_plugins_reports_each_plugin(self):
+        pid = run(self.b, "plan", "--bundle", self.obundle)["plan_id"]
+        res = run(self.b, "apply", "--bundle", self.obundle, "--plan-id", pid, "--install-plugins",
+                  PATH=os.path.dirname(sys.executable))
+        self.assertEqual(res["code"], "partial", res)
+        self.assertEqual([(p["id"], p["code"]) for p in res["plugins"]], [("x@mk", "tool_missing")])
+        self.assertEqual(self.load(".claude", "settings.json")["enabledPlugins"], {"x@mk": True})
+        pid = run(self.b, "plan", "--bundle", self.obundle)["plan_id"]       # 설정은 이미 같고 설치만 남았다
+        again = run(self.b, "apply", "--bundle", self.obundle, "--plan-id", pid, "--install-plugins",
+                    PATH=os.path.dirname(sys.executable))
+        self.assertEqual((again["code"], [p["id"] for p in again["plugins"]]), ("partial", ["x@mk"]))
 
 
 class TestSync(unittest.TestCase):

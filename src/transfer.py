@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 r"""transfer.py - PC 간 설정 이관 번들(cmbundle v1) 만들기·가져오기.
 
-  inventory [--with-optional local]                   이관 대상 목록(읽기 전용)
-  export --out P [--with-optional local] [--include-secrets]
+  inventory [--with-optional local,memory,agent-memory] 이관 대상 목록(읽기 전용)
+  export --out P [--with-optional ...] [--include-secrets]
                                                       번들 쓰기. P 가 .cmbundle 이면 zip, 아니면 폴더
   inspect --bundle P                                  번들 요약
   plan --bundle P [--secrets JSON] [--choices JSON]   이 PC 와 비교(읽기 전용). 항목별 new/same/changed/blocked/skipped
-  apply --bundle P --plan-id X [--ids a,b] [...]      plan 그대로 적용. 스냅샷 전/후, 스토어 imports[] 원장
+  apply --bundle P --plan-id X [--ids a,b] [--install-plugins]
+                                                      plan 그대로 적용. 스냅샷 전/후, 스토어 imports[] 원장
   undo --import-id X [--force]                        원장의 휴지통·백업으로 되돌린다
   history                                             가져오기(imports[])·내보내기(exports[]) 기록
   sync-setup --dir D [--profile N]                    공유 폴더 지정(스토어 config.json 의 sync)
@@ -22,7 +23,7 @@ JSON 값은 시크릿 치환 -> 경로 토큰화 -> 외부 경로 추출 순서�
 시크릿 값이 섞이지 않는다. 파일·트리 항목은 원문 바이트 그대로 담고 원문으로 해시한다.
 """
 from __future__ import annotations
-import contextlib, difflib, hashlib, json, os, re, shutil, socket, sys, zipfile
+import contextlib, difflib, hashlib, json, os, re, shutil, socket, subprocess, sys, time, zipfile
 from datetime import datetime
 
 for _s in (sys.stdout, sys.stderr):
@@ -65,8 +66,10 @@ LABELS = {c: l for c, _, l, _ in TREE_CATS} | {c: l for c, _, l in FILE_CATS} | 
     "cc.mcp-user": "MCP 서버 (Claude Code)",
     "desk.mcp": "MCP 서버 (Desktop)",
     "cm.store": "config-monitor 스토어 설정",
+    "cc.project-memory": "프로젝트 메모리",
+    "cc.agent-memory": "에이전트 메모리",
 }
-OPTIONAL = {"local": "cc.settings-local"}
+OPTIONAL = {"local": "cc.settings-local", "memory": "cc.project-memory", "agent-memory": "cc.agent-memory"}
 
 SECRET_KEY = re.compile(r"TOKEN|KEY|SECRET|PASSWORD|AUTHORIZATION")
 SECRET_VAL = re.compile(r"(?<![A-Za-z0-9])(sk-[A-Za-z0-9_\-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|"
@@ -287,6 +290,7 @@ class Collector:
 
     def collect(self):
         self._trees_and_files()
+        self._memories()
         self._settings()
         self._mcp()
         self._store()
@@ -313,6 +317,33 @@ class Collector:
             p = os.path.join(CLAUDE_HOME, fn)
             if os.path.isfile(p):
                 self.add_file(cat, cat, p)
+
+    def _memories(self):
+        """기본 제외. 프로젝트 메모리 폴더 이름은 프로젝트 경로를 인코딩한 것이라 대상 PC 에서 다시
+        인코딩해야 한다 - 원래 경로를 ~/.claude.json 의 projects 에서 찾아 project 로 남긴다."""
+        if "cc.agent-memory" in self.optional:
+            d = os.path.join(CLAUDE_HOME, "agent-memory")
+            for name in sorted(os.listdir(d)) if os.path.isdir(d) else []:
+                if not name.startswith(".") and os.path.isdir(os.path.join(d, name)):
+                    self.add_tree("cc.agent-memory", f"cc.agent-memory/{name}", os.path.join(d, name))
+        if "cc.project-memory" not in self.optional:
+            return
+        from claude_config import _encode_project_dir
+        try:
+            projects = _load(CLAUDE_JSON).get("projects") or {}
+        except (OSError, ValueError, AttributeError):
+            projects = {}
+        known = {_encode_project_dir(pp): pp for pp in projects}
+        d = os.path.join(CLAUDE_HOME, "projects")
+        for enc in sorted(os.listdir(d)) if os.path.isdir(d) else []:
+            mem = os.path.join(d, enc, "memory")
+            if not os.path.isdir(mem):
+                continue
+            if enc not in known:
+                self.skipped.append({"id": f"cc.project-memory/{enc}",
+                                     "reason": "어느 프로젝트의 메모리인지 알 수 없음(~/.claude.json 에 경로가 없음)"})
+                continue
+            self.add_tree("cc.project-memory", f"cc.project-memory/{enc}", mem, project=self.rel(known[enc]))
 
     def _settings(self):
         sp = os.path.join(CLAUDE_HOME, "settings.json")
@@ -452,7 +483,7 @@ class Collector:
         lines = [f"export 결과: {out_path}" if out_path else "이관 대상"]
         counts = self.counts()
         for cat in [c for c, *_ in TREE_CATS] + [c for c, *_ in FILE_CATS] + \
-                   ["cc.refs", "cc.settings", "cc.settings-local", "cc.mcp-user", "desk.mcp", "cm.store"]:
+                   ["cc.project-memory", "cc.agent-memory", "cc.refs", "cc.settings", "cc.settings-local", "cc.mcp-user", "desk.mcp", "cm.store"]:
             if counts.get(cat):
                 n = counts[cat]
                 lines.append(f"- {LABELS[cat]} {n}건" if cat not in SINGLE else f"- {LABELS[cat]}")
@@ -789,6 +820,10 @@ def _mask(cat, iid, obj):
     return prepare_json(cat, iid, obj, None)[0] if isinstance(obj, dict) else obj
 
 
+class ProjectMissing(Exception):
+    pass
+
+
 class Planner:
     """번들 항목마다 이 PC 의 현재 상태와 비교한다. 아무것도 쓰지 않는다(스냅샷·스토어 초기화 경로도
     타지 않는다). 각 항목의 _fp 는 plan 이 읽은 대상 상태의 지문이고 plan_id 가 이를 묶는다."""
@@ -830,6 +865,18 @@ class Planner:
                 (it["strategy"] == "tree" or not dirs_only)
         elif cat in CAT_FILE:
             ok = parts == [CAT_FILE[cat]] and it["strategy"] == "file"
+        elif cat == "cc.agent-memory":
+            ok = len(parts) == 2 and parts[0] == "agent-memory" and not parts[1].startswith(".") and \
+                it["strategy"] == "tree"
+        elif cat == "cc.project-memory":
+            if not (len(parts) == 3 and parts[0] == "projects" and parts[2] == "memory" and it["strategy"] == "tree"
+                    and isinstance(it.get("project"), str) and it["project"]):
+                raise bad
+            from claude_config import _encode_project_dir
+            proj = _norm_disp(detokenize(it["project"], self.tokens))
+            if not os.path.isdir(proj):
+                raise ProjectMissing(proj)
+            return os.path.join(CLAUDE_HOME, "projects", _encode_project_dir(proj), "memory")
         elif cat == "cc.refs":
             ok = parts[0] not in REF_DENY and not parts[0].startswith(".") and \
                 not (parts[0] == "skills" and len(parts) > 1 and parts[1] in paths.RESERVED_SKILL_DIRS)
@@ -903,7 +950,11 @@ class Planner:
         return row
 
     def _plan_tree(self, it):
-        tgt = self.target_of(it)
+        try:
+            tgt = self.target_of(it)
+        except ProjectMissing as e:
+            return {"target": str(e), "state": "blocked", "code": "project_missing", "_fp": "missing",
+                    "reason": f"이 PC 에 대상 프로젝트가 없음: {e}"}
         files = self.b.tree(it["rel"])
         rows = [(r, _sha(d)) for r, d in files]
         if tree_digest(rows) != it.get("hash"):
@@ -1514,6 +1565,73 @@ def _public_rec(rec):
     return {k: rec[k] for k in ("id", "action", "target", "key", "trash", "backup") if rec.get(k) is not None}
 
 
+PLUGIN_CALL_SEC = 660
+PLUGIN_BUDGET_SEC = 1200    # 프로세스 시작부터 잰다. mcp-tools.ts 의 --install-plugins 타임아웃(1260초)보다 짧아야 한다
+STARTED = time.monotonic()
+PLUGIN_CLI = os.path.join(os.path.dirname(os.path.abspath(__file__)), "plugin_cli.py")
+
+
+def _market_source(src):
+    """extraKnownMarketplaces 의 source 객체 -> claude plugin marketplace add 가 받는 문자열."""
+    if not isinstance(src, dict):
+        return None
+    return {"github": src.get("repo"), "git": src.get("url"), "url": src.get("url"),
+            "directory": src.get("path"), "file": src.get("path")}.get(src.get("source"))
+
+
+def _plugin_cli(args, store):
+    try:
+        p = subprocess.run([sys.executable, PLUGIN_CLI, *args, *(["--store", store] if store else [])],
+                           capture_output=True, text=True, encoding="utf-8", timeout=PLUGIN_CALL_SEC)
+        return json.loads(p.stdout)
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "code": "timeout", "message": f"{PLUGIN_CALL_SEC}초 안에 끝나지 않음"}
+    except ValueError:
+        return {"ok": False, "code": "bad_output", "message": "plugin_cli 출력이 JSON 이 아님"}
+
+
+def install_plugins(store):
+    """settings 에서 켜진 마켓 플러그인 중 이 PC 원장에 없는 것을 claude CLI 로 설치한다. 마켓을 Claude Code 가
+    모르면 extraKnownMarketplaces 의 출처로 먼저 등록한다. 순차 실행이고 시간 예산을 넘으면 나머지는 남긴다."""
+    st = config_edit.load(os.path.join(CLAUDE_HOME, "settings.json"))
+    pdir = os.path.join(CLAUDE_HOME, "plugins")
+    installed = plugin_state.read_installed(pdir)
+    try:
+        known = set(_load(os.path.join(pdir, "known_marketplaces.json")))
+    except (OSError, ValueError, TypeError):
+        known = set()
+    ekm = st.get("extraKnownMarketplaces") or {}
+    want = [pid for pid, v in sorted((st.get("enabledPlugins") or {}).items())
+            if v is True and pid not in installed and plugin_state.split_id(pid)[1] not in (None, "", "builtin", "inline")]
+    markets, out = {}, []
+    for pid in want:
+        name, m = plugin_state.split_id(pid)
+        if time.monotonic() - STARTED + PLUGIN_CALL_SEC > PLUGIN_BUDGET_SEC:
+            out.append({"id": pid, "ok": False, "code": "timeout", "reason": "시간 예산을 넘어 설치하지 않았습니다. 다시 실행하세요"})
+            continue
+        if m not in known and m not in markets:
+            src = _market_source((ekm.get(m) or {}).get("source"))
+            r = _plugin_cli(["market-add", src], store) if src else \
+                {"ok": False, "code": "not_found", "message": f"마켓 {m} 의 출처가 settings 에 없음"}
+            markets[m] = r
+        if m in markets and not markets[m].get("ok"):
+            out.append({"id": pid, "ok": False, "code": markets[m].get("code"), "reason": markets[m].get("message")})
+            continue
+        r = _plugin_cli(["install", "--marketplace", m, "--plugin", name, "--scope", "user"], store)
+        out.append({"id": pid, "ok": bool(r.get("ok")), "code": r.get("code"), "reason": r.get("message")})
+    return out
+
+
+def _plugins(a, failed):
+    plugins = install_plugins(a.store) if getattr(a, "install_plugins", False) else []
+    failed += [{"id": f"cc.plugins/{x['id']}", "code": x["code"], "reason": x["reason"]} for x in plugins if not x["ok"]]
+    return plugins
+
+
+def _plugin_msg(plugins):
+    return f", 플러그인 {sum(1 for x in plugins if x['ok'])}/{len(plugins)}개 설치" if plugins else ""
+
+
 def cmd_apply(a, on_done=None):
     """on_done(적용된 id 목록) 은 끝날 때 결과 필드를 보탠다(sync-pull 의 기준 갱신)."""
     def finish(ok, code, msg, ids, **fields):
@@ -1536,9 +1654,12 @@ def cmd_apply(a, on_done=None):
     failed = [{"id": x, "code": rows[x].get("code") or "blocked", "reason": rows[x].get("reason")}
               for x in want if rows[x]["state"] == "blocked"]
     if not sel:
+        # 설정은 이미 같아도 플러그인 설치만 따로 요청할 수 있다.
+        plugins = _plugins(a, failed)
         if failed:
-            finish(False, "partial", "적용할 수 있는 항목이 없습니다", [], applied=[], failed=failed)
-        finish(True, "noop", "바꿀 항목이 없습니다", [], applied=[], failed=[])
+            finish(False, "partial", "적용할 수 있는 항목이 없습니다", [], applied=[], failed=failed, plugins=plugins)
+        finish(True, "ok" if plugins else "noop", "바꿀 항목이 없습니다" + _plugin_msg(plugins), [],
+               applied=[], failed=[], plugins=plugins)
 
     p = ensure_store(a.store)
     short = b.hash[7:15]
@@ -1566,12 +1687,13 @@ def cmd_apply(a, on_done=None):
                 import_id, n = f"{base}.{n}", n + 1
             imps.append({"id": import_id, **rec})
             del imps[:-IMPORTS_KEEP]
-    msg = f"가져오기 {import_id}: {len(done)}개 적용" if import_id else "적용된 항목이 없습니다"
+    plugins = _plugins(a, failed)
+    msg = (f"가져오기 {import_id}: {len(done)}개 적용" if import_id else "적용된 항목이 없습니다") + _plugin_msg(plugins)
     if failed:
         msg += f", {len(failed)}개 실패"
     finish(not failed, "partial" if failed else "ok", msg, sorted(done), target=b.path, import_id=import_id,
            applied=[_public_rec(x) for x in applied], failed=failed, pre_snapshot=pre, post_snapshot=post,
-           warnings=pl.warnings)
+           warnings=pl.warnings, plugins=plugins)
 
 
 def cmd_undo(a):
@@ -1635,6 +1757,8 @@ def main():
     p.add_argument("--ids", default="", help="쉼표 구분 항목 id. 생략하면 new/changed 전부")
     p.add_argument("--secrets", default="")
     p.add_argument("--choices", default="")
+    p.add_argument("--install-plugins", action="store_true",
+                   help="적용 뒤 켜진 마켓 플러그인 중 없는 것을 claude CLI 로 설치(네트워크)")
     sub.add_parser("history")
     p = sub.add_parser("sync-setup")
     p.add_argument("--dir", required=True)
@@ -1647,6 +1771,7 @@ def main():
     p = sub.add_parser("sync-pull")
     p.add_argument("--from", dest="sync_from", required=True)
     p.add_argument("--plan-id", required=True)
+    p.add_argument("--install-plugins", action="store_true")
     p.add_argument("--ids", default="")
     p.add_argument("--secrets", default="")
     p.add_argument("--choices", default="")

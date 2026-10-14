@@ -440,7 +440,8 @@ export function buildTools(scriptDir: string): ToolDef[] {
           out: z.string().optional().describe("번들 경로(dryRun 이 아니면 필수, 이미 있으면 거부)"),
           dryRun: z.boolean().optional().describe("true 면 쓰지 않고 이관 대상과 외부 경로만 보고"),
           includeSecrets: z.boolean().optional().describe("true 면 시크릿 값을 번들의 secrets.json 에 평문으로 넣는다"),
-          withOptional: z.array(z.enum(["local"])).optional().describe("기본 제외 항목 포함. local = ~/.claude/settings.local.json"),
+          withOptional: z.array(z.enum(["local", "memory", "agent-memory"])).optional()
+            .describe("기본 제외 항목 포함. local = ~/.claude/settings.local.json, memory = 프로젝트 메모리(~/.claude/projects/*/memory), agent-memory = ~/.claude/agent-memory"),
         }), annotations: WRITE,
       },
       run: async (a: { out?: string; dryRun?: boolean; includeSecrets?: boolean; withOptional?: string[] }) => {
@@ -484,13 +485,15 @@ export function buildTools(scriptDir: string): ToolDef[] {
           bundle: z.string(),
           planId: z.string().describe("config_import_plan 의 plan_id"),
           ids: z.array(z.string()).optional().describe("적용할 항목 id. 생략 시 new/changed 전부"),
+          installPlugins: z.boolean().optional().describe("true 면 적용 뒤 켜진 마켓 플러그인 중 없는 것을 claude CLI 로 설치(네트워크, 최대 20분)"),
           secrets: z.record(z.record(z.string())).optional(),
           choices: z.record(z.union([z.enum(["keep", "take"]), z.record(z.enum(["keep", "take"]))])).optional(),
         }), annotations: EDIT,
       },
-      run: async (a: { bundle: string; planId: string; ids?: string[]; secrets?: object; choices?: object }) => {
+      run: async (a: { bundle: string; planId: string; ids?: string[]; secrets?: object; choices?: object; installPlugins?: boolean }) => {
         const args = ["--store", STORE, "apply", "--bundle", a.bundle, "--plan-id", a.planId, ...importArgs(a)];
         if (a.ids?.length) args.push("--ids", a.ids.join(","));
+        if (a.installPlugins) args.push("--install-plugins");
         return jsonResult(await runPy("transfer.py", args));
       },
     },
@@ -538,7 +541,7 @@ export function buildTools(scriptDir: string): ToolDef[] {
         description: "이 PC 의 설정을 동기화 폴더의 <profile>/ 에 폴더 번들로 올린다(이전 것을 교체). 시크릿은 기본으로 빼고 자리표시자만 남긴다",
         inputSchema: z.object({
           includeSecrets: z.boolean().optional(),
-          withOptional: z.array(z.enum(["local"])).optional(),
+          withOptional: z.array(z.enum(["local", "memory", "agent-memory"])).optional(),
         }), annotations: WRITE,
       },
       run: async (a: { includeSecrets?: boolean; withOptional?: string[] }) => {
@@ -558,13 +561,15 @@ export function buildTools(scriptDir: string): ToolDef[] {
           from: z.string(),
           planId: z.string(),
           ids: z.array(z.string()).optional(),
+          installPlugins: z.boolean().optional(),
           secrets: z.record(z.record(z.string())).optional(),
           choices: z.record(z.union([z.enum(["keep", "take"]), z.record(z.enum(["keep", "take"]))])).optional(),
         }), annotations: EDIT,
       },
-      run: async (a: { from: string; planId: string; ids?: string[]; secrets?: object; choices?: object }) => {
+      run: async (a: { from: string; planId: string; ids?: string[]; secrets?: object; choices?: object; installPlugins?: boolean }) => {
         const args = ["--store", STORE, "sync-pull", "--from", a.from, "--plan-id", a.planId, ...importArgs(a)];
         if (a.ids?.length) args.push("--ids", a.ids.join(","));
+        if (a.installPlugins) args.push("--install-plugins");
         return jsonResult(await runPy("transfer.py", args));
       },
     },
