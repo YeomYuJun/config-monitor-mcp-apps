@@ -112,9 +112,12 @@ export function buildTools(scriptDir: string): ToolDef[] {
     }
   };
 
-  const importArgs = (a: { secrets?: object; choices?: object }): string[] => [
+  type ImportOpts = { secrets?: object; choices?: object; roots?: Record<string, string>; exclude?: string[] };
+  const importArgs = (a: ImportOpts): string[] => [
     ...(a.secrets && Object.keys(a.secrets).length ? ["--secrets", JSON.stringify(a.secrets)] : []),
     ...(a.choices && Object.keys(a.choices).length ? ["--choices", JSON.stringify(a.choices)] : []),
+    ...(a.roots && Object.keys(a.roots).length ? ["--roots", JSON.stringify(a.roots)] : []),
+    ...(a.exclude?.length ? ["--exclude", a.exclude.join(",")] : []),
   ];
 
   // 추적 중인 프로젝트 .claude 디렉토리(전역 기본 추적분 제외). 대시보드가 get_tracked 로 같은
@@ -462,16 +465,23 @@ export function buildTools(scriptDir: string): ToolDef[] {
       meta: {
         title: "Plan Config Import",
         description: "번들을 이 PC 와 항목별로 비교한다. 아무것도 쓰지 않는다. 항목 상태는 new / same / changed(diff 포함) / blocked(시크릿 없음 등) / skipped. " +
-          "settings 는 병합 결과와 비교하고 값이 다른 스칼라는 conflicts 에 경로로 나온다(기본은 이 PC 값 유지). 결과의 plan_id 를 config_import_apply 에 넘긴다",
+          "settings 는 병합 결과와 비교하고 값이 다른 스칼라는 conflicts 에 경로로 나온다(기본은 이 PC 값 유지). 결과의 plan_id 를 config_import_apply 에 넘긴다. " +
+          "다른 PC 의 번들은 드라이브·도구 폴더가 다르다: roots[] 는 이 PC 에 없는 경로의 짝(source = library·drive 추정, user·claude 확정, none 짝 없음), " +
+          "unresolved[] 는 짝을 찾지 못한 경로다. 그 경로를 쓰는 훅(cc.settings 의 hooks[] state=blocked)과 MCP 서버(code=path_missing)는 쓰지 않고, " +
+          "동작 중인 이 PC 서버를 죽은 경로로 덮는 변경은 code=keep_working 으로 막는다. 동작 중인 서버는 번들 값과 합친다: " +
+          "이 PC 에만 있는 키는 남기고 번들에만 있는 키는 더하고, 다른 값은 conflicts(command·args·env.<키>, 기본 keep)로 나온다. 짝을 찾으려면 이 PC 를 탐색한 뒤 config_import_roots 로 저장하거나 roots 를 넘겨 다시 plan 한다",
         inputSchema: z.object({
           bundle: z.string().optional().describe("번들 경로(.cmbundle zip 또는 폴더, 절대경로)"),
           syncFrom: z.string().optional().describe("bundle 대신 동기화 폴더의 다른 PC(profile). 적용은 config_sync_pull"),
           secrets: z.record(z.record(z.string())).optional().describe('자리표시자 값 {"<item id>": {"<경로>": "<값>"}}'),
           choices: z.record(z.union([z.enum(["keep", "take"]), z.record(z.enum(["keep", "take"]))])).optional()
             .describe('스칼라 충돌 선택 {"<item id>": "take"} 또는 {"<item id>": {"<경로>": "take"}}. 생략 시 keep'),
+          roots: z.record(z.string()).optional()
+            .describe('경로 짝 {"<번들 쪽 루트>": "<이 PC 폴더 절대경로>"}. "" 이면 그 루트를 맞추지 않는다. 생략 시 저장된 짝과 추정을 쓴다'),
+          exclude: z.array(z.string()).optional().describe("가져오지 않을 훅 id(plan 결과 cc.settings 의 hooks[].id)"),
         }), annotations: READ,
       },
-      run: async (a: { bundle?: string; syncFrom?: string; secrets?: object; choices?: object }) =>
+      run: async (a: { bundle?: string; syncFrom?: string } & ImportOpts) =>
         jsonResult(await runPy("transfer.py", ["--store", STORE, "plan",
           ...(a.syncFrom ? ["--sync-from", a.syncFrom] : ["--bundle", a.bundle ?? ""]), ...importArgs(a)])),
     },
@@ -488,14 +498,34 @@ export function buildTools(scriptDir: string): ToolDef[] {
           installPlugins: z.boolean().optional().describe("true 면 적용 뒤 켜진 마켓 플러그인 중 없는 것을 claude CLI 로 설치(네트워크, 최대 20분)"),
           secrets: z.record(z.record(z.string())).optional(),
           choices: z.record(z.union([z.enum(["keep", "take"]), z.record(z.enum(["keep", "take"]))])).optional(),
+          roots: z.record(z.string()).optional()
+            .describe('경로 짝 {"<번들 쪽 루트>": "<이 PC 폴더 절대경로>"}. "" 이면 그 루트를 맞추지 않는다. 생략 시 저장된 짝과 추정을 쓴다'),
+          exclude: z.array(z.string()).optional().describe("가져오지 않을 훅 id(plan 결과 cc.settings 의 hooks[].id)"),
         }), annotations: EDIT,
       },
-      run: async (a: { bundle: string; planId: string; ids?: string[]; secrets?: object; choices?: object; installPlugins?: boolean }) => {
+      run: async (a: { bundle: string; planId: string; ids?: string[]; installPlugins?: boolean } & ImportOpts) => {
         const args = ["--store", STORE, "apply", "--bundle", a.bundle, "--plan-id", a.planId, ...importArgs(a)];
         if (a.ids?.length) args.push("--ids", a.ids.join(","));
         if (a.installPlugins) args.push("--install-plugins");
         return jsonResult(await runPy("transfer.py", args));
       },
+    },
+    {
+      name: "config_import_roots",
+      meta: {
+        title: "Save Import Path Roots",
+        description: "가져오기의 경로 짝을 확인해 저장한다. 설정 파일은 바꾸지 않고, 다음 config_import_plan 이 이 짝을 쓴다(사용자가 가져오기 화면에서 다시 비교·적용). " +
+          "from 은 plan 결과 roots[].from 이나 unresolved[].source_path 의 상위 폴더, to 는 이 PC 에 실제로 있는 폴더. " +
+          "번들 쪽에 그 루트 아래 없는 경로가 없거나, to 가 없거나, 그 짝으로 풀리는 경로가 하나도 없으면 그 짝은 저장하지 않고 이유를 돌려준다",
+        inputSchema: z.object({
+          bundle: z.string().optional().describe("번들 경로(.cmbundle zip 또는 폴더, 절대경로)"),
+          syncFrom: z.string().optional().describe("bundle 대신 동기화 폴더의 다른 PC(profile)"),
+          roots: z.record(z.string()).describe('{"<번들 쪽 루트>": "<이 PC 폴더 절대경로>"}'),
+        }), annotations: WRITE,
+      },
+      run: async (a: { bundle?: string; syncFrom?: string; roots: Record<string, string> }) =>
+        jsonResult(await runPy("transfer.py", ["--store", STORE, "roots",
+          ...(a.syncFrom ? ["--from", a.syncFrom] : ["--bundle", a.bundle ?? ""]), "--roots", JSON.stringify(a.roots)])),
     },
     {
       name: "config_import_undo",
@@ -564,9 +594,12 @@ export function buildTools(scriptDir: string): ToolDef[] {
           installPlugins: z.boolean().optional(),
           secrets: z.record(z.record(z.string())).optional(),
           choices: z.record(z.union([z.enum(["keep", "take"]), z.record(z.enum(["keep", "take"]))])).optional(),
+          roots: z.record(z.string()).optional()
+            .describe('경로 짝 {"<번들 쪽 루트>": "<이 PC 폴더 절대경로>"}. "" 이면 그 루트를 맞추지 않는다. 생략 시 저장된 짝과 추정을 쓴다'),
+          exclude: z.array(z.string()).optional().describe("가져오지 않을 훅 id(plan 결과 cc.settings 의 hooks[].id)"),
         }), annotations: EDIT,
       },
-      run: async (a: { from: string; planId: string; ids?: string[]; secrets?: object; choices?: object; installPlugins?: boolean }) => {
+      run: async (a: { from: string; planId: string; ids?: string[]; installPlugins?: boolean } & ImportOpts) => {
         const args = ["--store", STORE, "sync-pull", "--from", a.from, "--plan-id", a.planId, ...importArgs(a)];
         if (a.ids?.length) args.push("--ids", a.ids.join(","));
         if (a.installPlugins) args.push("--install-plugins");

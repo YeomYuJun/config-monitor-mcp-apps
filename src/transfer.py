@@ -14,6 +14,10 @@ r"""transfer.py - PC 간 설정 이관 번들(cmbundle v1) 만들기·가져오�
   sync-push [--include-secrets]                       이 PC 를 <D>/<N>/ 폴더 번들로 올린다
   sync-status [--from M]                              PC 목록, 또는 M 과 항목별 in-sync/local-ahead/remote-ahead/diverged/untracked
   plan --sync-from M / sync-pull --from M --plan-id X M 의 폴더 번들을 plan/apply 하고 기준을 맞춘다
+  roots --bundle P --roots JSON [--by claude|user]   이 PC 경로 짝을 확인해 저장(다음 plan 이 쓴다)
+
+다른 PC 의 번들은 드라이브·도구 폴더가 다르다. plan 은 이 PC 에 없는 경로의 짝을 정해(--roots > 저장된 짝 > 추정)
+값을 바꿔 끼우고, 그래도 없는 경로를 쓰는 훅·MCP 서버는 쓰지 않는다. 동작 중인 이 PC 값은 덮지 않는다.
 
 번들에는 ~/.claude, ~/.claude.json 의 mcpServers, Desktop config 의 mcpServers, 스토어 설정만 담는다.
 설정이 가리키는 그 밖의 파일(훅 스크립트, MCP 서버 실행 파일, 플러그인 폴더, 라이브러리)은 담지 않고
@@ -23,7 +27,7 @@ JSON 값은 시크릿 치환 -> 경로 토큰화 -> 외부 경로 추출 순서�
 시크릿 값이 섞이지 않는다. 파일·트리 항목은 원문 바이트 그대로 담고 원문으로 해시한다.
 """
 from __future__ import annotations
-import contextlib, difflib, hashlib, json, os, re, shutil, socket, subprocess, sys, time, zipfile
+import contextlib, difflib, hashlib, json, os, re, shutil, socket, string, subprocess, sys, time, zipfile
 from datetime import datetime
 
 for _s in (sys.stdout, sys.stderr):
@@ -241,6 +245,158 @@ def _mcp_refs(name, server):
     for k, v in (server.get("env") or {}).items():
         if isinstance(v, str):
             yield "mcp", name, f"env.{k}", v, True
+
+
+# ── 경로 맞춤 ────────────────────────────────────────────────────────────────
+# ${HOME}·${CLAUDE_HOME}·${DESKTOP_DIR} 는 토큰이라 이 PC 값으로 이미 풀린다. 남는 것은 도구를 둔 드라이브·폴더처럼
+# PC 마다 다른 절대경로다. 다른 PC 번들을 그대로 쓰면 이 PC 에 없는 경로가 설정에 들어가 매 턴 훅이 실패한다.
+# 원칙 둘을 어디서 온 짝(추정·사람·Claude)이든 똑같이 지킨다.
+#   - 이 PC 에 없는 경로는 쓰지 않는다. 맞출 짝이 없으면 그 경로를 쓰는 훅 하나·서버 하나를 뺀다.
+#   - 동작 중인 이 PC 값을 동작하지 않는 값으로 덮지 않는다.
+
+def _exists(p):
+    return os.path.exists(os.path.expanduser(p))
+
+
+def _ncase(p):
+    return os.path.normcase(os.path.normpath(p))
+
+
+def _under(p, root):
+    a, b = _ncase(p), _ncase(root)
+    return a == b or a.startswith(b.rstrip("\\/") + os.sep)
+
+
+def _rebase(p, frm, to):
+    """_under(p, frm) 인 p 의 frm 부분만 to 로 바꾼다."""
+    rest = os.path.normpath(p)[len(os.path.normpath(frm)):].lstrip("\\/")
+    return os.path.join(to, rest) if rest else os.path.normpath(to)
+
+
+def _top_missing(p, exists):
+    """p 의 조상 가운데 이 PC 에 없는 가장 위 폴더(그 부모는 있다). p 가 있으면 None."""
+    cur = os.path.normpath(p)
+    if exists(cur):
+        return None
+    while True:
+        parent = os.path.dirname(cur)
+        if parent == cur or exists(parent):
+            return cur
+        cur = parent
+
+
+def local_drives():
+    if os.name != "nt":
+        return []
+    return [f"{c}:\\" for c in string.ascii_uppercase if os.path.exists(f"{c}:\\")]
+
+
+def _same_name(a, b):
+    return os.path.basename(os.path.normpath(a)).lower() == os.path.basename(os.path.normpath(b)).lower()
+
+
+def infer_roots(missing, src_libs=(), local_libs=(), exists=_exists, drives=None):
+    """이 PC 에서 찾지 못한 경로들의 짝 루트를 추정한다. [{from, to, source, total, resolved}].
+    근거는 둘뿐이다 - 같은 역할의 이 PC 폴더(config-monitor 라이브러리 루트), 드라이브 글자만 다른 같은 폴더.
+    파일 이름으로 디스크를 뒤지지 않는다 - index.js 처럼 흔한 이름은 엉뚱한 도구에 붙는다.
+    하나도 풀지 못하는 짝은 내지 않는다(그런 짝은 확인할 거리만 늘린다)."""
+    drives = local_drives() if drives is None else drives
+    left, roots = list(missing), []
+
+    def take(frm, to, source):
+        mine = [p for p in left if _under(p, frm)]
+        ok = sum(1 for p in mine if exists(_rebase(p, frm, to)))
+        if not ok:
+            return False
+        roots.append({"from": os.path.normpath(frm), "to": os.path.normpath(to), "source": source,
+                      "total": len(mine), "resolved": ok})
+        left[:] = [p for p in left if p not in mine]
+        return True
+
+    for src in src_libs:
+        if exists(src):
+            continue
+        cands = [lib for lib in local_libs if _same_name(lib, src) and exists(lib)]
+        if not cands and len(local_libs) == 1 and exists(local_libs[0]):
+            cands = list(local_libs)
+        for loc in cands:
+            if take(src, loc, "library"):
+                break
+    tops = []
+    for p in left:
+        t = _top_missing(p, exists)
+        if t and not any(_ncase(t) == _ncase(x) for x in tops):
+            tops.append(t)
+    for top in tops:
+        drive, rest = os.path.splitdrive(top)
+        if not drive:
+            continue
+        best = None
+        for d in drives:
+            if _ncase(d) == _ncase(drive + os.sep):
+                continue
+            to = os.path.join(d, rest.lstrip("\\/"))
+            n = sum(1 for p in left if _under(p, top) and exists(_rebase(p, top, to)))
+            if n and (best is None or n > best[0]):
+                best = (n, to)
+        if best:
+            take(top, best[1], "drive")
+    return roots
+
+
+class PathMap:
+    """from 루트를 to 로 바꾼다. 문자열 어디에 있든(명령 인자 안이라도) 경로 경계에서만 맞추고, 긴 루트가 이긴다.
+    원래 글이 '/' 를 쓰면 바꾼 부분도 '/' 로 쓴다."""
+
+    def __init__(self, pairs):
+        self.pairs = sorted(((os.path.normpath(f), os.path.normpath(t)) for f, t in pairs if f and t),
+                            key=lambda x: -len(x[0]))
+        alts = []
+        for i, (f, _t) in enumerate(self.pairs):
+            segs = [re.escape(s) for s in re.split(r"[\\/]+", f) if s]
+            lead = r"[\\/]" if f[:1] in "\\/" else ""
+            alts.append(f"(?P<r{i}>" + lead + r"[\\/]+".join(segs) + ")")
+        flags = re.I if os.name == "nt" else 0
+        self.rx = re.compile(r"(?<![A-Za-z0-9_.])(?:" + "|".join(alts) + r")(?=[\\/\"'\s;,)]|$)", flags) \
+            if alts else None
+
+    def sub(self, s, used=None):
+        if not self.rx or not isinstance(s, str):
+            return s
+
+        def rep(m):
+            f, t = self.pairs[int(m.lastgroup[1:])]
+            if used is not None:
+                used.add((f, t))
+            nxt = m.string[m.end():m.end() + 1]
+            out = t.rstrip("\\/") if nxt in ("\\", "/") else t
+            return out.replace("\\", "/") if "/" in m.group(0) or nxt == "/" else out
+        return self.rx.sub(rep, s)
+
+
+def _dead(s, lists=False, alive=_exists):
+    return [p for p in find_paths(s, lists) if not alive(p)]
+
+
+def _norm_cmd(cmd):
+    """같은 훅인지 비교할 때만 쓴다. 경로는 normcase·normpath 로, 따옴표·공백 차이는 없앤다.
+    이게 없으면 대소문자·구분자만 다른 같은 스크립트(C:/my-tools/Hooks/x.js, c:/my-tools/hooks/x.js)가
+    다른 훅으로 보여 같은 훅이 두 번 돈다."""
+    s = cmd
+    for p in find_paths(cmd):
+        s = s.replace(p, _ncase(os.path.expanduser(p)))
+    s = " ".join(s.replace('"', " ").replace("'", " ").split())
+    return s.lower() if os.name == "nt" else s
+
+
+def _hook_id(event, norm):
+    return "hook:" + hashlib.sha256(f"{event}\0{norm}".encode("utf-8")).hexdigest()[:10]
+
+
+def _dead_server(name, server, alive=_exists):
+    """실행에 쓰는 경로(command·args·cwd) 가운데 이 PC 에 없는 것. env 의 경로는 서버가 만들 데이터 폴더일 수 있어 보지 않는다."""
+    return [p for kind, _o, field, s, lists in _mcp_refs(name, server) if not field.startswith("env.")
+            for p in _dead(s, lists, alive)]
 
 
 # ── 수집 ────────────────────────────────────────────────────────────────────
@@ -783,6 +939,40 @@ def merge(cur, inc, take, conflicts, path=""):
     return inc if take(path) else cur
 
 
+def _same_val(a, b):
+    """경로 표기(대소문자·구분자·겹친 구분자)만 다른 값은 같은 값이다."""
+    if isinstance(a, str) and isinstance(b, str):
+        return a == b or _norm_cmd(a) == _norm_cmd(b)
+    if isinstance(a, list) and isinstance(b, list):
+        return len(a) == len(b) and all(_same_val(x, y) for x, y in zip(a, b))
+    return a == b
+
+
+def merge_server(cur, inc, take, conflicts):
+    """이 PC 에서 동작 중인 MCP 서버에 번들 서버를 합친다. 이 PC 에만 있는 키(env 포함)는 남기고, 번들에만 있는
+    키는 더하고, 둘 다 있는데 다르면 conflicts 에 올리고 take(path) 일 때만 번들 값. 통째로 바꾸면
+    이 PC 에만 있는 env(라이브러리 폴더 등)가 사라진다."""
+    out = dict(cur)
+    for k, v in inc.items():
+        if k not in cur:
+            out[k] = v
+        elif k == "env" and isinstance(cur[k], dict) and isinstance(v, dict):
+            env = dict(cur[k])
+            for ek, ev in v.items():
+                if ek not in env:
+                    env[ek] = ev
+                elif not _same_val(env[ek], ev):
+                    conflicts.append(f"env.{ek}")
+                    if take(f"env.{ek}"):
+                        env[ek] = ev
+            out[k] = env
+        elif not _same_val(cur[k], v):
+            conflicts.append(k)
+            if take(k):
+                out[k] = v
+    return out
+
+
 def chooser(choice):
     if isinstance(choice, dict):
         return lambda p: choice.get(p) == "take"
@@ -829,19 +1019,112 @@ class Planner:
     """번들 항목마다 이 PC 의 현재 상태와 비교한다. 아무것도 쓰지 않는다(스냅샷·스토어 초기화 경로도
     타지 않는다). 각 항목의 _fp 는 plan 이 읽은 대상 상태의 지문이고 plan_id 가 이를 묶는다."""
 
-    def __init__(self, bundle, store, secrets=None, choices=None):
+    def __init__(self, bundle, store, secrets=None, choices=None, roots=None, exclude=None):
         self.b = bundle
         self.store = store
         self.secrets = secrets or {}
         self.choices = choices or {}
+        self.roots_arg = roots or {}            # {from: to | ""} - "" 는 이 루트를 맞추지 않음
+        self.exclude = set(exclude or ())       # 체크를 끈 훅 id
         self.desktop_dir = paths.resolve_desktop_dir()
         self.desktop_config = os.path.join(self.desktop_dir, paths.DESKTOP_CONFIG_NAME)
         self.tokens = make_tokens(self.desktop_dir)
         self.items, self.warnings, self.external = [], [], []
+        self.pmap, self.roots, self.unresolved, self.missing, self.explicit = PathMap([]), [], [], [], {}
+        self.incoming = []                      # 이 번들이 쓰는 파일·폴더 자리 - 적용하면 생긴다
+        src = bundle.manifest.get("source") or {}
+        self.source_key = f"{src.get('host') or ''}|{src.get('home') or ''}"
         self._files = {}
 
     def detok(self, obj):
         return map_strings(obj, lambda s: detokenize(s, self.tokens))
+
+    def alive(self, p):
+        """이 PC 에 있거나, 이 가져오기가 함께 만들 자리(~/.claude 의 훅 스크립트 등)면 산 경로다."""
+        return _exists(p) or any(_under(os.path.expanduser(p), t) for t in self.incoming)
+
+    def remap(self, obj, used=None):
+        return map_strings(obj, lambda s: self.pmap.sub(s, used))
+
+    def _local_libs(self):
+        libs = [p.strip() for p in os.environ.get("CLAUDE_CONFIG_LIBRARIES", "").split(os.pathsep) if p.strip()]
+        try:
+            libs += [x for x in lib_store.load_cfg(self.store).get("libraries") or [] if isinstance(x, str)]
+        except (OSError, ValueError):
+            pass
+        return [x for x in libs if os.path.isdir(x)]
+
+    def setup_paths(self):
+        """번들 external 가운데 이 PC 에 없는 경로의 짝을 정한다. 우선순위: 이번 요청의 roots > 저장된 짝
+        (사람·Claude 가 확정한 것) > 추정. 사람이 끈 루트("")는 추정이 다시 채우지 않는다."""
+        ext = []
+        for e in self.b.manifest.get("external") or []:
+            if isinstance(e, dict):
+                tok = str(e.get("token") or e.get("path") or "")
+                ext.append((e, tok, _norm_disp(os.path.expanduser(detokenize(tok, self.tokens)))))
+        self.missing = [p for _e, tok, p in ext if not tok.startswith("${") and not _exists(p)]
+        try:
+            saved = ((lib_store.load_cfg(self.store).get("import_roots") or {}).get(self.source_key) or {})
+        except (OSError, ValueError):
+            saved = {}
+        chosen = {}
+        for f, v in saved.items():
+            if isinstance(v, dict) and isinstance(f, str):
+                chosen[os.path.normpath(f)] = (v.get("to") or "", v.get("by") or "user")
+        for f, t in self.roots_arg.items():
+            if isinstance(f, str) and isinstance(t, str):
+                chosen[os.path.normpath(f)] = (t.strip(), "user")
+                self.explicit[os.path.normpath(f)] = t.strip()
+        report, pairs = [], []
+        for f, (t, by) in chosen.items():
+            err = None
+            if not os.path.isabs(f):
+                err = "절대경로가 아님"
+            elif t and not (os.path.isabs(t) and os.path.isdir(t)):
+                err = "이 PC 에 없는 폴더"
+            if err:
+                report.append({"from": f, "to": t or None, "source": by, "error": err})
+                self.explicit.pop(f, None)
+                continue
+            report.append({"from": f, "to": t or None, "source": by})
+            if t:
+                pairs.append((f, t))
+        rest = [p for p in self.missing if not any(_under(p, r["from"]) for r in report if not r.get("error"))]
+        libs = [p for e, _t, p in ext if e.get("kind") == "library"]
+        inferred = infer_roots(rest, libs, self._local_libs())
+        pairs += [(r["from"], r["to"]) for r in inferred]
+        report += [{k: r[k] for k in ("from", "to", "source")} for r in inferred]
+        self.pmap = PathMap(pairs)
+        # 경로마다 가장 긴 루트 하나에만 센다(겹치는 루트가 같은 경로를 두 번 세지 않게).
+        live = [r for r in report if not r.get("error")]
+        for r in live:
+            r["total"] = r["resolved"] = 0
+        orphans = []
+        for p in self.missing:
+            own = max((r for r in live if _under(p, r["from"])), key=lambda r: len(r["from"]), default=None)
+            if own is None:
+                orphans.append(p)
+                continue
+            own["total"] += 1
+            own["resolved"] += bool(own["to"] and _exists(_rebase(p, own["from"], own["to"])))
+        # 짝이 없는 경로는 가장 위의 없는 폴더로 묶어 빈 칸 줄로 낸다 - 사람이나 Claude 가 채울 자리다.
+        for p in orphans:
+            top = _top_missing(p, _exists) or p
+            r = next((x for x in report if x["source"] == "none" and _ncase(x["from"]) == _ncase(top)), None)
+            if r is None:
+                r = {"from": top, "to": None, "source": "none", "total": 0, "resolved": 0}
+                report.append(r)
+            r["total"] += 1
+        self.roots = report
+        for e, tok, p in ext:
+            q = _norm_disp(self.pmap.sub(p))
+            row = {**{k: e.get(k) for k in ("kind", "owners", "scopes", "fields")},
+                   "path": q, "source_path": e.get("path"), "exists": _exists(q), "in_home": tok.startswith("${")}
+            if _ncase(q) != _ncase(p):
+                row["mapped_from"] = p
+            self.external.append(row)
+        self.unresolved = [{k: e[k] for k in ("path", "kind", "owners", "source_path", "in_home")}
+                           for e in self.external if not e["exists"]]
 
     def json_file(self, p):
         """(내용 또는 None, 오류 문구 또는 None)."""
@@ -874,7 +1157,7 @@ class Planner:
                     and isinstance(it.get("project"), str) and it["project"]):
                 raise bad
             from claude_config import _encode_project_dir
-            proj = _norm_disp(detokenize(it["project"], self.tokens))
+            proj = _norm_disp(self.pmap.sub(detokenize(it["project"], self.tokens)))
             if not os.path.isdir(proj):
                 raise ProjectMissing(proj)
             return os.path.join(CLAUDE_HOME, "projects", _encode_project_dir(proj), "memory")
@@ -890,6 +1173,13 @@ class Planner:
     def run(self):
         m = self.b.manifest
         for it in m.get("items") or []:
+            if isinstance(it, dict) and it.get("strategy") in ("file", "tree"):
+                try:
+                    self.incoming.append(self.target_of(it))
+                except (BundleError, ProjectMissing):
+                    pass                        # 그 항목의 plan 이 같은 사유로 막는다
+        self.setup_paths()
+        for it in m.get("items") or []:
             if not isinstance(it, dict) or not isinstance(it.get("id"), str):
                 raise BundleError("bundle_invalid", "manifest items 형식이 아님")
             row = {"id": it["id"], "category": it.get("category"), "strategy": it.get("strategy")}
@@ -899,15 +1189,8 @@ class Planner:
             if isinstance(s, dict):
                 self.items.append({"id": s.get("id"), "category": str(s.get("id")).partition("/")[0],
                                    "state": "skipped", "reason": s.get("reason")})
-        for e in m.get("external") or []:
-            if not isinstance(e, dict):
-                continue
-            p = _norm_disp(os.path.expanduser(detokenize(str(e.get("token") or e.get("path") or ""), self.tokens)))
-            self.external.append({**{k: e.get(k) for k in ("kind", "owners", "scopes", "fields")},
-                                  "path": p, "source_path": e.get("path"), "exists": os.path.exists(p)})
-        miss = [e for e in self.external if not e["exists"]]
-        if miss:
-            self.warnings.append(f"설정이 가리키는 외부 경로 {len(miss)}개가 이 PC 에 없습니다. 같은 경로에 준비해야 동작합니다")
+        if self.unresolved:
+            self.warnings.append(f"이 PC 에 없는 경로 {len(self.unresolved)}개 - 그 경로를 쓰는 훅·MCP 서버는 빼고 가져옵니다")
         cats = {r["category"] for r in self.items if r.get("state") in ("new", "changed")}
         if cats & set(MCP_CATS):
             self.warnings.append("Claude Code·Desktop 이 실행 중이면 적용 직후 설정 파일을 다시 쓸 수 있습니다. 적용 뒤 재시작하세요")
@@ -916,6 +1199,9 @@ class Planner:
         if not os.path.isfile(lib_store.store_config_path(self.store)):
             self.warnings.append(f"스토어가 아직 없어 적용할 때 새로 만듭니다: {self.store}")
         fps = "".join(f"{r['id']}\0{r['_fp']}\n" for r in sorted(self.items, key=lambda r: r["id"]) if "_fp" in r)
+        # 경로 짝은 화면에 보인 값 자체를 바꾸므로 plan_id 에 묶는다 - 다른 짝으로 apply 하면 plan_stale.
+        # 끈 훅(exclude)은 ids 와 같은 선택이라 묶지 않는다(비교 뒤 체크를 바꿔도 적용할 수 있어야 한다).
+        fps += _canon(self.pmap.pairs).decode("utf-8")
         self.plan_id = _sha((self.b.hash + "\n" + fps).encode("utf-8"))[7:23]
         return self
 
@@ -991,9 +1277,17 @@ class Planner:
             row["warnings"] = ["시크릿 값이 없어 env 의 다음 키는 가져오지 않음: " +
                                ", ".join(k for k in inc["env"] if k not in left)]
             inc = {**inc, "env": left}
+        used = set()
+        inc, hooks, dropped = self._adapt_settings(inc, cur_d, used)
         conflicts = []
         merged = merge(cur_d, inc, chooser(self.choices.get(iid)), conflicts)
         row["_value"] = merged
+        if hooks:
+            row["hooks"] = hooks
+        if dropped:
+            row["dropped"] = dropped
+        if used:
+            row["remapped"] = [{"from": f, "to": t} for f, t in sorted(used)]
         if cur is None:
             row["state"] = "new"
         elif merged == cur_d and not conflicts:
@@ -1003,6 +1297,79 @@ class Planner:
         if conflicts:
             row["conflicts"] = conflicts
         return row
+
+    def _adapt_settings(self, inc, cur_d, used):
+        """(이 PC 에 맞춘 inc, 훅 줄, 뺀 것). 훅은 명령 하나가 한 줄이다.
+        이 PC 에 없는 경로를 쓰는 훅은 불가, 이 PC 에 이미 같은 훅이 있으면 동일, 나머지는 신규."""
+        have = set()
+        for ev, ents in (cur_d.get("hooks") or {}).items() if isinstance(cur_d.get("hooks"), dict) else ():
+            for e in ents if isinstance(ents, list) else ():
+                for h in e["hooks"] if _is_hook_entry(e) else ():
+                    if isinstance(h, dict) and isinstance(h.get("command"), str):
+                        have.add((ev, _norm_cmd(h["command"])))
+        subs, dropped, hooks = [], [], {}
+        src = inc.get("hooks") if isinstance(inc.get("hooks"), dict) else {}
+        for ev, ents in src.items():
+            if not isinstance(ents, list):
+                hooks[ev] = ents
+                continue
+            keep = []
+            for e in ents:
+                if not _is_hook_entry(e):
+                    keep.append(self.remap(e, used))
+                    continue
+                kept = []
+                for h in e["hooks"]:
+                    if not (isinstance(h, dict) and isinstance(h.get("command"), str)):
+                        kept.append(h)
+                        continue
+                    mine = set()
+                    cmd = self.pmap.sub(h["command"], mine)
+                    norm = _norm_cmd(cmd)
+                    sub = {"id": _hook_id(ev, norm), "event": ev, "matcher": e.get("matcher"), "command": cmd}
+                    if mine:
+                        sub["remapped"] = [{"from": f, "to": t} for f, t in sorted(mine)]
+                    dead = _dead(cmd, alive=self.alive)
+                    if dead:
+                        sub.update(state="blocked", code="path_missing", target=dead[0])
+                        dropped.append({"what": "hook", "event": ev, "target": dead[0]})
+                    elif (ev, norm) in have:
+                        sub.update(state="same", code="dup")
+                    else:
+                        sub["state"] = "new"
+                        if sub["id"] in self.exclude:
+                            sub["excluded"] = True
+                        else:
+                            kept.append({**h, "command": cmd})
+                            used |= mine
+                    subs.append(sub)
+                if kept:
+                    keep.append({**e, "hooks": kept})
+            if keep:
+                hooks[ev] = keep
+        out = {}
+        for k, v in inc.items():
+            if k != "hooks":
+                out[k] = self.remap(v, used)
+            elif hooks:
+                out[k] = hooks
+        sl = out.get("statusLine")
+        dead = _dead(sl["command"], alive=self.alive) if isinstance(sl, dict) and isinstance(sl.get("command"), str) else []
+        if dead:
+            dropped.append({"what": "statusLine", "target": dead[0]})
+            out.pop("statusLine")
+        env = out.get("env")
+        if isinstance(env, dict) and isinstance(env.get("CLAUDE_CODE_PLUGIN_DIRS"), str):
+            parts = [x for x in env["CLAUDE_CODE_PLUGIN_DIRS"].split(";") if x.strip()]
+            alive = [x for x in parts if not _dead(x, alive=self.alive)]
+            dropped += [{"what": "plugin-dir", "target": x.strip()} for x in parts if x not in alive]
+            env = dict(env)
+            if alive:
+                env["CLAUDE_CODE_PLUGIN_DIRS"] = ";".join(alive)
+            else:
+                env.pop("CLAUDE_CODE_PLUGIN_DIRS")
+            out["env"] = env
+        return out, subs, dropped
 
     def _plan_mcp(self, it):
         iid, cat = it["id"], it["category"]
@@ -1020,14 +1387,35 @@ class Planner:
             raise BundleError("bundle_invalid", f"{iid}: JSON 객체가 아님")
         tfound = prepare_json(cat, iid, cur, None)[1] if isinstance(cur, dict) else {}
         inc, missing = resolve_secrets(inc, [self.secrets, self.b.secrets, {iid: tfound}])
+        used = set()
+        inc = self.remap(inc, used)
         row = {"target": tgt, "key": name, "_fp": _sha(_canon(cur)) if cur is not None else None, "_value": inc}
+        if used:
+            row["remapped"] = [{"from": f, "to": t} for f, t in sorted(used)]
+        dead = _dead_server(name, inc, self.alive)
+        cur_ok = isinstance(cur, dict) and not _dead_server(name, cur, self.alive)
+        conflicts = []
+        if cur_ok and not dead:
+            inc = merge_server(cur, inc, chooser(self.choices.get(iid)), conflicts)
+            row["_value"] = inc
         if cur is None:
             row["state"] = "new"
-        elif isinstance(cur, dict) and _sha(_canon(prepare_json(cat, iid, cur, self.tokens)[0])) == it.get("hash"):
+        elif isinstance(cur, dict) and not conflicts and (
+                _canon(cur) == _canon(inc) or
+                _sha(_canon(prepare_json(cat, iid, cur, self.tokens)[0])) == it.get("hash")):
             row["state"] = "same"
         else:
             row.update(state="changed", diff=json_diff(_mask(cat, iid, cur), _mask(cat, iid, inc)))
-        if missing and row["state"] != "same":
+        if conflicts:
+            row["conflicts"] = conflicts
+        if dead and row["state"] != "same":
+            if cur_ok:
+                row.update(state="blocked", code="keep_working", missing_paths=dead,
+                           reason=f"이 PC 의 값은 동작하고 번들 값은 이 PC 에 없는 경로를 가리켜 바꾸지 않음: {dead[0]}")
+            else:
+                row.update(state="blocked", code="path_missing", missing_paths=dead,
+                           reason=f"이 PC 에 없는 경로: {dead[0]}")
+        if missing and row["state"] not in ("same", "blocked"):
             row.update(state="blocked", code="secret_missing", missing_secrets=missing,
                        reason="시크릿 값이 없음: " + ", ".join(missing))
         return row
@@ -1040,6 +1428,11 @@ class Planner:
         inc = self.detok(self.b.json("json/cm.store.json"))
         if not isinstance(inc, dict):
             raise BundleError("bundle_invalid", "cm.store: JSON 객체가 아님")
+        used = set()
+        inc = self.remap(inc, used)
+        libs = [x for x in inc.get("libraries") or [] if isinstance(x, str)]
+        dropped = [{"what": "library", "target": x} for x in libs if not _exists(x)]
+        inc = {**inc, "libraries": [x for x in libs if _exists(x)]}
         cur_d = cur or {}
         conflicts = []
         merged, added = merge_store(cur_d, inc, self.store, chooser(self.choices.get("cm.store")), conflicts)
@@ -1055,6 +1448,10 @@ class Planner:
             row["conflicts"] = conflicts
         if added:
             row["warnings"] = ["내용을 받으려면 라이브러리 fetch 가 필요함: " + ", ".join(added)]
+        if dropped:
+            row["dropped"] = dropped
+        if used:
+            row["remapped"] = [{"from": f, "to": t} for f, t in sorted(used)]
         return row
 
     def public(self):
@@ -1290,17 +1687,25 @@ def _open_bundle(path):
         emit(False, e.code, str(e), target=path)
 
 
+def _exclude_arg(a):
+    return [x.strip() for x in (getattr(a, "exclude", "") or "").split(",") if x.strip()]
+
+
 def _make_plan(a, b):
     try:
-        return Planner(b, a.store, _json_arg(a.secrets, "--secrets"), _json_arg(a.choices, "--choices")).run()
+        return Planner(b, a.store, _json_arg(a.secrets, "--secrets"), _json_arg(a.choices, "--choices"),
+                       _json_arg(getattr(a, "roots", ""), "--roots"), _exclude_arg(a)).run()
     except BundleError as e:
         emit(False, e.code, str(e), target=b.path)
 
 
 def _plan_message(pl):
     s = pl.summary()
-    return (f"plan {pl.plan_id}: 새로 {s['new']} · 바뀜 {s['changed']} · 같음 {s['same']} · "
-            f"막힘 {s['blocked']} · 제외 {s['skipped']}")
+    msg = (f"plan {pl.plan_id}: 신규 {s['new']} · 변경 {s['changed']} · 동일 {s['same']} · "
+           f"불가 {s['blocked']} · 제외 {s['skipped']}")
+    if pl.unresolved:
+        msg += f". 이 PC 에 없는 경로 {len(pl.unresolved)}개는 쓰지 않음(roots 로 짝을 정하면 다시 계산)"
+    return msg
 
 
 def cmd_export(a):
@@ -1348,7 +1753,8 @@ def cmd_history(a):
     cfg = lib_store.load_cfg(a.store)
     imports = [{"id": x.get("id"), "at": x.get("at"), "bundle": x.get("bundle"), "source_host": x.get("source_host"),
                 "items": [r.get("id") for r in x.get("applied") or []], "undone_at": x.get("undone_at"),
-                "undone": [r.get("id") for r in x.get("applied") or [] if r.get("undone")]}
+                "undone": [r.get("id") for r in x.get("applied") or [] if r.get("undone")],
+                "dropped": len(x.get("dropped") or [])}
                for x in reversed(cfg.get("imports") or [])]
     exports = list(reversed(cfg.get("exports") or []))
     emit(True, "ok", f"가져오기 기록 {len(imports)}개, 내보내기 기록 {len(exports)}개",
@@ -1530,7 +1936,61 @@ def cmd_plan(a):
     pl = _make_plan(a, b)
     emit(True, "ok", _plan_message(pl), target=b.path, bundle=b.path, plan_id=pl.plan_id,
          source=b.manifest.get("source"), items=pl.public(), summary=pl.summary(),
-         external=pl.external, warnings=pl.warnings)
+         external=pl.external, warnings=pl.warnings, roots=pl.roots, unresolved=pl.unresolved)
+
+
+def _dropped(pl, sel_ids):
+    """이 PC 에 없는 경로 때문에 들이지 않은 것. 고른 항목 안에서 뺀 훅·statusLine 등과, 통째로 막힌 서버."""
+    out = []
+    for r in pl.items:
+        if r["id"] in sel_ids:
+            out += [{"id": r["id"], **d} for d in r.get("dropped") or []]
+        if r.get("code") in ("path_missing", "keep_working"):
+            out.append({"id": r["id"], "what": "item", "code": r["code"], "target": (r.get("missing_paths") or [""])[0]})
+    return out
+
+
+def save_roots(store, key, roots, by):
+    """확정된 짝만 남긴다(추정은 매번 다시 계산하면 같은 답이라 남길 필요가 없다)."""
+    if not roots:
+        return
+    ensure_store(store)
+    with lib_store.edit_cfg(store) as cfg:
+        cfg.setdefault("import_roots", {}).setdefault(key, {}).update(
+            {f: {"to": t, "by": by, "at": _now_iso()} for f, t in roots.items()})
+
+
+def cmd_roots(a):
+    """Claude·사람이 정한 경로 짝을 확인해 저장한다. 다음 plan 이 이 짝을 쓴다. 설정 파일은 바꾸지 않는다."""
+    if a.sync_from:
+        a.bundle = _profile_dir(_sync_cfg(a.store), a.sync_from)
+    elif not a.bundle:
+        emit(False, "invalid_arg", "--bundle 이나 --sync-from 중 하나가 필요합니다", target="--bundle")
+    b = _open_bundle(a.bundle)
+    pl = Planner(b, a.store)
+    pl.setup_paths()
+    results, good = [], {}
+    for f, t in _json_arg(a.roots, "--roots").items():
+        f2 = os.path.normpath(f) if isinstance(f, str) else ""
+        mine = [p for p in pl.missing if f2 and os.path.isabs(f2) and _under(p, f2)]
+        if not mine:
+            results.append({"from": f, "to": t, "ok": False, "reason": "번들에 이 루트 아래의 없는 경로가 없음"})
+            continue
+        if not (isinstance(t, str) and os.path.isabs(t) and os.path.isdir(t)):
+            results.append({"from": f, "to": t, "ok": False, "reason": "이 PC 에 없는 폴더"})
+            continue
+        n = sum(1 for p in mine if _exists(_rebase(p, f2, t)))
+        if not n:
+            results.append({"from": f, "to": t, "ok": False, "total": len(mine), "resolved": 0,
+                            "reason": "이 짝으로 풀리는 경로가 없음"})
+            continue
+        good[f2] = os.path.normpath(t)
+        results.append({"from": f2, "to": good[f2], "ok": True, "total": len(mine), "resolved": n})
+    save_roots(a.store, pl.source_key, good, a.by)
+    ok = bool(good)
+    emit(ok, "ok" if ok else "invalid_arg",
+         f"경로 짝 {len(good)}개를 저장했습니다. 가져오기 화면에서 다시 비교하면 반영됩니다" if ok
+         else "저장한 짝이 없습니다", target=b.path, roots=results)
 
 
 def _now_iso():
@@ -1674,9 +2134,10 @@ def cmd_apply(a, on_done=None):
         post = _close_span(span, p, f"import {short}: +{n_new} ~{len(done) - n_new}")
     failed += wfailed
 
+    dropped = _dropped(pl, done)
     rec = {"at": _now_iso(), "bundle": b.path, "bundle_hash": b.hash,
            "source_host": (b.manifest.get("source") or {}).get("host"), "plan_id": pl.plan_id,
-           "pre_snapshot": pre, "post_snapshot": post, "applied": applied}
+           "pre_snapshot": pre, "post_snapshot": post, "applied": applied, "dropped": dropped}
     import_id = None
     if applied:
         with lib_store.edit_cfg(a.store) as cfg:
@@ -1688,13 +2149,16 @@ def cmd_apply(a, on_done=None):
                 import_id, n = f"{base}.{n}", n + 1
             imps.append({"id": import_id, **rec})
             del imps[:-IMPORTS_KEEP]
+        save_roots(a.store, pl.source_key, pl.explicit, "user")
     plugins = _plugins(a, failed)
     msg = (f"가져오기 {import_id}: {len(done)}개 적용" if import_id else "적용된 항목이 없습니다") + _plugin_msg(plugins)
     if failed:
         msg += f", {len(failed)}개 실패"
+    if dropped:
+        msg += f". 이 PC 에 없는 경로를 쓰는 설정 {len(dropped)}개는 빼고 가져옴"
     finish(not failed, "partial" if failed else "ok", msg, sorted(done), target=b.path, import_id=import_id,
            applied=[_public_rec(x) for x in applied], failed=failed, pre_snapshot=pre, post_snapshot=post,
-           warnings=pl.warnings, plugins=plugins)
+           warnings=pl.warnings, plugins=plugins, dropped=dropped)
 
 
 def cmd_undo(a):
@@ -1752,12 +2216,16 @@ def main():
     p.add_argument("--sync-from", default="", help="동기화 폴더의 다른 PC(profile) 를 번들로 쓴다")
     p.add_argument("--secrets", default="", help='{"<item id>": {"<경로>": "<값>"}}')
     p.add_argument("--choices", default="", help='스칼라 충돌: {"<item id>": "take" | {"<경로>": "take"}}. 기본 keep')
+    p.add_argument("--roots", default="", help='경로 짝 {"<번들 쪽 루트>": "<이 PC 폴더>" | ""}. "" 는 맞추지 않음')
+    p.add_argument("--exclude", default="", help="쉼표 구분 훅 id(hook:...). 가져오지 않는다")
     p = sub.add_parser("apply")
     p.add_argument("--bundle", required=True)
     p.add_argument("--plan-id", required=True, help="plan 결과의 plan_id. 그 뒤 대상이 바뀌었으면 plan_stale")
     p.add_argument("--ids", default="", help="쉼표 구분 항목 id. 생략하면 new/changed 전부")
     p.add_argument("--secrets", default="")
     p.add_argument("--choices", default="")
+    p.add_argument("--roots", default="")
+    p.add_argument("--exclude", default="")
     p.add_argument("--install-plugins", action="store_true",
                    help="적용 뒤 켜진 마켓 플러그인 중 없는 것을 claude CLI 로 설치(네트워크)")
     sub.add_parser("history")
@@ -1776,13 +2244,21 @@ def main():
     p.add_argument("--ids", default="")
     p.add_argument("--secrets", default="")
     p.add_argument("--choices", default="")
+    p.add_argument("--roots", default="")
+    p.add_argument("--exclude", default="")
+    p = sub.add_parser("roots")
+    p.add_argument("--bundle", default="")
+    p.add_argument("--from", dest="sync_from", default="")
+    p.add_argument("--roots", required=True, help='{"<번들 쪽 루트>": "<이 PC 폴더>"}')
+    p.add_argument("--by", default="claude", choices=("claude", "user"))
     p = sub.add_parser("undo")
     p.add_argument("--import-id", required=True)
     p.add_argument("--force", action="store_true", help="가져온 뒤 바뀐 항목도 되돌린다")
     a = ap.parse_args()
     {"inventory": cmd_export, "export": cmd_export, "inspect": cmd_inspect, "plan": cmd_plan,
      "apply": cmd_apply, "undo": cmd_undo, "history": cmd_history, "sync-setup": cmd_sync_setup,
-     "sync-push": cmd_sync_push, "sync-status": cmd_sync_status, "sync-pull": cmd_sync_pull}[a.op](a)
+     "sync-push": cmd_sync_push, "sync-status": cmd_sync_status, "sync-pull": cmd_sync_pull,
+     "roots": cmd_roots}[a.op](a)
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -34,6 +35,7 @@ def make_home(root, ext):
     write(os.path.join(ch, "agents", "rev.md"), "---\ndescription: r\n---\n")
     write(os.path.join(ch, "hooks", "guard.py"), "print(1)\n")
     write(os.path.join(ext, "hook.js"), "//\n")
+    write(os.path.join(ext, "srv", "index.js"), "//\n")
     write(os.path.join(ch, "settings.json"), json.dumps({
         "feedbackDrafts": {"x": 1},
         "statusLine": {"type": "command", "command": f'node "{os.path.join(ch, "hooks", "guard.py")}"'},
@@ -195,6 +197,7 @@ class TestApply(TestPlan):
         super().setUp()
         self.msix = os.path.join(self.b, "AppData", "Local", "Packages", "Claude_x", "LocalCache", "Roaming", "Claude")
         os.makedirs(self.msix)
+        write(os.path.join(self.msix, "dsk.js"), "//\n")   # 서버 스크립트가 이 PC 에도 있어야 가져온다
 
     def apply(self, bundle, *extra):
         pid = run(self.b, "plan", "--bundle", bundle, *extra)["plan_id"]
@@ -310,6 +313,178 @@ class TestOptional(TestApply):
         again = run(self.b, "apply", "--bundle", self.obundle, "--plan-id", pid, "--install-plugins",
                     PATH=os.path.dirname(sys.executable))
         self.assertEqual((again["code"], [p["id"] for p in again["plugins"]]), ("partial", ["x@mk"]))
+
+
+class TestPathAdapt(unittest.TestCase):
+    """다른 PC 번들: 도구 폴더가 이 PC 의 다른 자리에 있다(사례: D:\my-tools -> C:\my-tools, D: 없음)."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="transfer_paths_")
+        self.src = os.path.join(self.tmp, "srcdrive", "my-tools")
+        self.dst = os.path.join(self.tmp, "dstdrive", "my-tools")
+        self.a = os.path.join(self.tmp, "a", "home")
+        ch = os.path.join(self.a, ".claude")
+        for rel in ("hooks/a.js", "hooks/b.js", "srv.js"):
+            write(os.path.join(self.src, *rel.split("/")), "//\n")
+        cmd = lambda rel: f'node "{os.path.join(self.src, *rel.split("/"))}"'
+        write(os.path.join(ch, "settings.json"), json.dumps({
+            "model": "sonnet",
+            "hooks": {"Stop": [{"hooks": [{"type": "command", "command": cmd("hooks/a.js")},
+                                          {"type": "command", "command": cmd("hooks/b.js")}]}],
+                      "PostToolUse": [{"matcher": "Edit", "hooks": [{"type": "command", "command": cmd("hooks/a.js")}]}]},
+        }))
+        write(os.path.join(self.a, ".claude.json"), json.dumps({
+            "mcpServers": {"tool": {"command": "node", "args": [os.path.join(self.src, "srv.js")]}}}))
+        write(os.path.join(self.a, "store", "config.json"), json.dumps(
+            {"version": 1, "store": os.path.join(self.a, "store"), "tracked": [], "libraries": [self.src]}))
+        self.bundle = os.path.join(self.tmp, "a-bundle")
+        self.assertTrue(run(self.a, "export", "--out", self.bundle)["ok"])
+        shutil.rmtree(os.path.join(self.tmp, "srcdrive"))          # 원래 PC 의 드라이브는 이 PC 에 없다
+        for rel in ("hooks/a.js", "srv.js"):                       # b.js 는 이 PC 에 설치돼 있지 않다
+            write(os.path.join(self.dst, *rel.split("/")), "//\n")
+        self.b = os.path.join(self.tmp, "b", "home")
+        # 이 PC 에는 같은 훅이 대소문자·구분자만 다르게 이미 등록돼 있다
+        dup = 'node "' + os.path.join(self.dst, "Hooks", "a.js").replace("\\", "/") + '"'
+        write(os.path.join(self.b, ".claude", "settings.json"),
+              json.dumps({"hooks": {"Stop": [{"hooks": [{"type": "command", "command": dup}]}]}}))
+        self.roots = json.dumps({self.src: self.dst})
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def item(self, res, iid):
+        return next(i for i in res["items"] if i["id"] == iid)
+
+    def hooks(self, res):
+        return {(h["event"], os.path.basename(re.findall(r'"([^"]+)"', h["command"])[-1]).lower()): h
+                for h in self.item(res, "cc.settings").get("hooks") or []}
+
+    def load(self, *parts):
+        with open(os.path.join(self.b, *parts), encoding="utf-8-sig") as f:
+            return json.load(f)
+
+    def test_without_a_match_dead_paths_are_never_written(self):
+        res = run(self.b, "plan", "--bundle", self.bundle)
+        self.assertTrue(res["ok"], res)
+        hk = self.hooks(res)
+        self.assertEqual({h["state"] for h in hk.values()}, {"blocked"})
+        tool = self.item(res, "cc.mcp-user/tool")
+        self.assertEqual((tool["state"], tool["code"]), ("blocked", "path_missing"))
+        self.assertTrue(any(r["source"] == "none" and r["to"] is None for r in res["roots"]), res["roots"])
+        pid = res["plan_id"]
+        out = run(self.b, "apply", "--bundle", self.bundle, "--plan-id", pid)
+        self.assertTrue(out["ok"], out)
+        text = json.dumps(self.load(".claude", "settings.json"))
+        self.assertNotIn("srcdrive", text)
+        self.assertFalse(os.path.exists(os.path.join(self.b, ".claude.json")))
+
+    def test_roots_remap_drop_missing_and_skip_duplicate(self):
+        res = run(self.b, "plan", "--bundle", self.bundle, "--roots", self.roots)
+        hk = self.hooks(res)
+        self.assertEqual(hk[("Stop", "a.js")]["state"], "same")             # 이미 있는 훅을 한 벌 더 넣지 않는다
+        self.assertEqual(hk[("Stop", "b.js")]["state"], "blocked")          # 이 PC 에 없다 -> 뺀다
+        post = hk[("PostToolUse", "a.js")]
+        self.assertEqual(post["state"], "new")
+        self.assertEqual(post["remapped"], [{"from": os.path.normpath(self.src), "to": os.path.normpath(self.dst)}])
+        tool = self.item(res, "cc.mcp-user/tool")
+        self.assertEqual(tool["state"], "new")
+        self.assertEqual([u["path"].lower() for u in res["unresolved"]],
+                         [os.path.join(self.dst, "hooks", "b.js").lower()])
+
+        out = run(self.b, "apply", "--bundle", self.bundle, "--plan-id", res["plan_id"], "--roots", self.roots)
+        self.assertTrue(out["ok"], out)
+        st = self.load(".claude", "settings.json")
+        self.assertEqual(len(st["hooks"]["Stop"][0]["hooks"]), 1)
+        self.assertIn("dstdrive", st["hooks"]["PostToolUse"][0]["hooks"][0]["command"])
+        self.assertNotIn("srcdrive", json.dumps(st))
+        self.assertNotIn("b.js", json.dumps(st))
+        self.assertIn("dstdrive", self.load(".claude.json")["mcpServers"]["tool"]["args"][0])
+        self.assertEqual([d["target"].lower() for d in out["dropped"]], [os.path.join(self.dst, "hooks", "b.js").lower()])
+        self.assertEqual(run(self.b, "history")["imports"][0]["dropped"], 1)
+
+        again = run(self.b, "plan", "--bundle", self.bundle)                 # 확정한 짝은 기억한다
+        r = next(x for x in again["roots"] if x["from"] == os.path.normpath(self.src))
+        self.assertEqual((r["source"], r["to"]), ("user", os.path.normpath(self.dst)))
+        self.assertEqual(self.item(again, "cc.mcp-user/tool")["state"], "same")
+
+    def test_library_root_is_inferred_from_the_role(self):
+        res = run(self.b, "plan", "--bundle", self.bundle, CLAUDE_CONFIG_LIBRARIES=self.dst)
+        r = next(x for x in res["roots"] if x["from"] == os.path.normpath(self.src))
+        self.assertEqual((r["to"], r["source"], r["resolved"]), (os.path.normpath(self.dst), "library", 3))
+        self.assertEqual(self.item(res, "cc.mcp-user/tool")["state"], "new")
+
+    def test_working_server_is_merged_and_keeps_what_only_this_pc_has(self):
+        # 구분자만 다른 같은 경로 + 이 PC 에만 있는 env -> 바꿀 게 없다
+        srv = os.path.join(self.dst, "srv.js").replace("\\", "/").replace("/srv.js", "//srv.js")
+        write(os.path.join(self.b, ".claude.json"), json.dumps({"mcpServers": {"tool": {
+            "type": "stdio", "command": "node", "args": [srv], "env": {"ONLY_HERE": "1"}}}}))
+        res = run(self.b, "plan", "--bundle", self.bundle, "--roots", self.roots)
+        self.assertEqual(self.item(res, "cc.mcp-user/tool")["state"], "same")
+        # 실행 명령이 다르면 충돌로 보이고 기본은 이 PC 값
+        write(os.path.join(self.b, ".claude.json"), json.dumps({"mcpServers": {"tool": {
+            "command": "node.exe", "args": [srv], "env": {"ONLY_HERE": "1"}}}}))
+        res = run(self.b, "plan", "--bundle", self.bundle, "--roots", self.roots)
+        tool = self.item(res, "cc.mcp-user/tool")
+        self.assertEqual((tool["state"], tool["conflicts"]), ("changed", ["command"]))
+        out = run(self.b, "apply", "--bundle", self.bundle, "--plan-id", res["plan_id"], "--roots", self.roots)
+        self.assertTrue(out["ok"], out)
+        got = self.load(".claude.json")["mcpServers"]["tool"]
+        self.assertEqual((got["command"], got["env"]), ("node.exe", {"ONLY_HERE": "1"}))
+
+    def test_working_server_is_not_replaced_by_a_dead_one(self):
+        write(os.path.join(self.b, ".claude.json"), json.dumps(
+            {"mcpServers": {"tool": {"command": "node", "args": [os.path.join(self.dst, "srv.js")]}}}))
+        tool = self.item(run(self.b, "plan", "--bundle", self.bundle), "cc.mcp-user/tool")
+        self.assertEqual((tool["state"], tool["code"]), ("blocked", "keep_working"))
+
+    def test_excluded_hook_is_not_written(self):
+        res = run(self.b, "plan", "--bundle", self.bundle, "--roots", self.roots)
+        hid = self.hooks(res)[("PostToolUse", "a.js")]["id"]
+        res = run(self.b, "plan", "--bundle", self.bundle, "--roots", self.roots, "--exclude", hid)
+        self.assertTrue(self.hooks(res)[("PostToolUse", "a.js")]["excluded"])
+        out = run(self.b, "apply", "--bundle", self.bundle, "--plan-id", res["plan_id"],
+                  "--roots", self.roots, "--exclude", hid)
+        self.assertTrue(out["ok"], out)
+        self.assertNotIn("PostToolUse", self.load(".claude", "settings.json")["hooks"])
+
+    def test_roots_command_validates_and_saves_for_the_next_plan(self):
+        bad = run(self.b, "roots", "--bundle", self.bundle, "--roots", json.dumps({self.src: os.path.join(self.tmp, "nope")}))
+        self.assertFalse(bad["ok"])
+        ok = run(self.b, "roots", "--bundle", self.bundle, "--roots", self.roots)
+        self.assertTrue(ok["ok"], ok)
+        self.assertEqual((ok["roots"][0]["total"], ok["roots"][0]["resolved"]), (4, 3))
+        res = run(self.b, "plan", "--bundle", self.bundle)
+        r = next(x for x in res["roots"] if x["from"] == os.path.normpath(self.src))
+        self.assertEqual(r["source"], "claude")
+        self.assertEqual(self.item(res, "cc.mcp-user/tool")["state"], "new")
+
+
+@unittest.skipUnless(os.name == "nt", "드라이브 글자 추정은 Windows 경로 규칙")
+class TestInferRoots(unittest.TestCase):
+    def test_library_first_then_drive_swap_and_no_guessing_by_file_name(self):
+        sys.path.insert(0, SRC)
+        import transfer
+        have = {p.lower() for p in [
+            "C:\\", "C:\\my-tools", "C:\\my-tools\\hooks", "C:\\my-tools\\hooks\\a.js",
+            "C:\\mcpapps", "C:\\mcpapps\\x", "C:\\mcpapps\\x\\log.js", "C:\\other\\index.js"]}
+        exists = lambda p: os.path.normpath(p).lower() in have
+        missing = ["D:\\my-tools\\hooks\\a.js", "D:\\my-tools\\hooks\\gone.js", "D:\\mcpapps\\x\\log.js",
+                   "D:\\fast-question\\index.js"]
+        roots = transfer.infer_roots(missing, ["D:\\my-tools"], ["C:\\my-tools"], exists, ["C:\\"])
+        self.assertEqual([(r["from"], r["to"], r["source"], r["total"], r["resolved"]) for r in roots],
+                         [("D:\\my-tools", "C:\\my-tools", "library", 2, 1),
+                          ("D:\\", "C:\\", "drive", 2, 1)])
+
+    def test_path_map_keeps_slash_style_and_path_boundaries(self):
+        sys.path.insert(0, SRC)
+        import transfer
+        m = transfer.PathMap([("D:\\my-tools", "C:\\my-tools"), ("D:\\", "C:\\")])
+        self.assertEqual(m.sub('node "D:/my-tools/Hooks/a.js"'), 'node "C:/my-tools/Hooks/a.js"')
+        self.assertEqual(m.sub("D:\\mcpapps\\x.js"), "C:\\mcpapps\\x.js")
+        self.assertEqual(m.sub("D:\\my-toolsX\\a"), "C:\\my-toolsX\\a")      # 긴 루트는 경계에서만
+        self.assertEqual(m.sub("AD:\\x"), "AD:\\x")
+        self.assertEqual(transfer._norm_cmd('node "C:/my-tools/Hooks/a/index.js"'),
+                         transfer._norm_cmd("node c:\\my-tools\\hooks\\a/index.js"))
 
 
 class TestSync(unittest.TestCase):

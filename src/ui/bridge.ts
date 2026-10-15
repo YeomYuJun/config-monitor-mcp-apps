@@ -50,6 +50,21 @@ export function pushCtx(t: string): void {
   if (STANDALONE) return;
   app.updateModelContext({ content: [{ type: "text", text: t }] });
 }
+// 위젯이 대화에 요청을 넣는다. Claude Desktop 은 바로 보내지 않고 입력창에 채운 뒤 주의 문구를 띄우며,
+// 보내기는 사용자가 누른다. 맥락(updateModelContext)도 함께 보내지만 Desktop 은 이를 모델에 넘기지 않으므로
+// (실측) 입력창 글만으로 요청이 성립해야 한다 - 맥락은 그것을 넘기는 호스트를 위한 덤이다.
+// standalone(브라우저)에는 대화가 없다.
+export const canAskClaude = (): boolean => !STANDALONE;
+export async function askClaude(context: string, message: string): Promise<boolean> {
+  if (STANDALONE) return false;
+  try {
+    await app.updateModelContext({ content: [{ type: "text", text: context }] });
+    const r = await app.sendMessage({ role: "user", content: [{ type: "text", text: message }] });
+    return !r?.isError;
+  } catch {
+    return false;
+  }
+}
 export function jparse(t: string): any { try { return JSON.parse(t); } catch { return null; } }
 export function jparseLast(t: string): any {
   const lines = t.trim().split("\n");

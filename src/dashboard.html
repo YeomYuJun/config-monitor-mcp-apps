@@ -596,7 +596,9 @@
   .xftop{display:flex;align-items:baseline;gap:7px;min-width:0}
   .xfname{font-family:var(--mono);font-size:12.5px;font-weight:600;color:var(--fg);
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
-  .xfkind{font-size:10.5px;color:var(--mut2);flex:0 0 auto;white-space:nowrap}
+  /* 꼬리표는 이름보다 먼저 줄어든다 - 훅 matcher(Read|Bash|PowerShell|...) 처럼 긴 값이 패널을 옆으로 밀지 않게. */
+  .xfkind{font-size:10.5px;color:var(--mut2);flex:0 100 auto;min-width:0;white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis}
   .xfpath{font-family:var(--mono);font-size:11px;color:var(--mut);
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .xffiles{font-size:11px;color:var(--mut2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -619,6 +621,20 @@
   .xfid{font-family:var(--mono);font-size:11.5px;color:var(--fg2);
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .xfconfrow .xfsecret{width:150px}
+  /* 경로 맞춤 표의 이 PC 폴더 칸 - 충돌 행에서 셀렉트가 서는 오른쪽 칸과 같은 자리다. */
+  /* 경로 맞춤 행은 양쪽 경로가 똑같이 중요해 반반으로 나눈다(충돌 행처럼 오른쪽을 고정하면 왼쪽 루트가 잘린다). */
+  .xfconfrow.xfrootrow{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .xfconfrow .xfroot{width:100%;min-width:0}
+  /* 근거·개수는 루트와 입력칸 아래 행 전체 폭을 쓴다(오른쪽 입력칸 옆에 두면 세 줄로 꺾인다). */
+  .xfrootnote{grid-column:1/-1;margin-top:-4px}
+  .xfconf .xfbtns{margin:2px 0 0}
+  /* 훅 하위 줄: 회색 상자 안의 행이라 바깥 카드보다 한 단계 촘촘하게. */
+  .xfitem.xfsub{padding:7px 10px;gap:5px}
+  /* 접는 묶음(훅·외부 경로) - 현재 파일 뷰어(.curwrap)와 같은 접기. 펼치면 안쪽 목록이 그대로 늘어난다
+     (안에서 또 스크롤하면 패널 스크롤과 겹친다). */
+  .xffold{margin-top:0}
+  .xffold .curbody{max-height:none;padding:8px;background:#F5F6F9}
+  .xffold.open .curbody{display:flex;flex-direction:column;gap:5px}
   /* 기본 select 는 이 화면의 다른 입력과 높이·테두리·글꼴이 전부 달라 혼자 OS 위젯으로 튄다.
      화살표·테두리는 이미 있는 .catsel 을 그대로 쓰고(같은 셀렉트를 두 번 정의하지 않는다),
      여기선 한글 라벨("이 PC 값 유지")에 맞춰 글꼴을 sans 로 바꾸고 입력칸 높이만 맞춘다. */
