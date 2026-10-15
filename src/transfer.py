@@ -1030,6 +1030,7 @@ class Planner:
         self.desktop_config = os.path.join(self.desktop_dir, paths.DESKTOP_CONFIG_NAME)
         self.tokens = make_tokens(self.desktop_dir)
         self.items, self.warnings, self.external = [], [], []
+        self.warning_codes = []                 # warnings 와 같은 순서의 {code, ...} - 화면은 이것으로 번역한다
         self.pmap, self.roots, self.unresolved, self.missing, self.explicit = PathMap([]), [], [], [], {}
         self.incoming = []                      # 이 번들이 쓰는 파일·폴더 자리 - 적용하면 생긴다
         src = bundle.manifest.get("source") or {}
@@ -1038,6 +1039,10 @@ class Planner:
 
     def detok(self, obj):
         return map_strings(obj, lambda s: detokenize(s, self.tokens))
+
+    def warn(self, code, msg, **params):
+        self.warnings.append(msg)
+        self.warning_codes.append({"code": code, **params})
 
     def alive(self, p):
         """이 PC 에 있거나, 이 가져오기가 함께 만들 자리(~/.claude 의 훅 스크립트 등)면 산 경로다."""
@@ -1194,14 +1199,16 @@ class Planner:
                 self.items.append({"id": s.get("id"), "category": str(s.get("id")).partition("/")[0],
                                    "state": "skipped", "reason": s.get("reason")})
         if self.unresolved:
-            self.warnings.append(f"이 PC 에 없는 경로 {len(self.unresolved)}개 - 그 경로를 쓰는 훅·MCP 서버는 빼고 가져옵니다")
+            self.warn("paths_missing", f"이 PC 에 없는 경로 {len(self.unresolved)}개 - 그 경로를 쓰는 훅·MCP 서버는 빼고 가져옵니다",
+                      n=len(self.unresolved))
         cats = {r["category"] for r in self.items if r.get("state") in ("new", "changed")}
         if cats & set(MCP_CATS):
-            self.warnings.append("Claude Code·Desktop 이 실행 중이면 적용 직후 설정 파일을 다시 쓸 수 있습니다. 적용 뒤 재시작하세요")
+            self.warn("restart_after", "Claude Code·Desktop 이 실행 중이면 적용 직후 설정 파일을 다시 쓸 수 있습니다. 적용 뒤 재시작하세요")
         if "desk.mcp" in cats and not os.path.isdir(self.desktop_dir):
-            self.warnings.append(f"Claude Desktop 설치 폴더가 없어 새로 만듭니다: {self.desktop_dir}")
+            self.warn("desktop_dir_new", f"Claude Desktop 설치 폴더가 없어 새로 만듭니다: {self.desktop_dir}",
+                      target=self.desktop_dir)
         if not os.path.isfile(lib_store.store_config_path(self.store)):
-            self.warnings.append(f"스토어가 아직 없어 적용할 때 새로 만듭니다: {self.store}")
+            self.warn("store_new", f"스토어가 아직 없어 적용할 때 새로 만듭니다: {self.store}", target=self.store)
         fps = "".join(f"{r['id']}\0{r['_fp']}\n" for r in sorted(self.items, key=lambda r: r["id"]) if "_fp" in r)
         # 경로 짝은 화면에 보인 값 자체를 바꾸므로 plan_id 에 묶는다 - 다른 짝으로 apply 하면 plan_stale.
         # 끈 훅(exclude)은 ids 와 같은 선택이라 묶지 않는다(비교 뒤 체크를 바꿔도 적용할 수 있어야 한다).
@@ -1278,8 +1285,9 @@ class Planner:
         row = {"target": tgt, "_fp": _sha(_canon(cur)) if cur is not None else None}
         if missing and isinstance(inc.get("env"), dict):
             left = {k: v for k, v in inc["env"].items() if not (isinstance(v, str) and PH.match(v))}
-            row["warnings"] = ["시크릿 값이 없어 env 의 다음 키는 가져오지 않음: " +
-                               ", ".join(k for k in inc["env"] if k not in left)]
+            keys = ", ".join(k for k in inc["env"] if k not in left)
+            row["warnings"] = ["시크릿 값이 없어 env 의 다음 키는 가져오지 않음: " + keys]
+            row["warning_codes"] = [{"code": "secret_env_dropped", "target": keys}]
             inc = {**inc, "env": left}
         used = set()
         inc, hooks, dropped = self._adapt_settings(inc, cur_d, used)
@@ -1452,6 +1460,7 @@ class Planner:
             row["conflicts"] = conflicts
         if added:
             row["warnings"] = ["내용을 받으려면 라이브러리 fetch 가 필요함: " + ", ".join(added)]
+            row["warning_codes"] = [{"code": "lib_fetch", "target": ", ".join(added)}]
         if dropped:
             row["dropped"] = dropped
         if used:
@@ -1940,7 +1949,8 @@ def cmd_plan(a):
     pl = _make_plan(a, b)
     emit(True, "ok", _plan_message(pl), target=b.path, bundle=b.path, plan_id=pl.plan_id,
          source=b.manifest.get("source"), items=pl.public(), summary=pl.summary(),
-         external=pl.external, warnings=pl.warnings, roots=pl.roots, unresolved=pl.unresolved)
+         external=pl.external, warnings=pl.warnings, warning_codes=pl.warning_codes,
+         roots=pl.roots, unresolved=pl.unresolved)
 
 
 def _dropped(pl, sel_ids):

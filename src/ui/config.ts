@@ -1,6 +1,6 @@
 // src/ui/config.ts - 설정 카드(8분류) 렌더와 인라인 편집(권한 · hooks · mcp · skill · agent · plugin).
 // 밖으로 나가는 건 renderConfig 하나뿐이고, 재렌더는 refreshApp 훅으로 엔트리에 되묻는다.
-import { t, errText, okText } from "./i18n";
+import { t, errText, okText, cardText } from "./i18n";
 import { persistView } from "./view";
 import { callTool, jparse } from "./bridge";
 import { $, esc, setPending, clearPending, mkNotice, openReasonModal, flashToast } from "./widgets";
@@ -326,14 +326,14 @@ function renderConfigCard(c: any, shadowOf: ((c: any) => Shadow | null) | null):
     (c.plugin && plgTip[c.badge] ? " warn" : "");
   const badgeTip = c.plugin ? (plgTip[c.badge] || "") : "";
   card.innerHTML =
-    `<div class="cname"><span class="nm">${esc(c.name)}</span>` +
+    `<div class="cname"><span class="nm">${esc(cardText(c.name))}</span>` +
     `<span class="cbadges">${shadowBadge}${loadBadge(c.load)}` +
     (c.badge ? `<span class="badge ${badgeCls}"${badgeTip ? ` title="${esc(badgeTip)}"` : ""}>${esc(c.badge)}</span>` : "") +
     `</span></div>` +
     (c.kv || [])
       .map(([k, v]: [string, string]) =>
-        `<div class="kv"><span class="k">${esc(k)}</span>` +
-        `<span class="v ${valClass(k)}">${esc(v)}</span></div>`)
+        `<div class="kv"><span class="k">${esc(cardText(k))}</span>` +
+        `<span class="v ${valClass(k)}">${esc(cardText(v))}</span></div>`)
       .join("");
   if (c.edit) card.appendChild(buildEditUI(c.edit));
   return card;

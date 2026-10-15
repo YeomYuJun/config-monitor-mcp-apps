@@ -415,8 +415,8 @@ const I18N: Record<string, Record<string, string>> = {
     xfAskFail: "Could not put the request into the chat",
     xfAskMsg: "config-monitor import ({src}): please find matches for the {n} paths missing on this PC. Check unresolved in the config_import_plan result, search this PC, and only save matches with config_import_roots. Do not edit any settings file. Tell me which ones you could not find.",
     xfRemapMore: " (+{n} more)", xfExpand: "Expand",
-    xfHooks: "Hooks", xfHookDup: "Already registered on this PC", xfHookDupHidden: "Skipped {n} hooks already registered on this PC",
-    xfHookBlockedHidden: "{n} hooks use paths missing on this PC and are not imported",
+    xfHooks: "Hooks", xfHookDup: "Already registered on this PC", xfHookDupHidden: "Skipped {n} hook(s) already registered on this PC",
+    xfHookBlockedHidden: "{n} hook(s) use paths missing on this PC and are not imported",
     xfHookMissing: "Not on this PC: {p}", xfRemapped: "Matched {from} → {to}",
     xfDroppedTitle: "Left out (paths not on this PC)", xfDroppedShort: "left out", xfDropLine: "Left out, not on this PC: {what}",
     "xfDrop.hook": "Hook", "xfDrop.statusLine": "statusLine", "xfDrop.plugin-dir": "Plugin folder", "xfDrop.library": "Library",
@@ -428,6 +428,12 @@ const I18N: Record<string, Record<string, string>> = {
     "err.changed_since_import": "Skipped, changed after the import: {target}", "err.write_failed": "Could not write: {target}", "err.project_missing": "The project does not exist on this PC: {target}",
     "err.blocked": "Blocked, not applied: {target}",
     "err.path_missing": "Not imported, the path does not exist on this PC: {target}",
+    "warn.paths_missing": "{n} path(s) do not exist on this PC - hooks and MCP servers that use them are left out",
+    "warn.restart_after": "If Claude Code or Desktop is running it may rewrite these files right after the import. Restart them afterwards",
+    "warn.desktop_dir_new": "Claude Desktop folder not found - it will be created: {target}",
+    "warn.store_new": "No store yet - it will be created on apply: {target}",
+    "warn.secret_env_dropped": "No secret value, so these env keys are not imported: {target}",
+    "warn.lib_fetch": "Run a library fetch to get the contents: {target}",
     "err.keep_working": "Kept this PC's working value: {target}",
     "err.invalid_arg": "Invalid input: {target}", "err.not_tracked": "Not a tracked path: {target}",
     "err.not_found": "Not found: {target}", "err.exists": "Already exists: {target}",
@@ -469,4 +475,14 @@ export function errText(r: any, fallback = t("failed")): string {
 export const okText = (r: any, key: string, tail = ""): string =>
   lang === "ko" && r?.message ? r.message : t(key) + (r?.code === "noop" ? t("noopSuffix") : "") + tail;
 export const getLang = (): string => lang;
+
+// 백엔드(claude_config.py)가 한국어로 만드는 카드 이름·필드 이름. 결과는 대화의 Claude 도 읽으므로 백엔드는
+// 그대로 두고 화면에서만 바꾼다. 카드 대부분은 이름이 파일·항목 이름이라 번역할 것이 이 몇 개뿐이다.
+const CARD_EN: Record<string, string> = {
+  "＋ 새 스킬": "＋ New skill", "＋ 새 에이전트": "＋ New agent", "＋ 새 규칙": "＋ New rule",
+  "＋ 새 출력 스타일": "＋ New output style", "＋ 새 워크플로": "＋ New workflow",
+  "＋ 새 MCP 서버": "＋ New MCP server", "＋ 새 전역 MCP 서버": "＋ New global MCP server",
+  "전역 요약": "Global summary", "(파싱 오류)": "(parse error)", "형식": "format", "name 설명…": "name description…",
+};
+export const cardText = (s: string): string => (lang === "ko" ? s : CARD_EN[s] ?? s);
 export const setLang = (v: string): void => { lang = v; };

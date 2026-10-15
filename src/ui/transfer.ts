@@ -355,7 +355,7 @@ function renderPlan(out: HTMLElement): void {
     ["new", "changed", "same", "blocked", "skipped"]);
   sum.appendChild(expandBtn());
   out.appendChild(sum);
-  for (const w of plan.warnings || []) out.appendChild(notice(w));
+  for (const w of warnTexts(plan.warnings, plan.warning_codes)) out.appendChild(notice(w));
   if (plan.roots?.length) out.appendChild(rootsBox(out));
   out.appendChild(viewToggles(() => renderPlan(out)));
 
@@ -406,6 +406,16 @@ function filesLine(files: any): HTMLElement | null {
   const e = el("div", "xffiles", rows.map(([l, v]) => `${l} ${total > 4 ? v.length : v.join(", ")}`).join("  ·  "));
   e.title = rows.map(([l, v]) => `${l}: ${v.join(", ")}`).join("\n");
   return e;
+}
+
+// 백엔드 경고는 한국어 문장이다(대화의 Claude 가 읽는다). 영어 화면은 같은 순서로 오는 code 로 다시 쓴다
+// (cli_result: code 가 번역의 기준). 모르는 code 나 code 가 없는 옛 결과는 원문 그대로.
+function warnTexts(msgs: string[] | undefined, codes: any[] | undefined): string[] {
+  return (msgs || []).map((m, i) => {
+    const c = codes?.[i];
+    const key = c ? "warn." + c.code : "";
+    return getLang() !== "ko" && c && t(key) !== key ? tf(key, c) : m;
+  });
 }
 
 const applyLabel = (): string => `${t("xfApply")} (${checked.size})`;
@@ -563,7 +573,7 @@ function planRow(it: any): HTMLElement {
   // 막힌 이유는 상자 대신 행 안의 한 줄로 둔다(실패 목록의 .xfreason 과 같은 결) - 행마다 상자가 붙으면 목록이 세로로 늘어진다.
   if (blocked) meta.appendChild(el("div", "xfreason", blockMsg));
   if (it.hooks?.length) wrap.appendChild(hooksBox(it));
-  for (const w of it.warnings || []) wrap.appendChild(notice(w));
+  for (const w of warnTexts(it.warnings, it.warning_codes)) wrap.appendChild(notice(w));
   if (it.conflicts?.length) {
     const box = el("div", "xfconf");
     box.appendChild(el("div", "dlabel", t("xfConflict")));
