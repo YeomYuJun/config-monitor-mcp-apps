@@ -76,17 +76,76 @@ function badge(state: string): HTMLElement {
   return el("span", "badge" + (cls ? " " + cls : ""), t(k));
 }
 
-function itemName(id: string): string {
+// 항목 id 를 "종류"와 "이름" 두 조각으로 쪼갠다. 행에서는 이름이 1차 정보라 왼쪽에 두고(열로 훑는다)
+// 종류는 뒤에 붙는 꼬리표로 내린다. 이름이 없는 항목(settings.json 등)은 종류가 곧 이름이다.
+function itemParts(id: string): { kind: string; name: string } {
   const i = id.indexOf("/");
   const cat = i < 0 ? id : id.slice(0, i);
-  const label = t("xfCat." + cat) === "xfCat." + cat ? cat : t("xfCat." + cat);
-  return i < 0 ? label : `${label} ${id.slice(i + 1)}`;
+  const key = "xfCat." + cat;
+  return { kind: t(key) === key ? cat : t(key), name: i < 0 ? "" : id.slice(i + 1) };
 }
 
-function idSpan(id: string): HTMLElement {
-  const s = el("span", "xfid", itemName(id));
-  s.title = id;
+function itemName(id: string): string {
+  const { kind, name } = itemParts(id);
+  return name ? `${kind} ${name}` : kind;
+}
+
+// 목록 행의 공통 골격. **늘어나는 칸은 .xfmeta 하나뿐**이고(min-width:0) 나머지는 고정 폭이다.
+// 예전처럼 flex-wrap 행에 늘어나는 span 을 둘씩 두면 뒤엣것이 0 폭까지 눌려 긴 경로가
+// 한 글자씩 세로로 쏟아졌다. 경로는 접지 않고 ellipsis 로 자르고 전체 값은 title 에 둔다
+// (대시보드의 .file .fdir / .projpickrow .ppath 와 같은 규율).
+type RowOpts = {
+  cls?: string; check?: HTMLInputElement; badge?: HTMLElement;
+  name: string; kind?: string; path?: string; actions?: HTMLElement[];
+};
+function itemRow(o: RowOpts): { wrap: HTMLElement; line: HTMLElement; meta: HTMLElement } {
+  const wrap = el("div", "xfitem" + (o.cls ? " " + o.cls : ""));
+  const line = el("div", "xfline");
+  if (o.check) line.appendChild(o.check);
+  if (o.badge) line.appendChild(o.badge);
+  const meta = el("div", "xfmeta");
+  const top = el("div", "xftop");
+  const nm = el("span", "xfname", o.name);
+  nm.title = o.name;
+  top.appendChild(nm);
+  if (o.kind) top.appendChild(el("span", "xfkind", o.kind));
+  meta.appendChild(top);
+  if (o.path) {
+    const p = el("div", "xfpath", o.path);
+    p.title = o.path;
+    meta.appendChild(p);
+  }
+  line.appendChild(meta);
+  if (o.actions?.length) {
+    const act = el("div", "xfact");
+    act.append(...o.actions);
+    line.appendChild(act);
+  }
+  wrap.appendChild(line);
+  return { wrap, line, meta };
+}
+
+// id 한 줄짜리 자리(충돌 키·시크릿 키). 긴 키도 행을 밀지 않게 자른다.
+function keySpan(text: string): HTMLElement {
+  const s = el("span", "xfid", text);
+  s.title = text;
   return s;
+}
+
+// 상태별 개수 요약. "새로 44 · 바뀜 16 · ..." 한 줄로 이으면 어디가 끊기는지 안 보여서
+// 숫자를 세우고 배지와 같은 색 점을 달아 아래 목록의 배지와 눈으로 이어지게 한다.
+function summary(host: string, counts: Record<string, any>, map: Record<string, [string, string]>,
+                 keys: string[]): HTMLElement {
+  const box = el("div", "xfsum");
+  if (host) box.appendChild(el("span", "xfsumhost", host));
+  for (const k of keys) {
+    const n = counts[k] ?? 0;
+    const [label, cls] = map[k] || [k, ""];
+    const c = el("span", "xfsumchip" + (cls ? " " + cls : "") + (n ? "" : " zero"));
+    c.append(el("b", "", String(n)), document.createTextNode(t(label)));
+    box.appendChild(c);
+  }
+  return box;
 }
 
 function notice(msg: string, kind: "err" | "warn" | "ok" = "warn"): HTMLElement {
@@ -262,17 +321,15 @@ async function runPlan(out: HTMLElement): Promise<void> {
   if (!r || r.ok === false) { plan = null; out.replaceChildren(notice(errText(r), "err")); return; }
   plan = r;
   checked.clear();
+  openDiff.clear();
   for (const it of r.items) if (it.state === "new" || it.state === "changed") checked.add(it.id);
   renderPlan(out);
 }
 
 function renderPlan(out: HTMLElement): void {
   out.replaceChildren();
-  const s = plan.summary || {};
-  const head = el("div", "xfsum");
-  head.textContent = `${plan.source?.host ?? ""} · ` +
-    ["new", "changed", "same", "blocked", "skipped"].map((k) => `${t(STATE_BADGE[k][0])} ${s[k] ?? 0}`).join(" · ");
-  out.appendChild(head);
+  out.appendChild(summary(plan.source?.host ?? "", plan.summary || {}, STATE_BADGE,
+    ["new", "changed", "same", "blocked", "skipped"]));
   for (const w of plan.warnings || []) out.appendChild(notice(w));
   const all = checkbox(t("xfShowAll"));
   all.input.checked = showAll;
@@ -288,13 +345,15 @@ function renderPlan(out: HTMLElement): void {
 
   const ext = plan.external || [];
   if (ext.length) {
-    out.appendChild(el("div", "dlabel", t("xfExternal")));
+    out.appendChild(el("div", "dlabel xfseclabel", t("xfExternal")));
     const box = el("div", "xflist");
     for (const e of ext) {
-      const r = el("div", "xfitem");
-      r.append(el("span", "badge " + (e.exists ? "ok" : "err"), t(e.exists ? "xfExists" : "xfMissing")),
-        el("span", "xfid", e.path), el("span", "xftgt", (e.owners || []).join(", ")));
-      box.appendChild(r);
+      // 경로가 곳 이름이다(항목 이름이 따로 없다) - 이름 자리에 경로, 아래에 이를 가리키는 주체.
+      box.appendChild(itemRow({
+        cls: "ext",
+        badge: el("span", "badge " + (e.exists ? "ok" : "err"), t(e.exists ? "xfExists" : "xfMissing")),
+        name: e.path, path: (e.owners || []).join(", "),
+      }).wrap);
     }
     out.appendChild(box);
   }
@@ -313,7 +372,15 @@ function renderPlan(out: HTMLElement): void {
       res.replaceChildren(notice(r?.ok ? okText(r, "xfImported", n ? ` (${n})` : "") : errText(r, t("failed")), r?.ok ? "ok" : "err"));
       if (r?.failed?.length) res.appendChild(failedList(r.failed));
       if (r && (r.ok || r.code === "partial")) {
+        // 적용한 계획은 끝난 계획이다. 이 PC 가 바뀜 같은 plan_id 로는 다시 적용되지 않고
+        // (plan_stale), 남겨두면 이미 가져온 항목이 여전히 골라져 있는 목록으로 읽힌다.
+        // res 는 out 의 자식이라 결과 안내만 남기고 목록·적용 버튼은 걷어낸다.
+        // choices·secrets 는 다음 비교에 그대로 다시 넘겨야 하므로 지우지 않는다.
         plan = null;
+        applyBtn = null;
+        checked.clear();
+        openDiff.clear();
+        out.replaceChildren(res);
         const hist = document.querySelector<HTMLElement>("#xfer .xfhist");
         if (hist) void renderHistory(hist);
       }
@@ -322,9 +389,20 @@ function renderPlan(out: HTMLElement): void {
   out.append(btn, res);
 }
 
+// 폴더 항목(스킬·에이전트)은 백엔드가 파일 목록만 주고 내용 diff 는 주지 않는다. 그 목록을
+// 토글 뒤에 숨기면 눌러봐야 "변경 SKILL.md" 한 줄이라 누를 값어치가 없다 - 행에 바로 적는다.
+// 파일이 많으면 이름 대신 개수로 접고 전체 이름은 title 에 남긴다.
+const FILE_KINDS = [["added", "xfFilesAdded"], ["modified", "xfFilesModified"], ["removed", "xfFilesRemoved"]] as const;
+function filesLine(files: any): HTMLElement | null {
+  const rows = FILE_KINDS.map(([k, label]) => [t(label), (files[k] || []) as string[]] as const).filter(([, v]) => v.length);
+  if (!rows.length) return null;
+  const total = rows.reduce((n, [, v]) => n + v.length, 0);
+  const e = el("div", "xffiles", rows.map(([l, v]) => `${l} ${total > 4 ? v.length : v.join(", ")}`).join("  ·  "));
+  e.title = rows.map(([l, v]) => `${l}: ${v.join(", ")}`).join("\n");
+  return e;
+}
+
 function planRow(it: any): HTMLElement {
-  const wrap = el("div", "xfitem" + (it.state === "blocked" ? " blocked" : ""));
-  const line = el("div", "xfline");
   const cb = document.createElement("input");
   cb.type = "checkbox";
   const selectable = it.state === "new" || it.state === "changed" || it.code === "secret_missing";
@@ -334,41 +412,60 @@ function planRow(it: any): HTMLElement {
     if (cb.checked) checked.add(it.id); else checked.delete(it.id);
     if (applyBtn) applyBtn.textContent = `${t("xfApply")} (${checked.size})`;
   });
-  line.append(cb, badge(it.state), idSpan(it.id), el("span", "xftgt", it.target || it.reason || ""));
-  wrap.appendChild(line);
+
+  const blocked = it.state === "blocked" && it.reason && it.code !== "secret_missing";
+  const blockMsg = blocked ? errText({ code: it.code, target: it.target, message: it.reason }) : "";
+  // 경로와 설명은 다른 자리에 둔다. .xfpath 는 한 줄로 자르는 칸이라 문장을 넣으면 뜻이
+  // 잘려나간다(제외 항목은 target 없이 reason 만 온다 - transfer.py Collector 의 skipped).
+  // 막힘 안내가 대상 경로를 문장 안에 품을 때는 경로 줄을 접는다 - 같은 문자열이 두 번 뜬다.
+  const sub = blockMsg && it.target && blockMsg.includes(it.target) ? "" : (it.target || "");
+  const reason = it.target ? "" : (it.reason || "");
+
+  const { kind, name } = itemParts(it.id);
+  const actions: HTMLElement[] = [];
   const detail = el("div", "xfdetail");
-  if (it.diff?.length || it.files) {
-    const tg = el("button", "linkbtn", t("xfDiff"));
-    tg.addEventListener("click", () => {
-      if (openDiff.has(it.id)) openDiff.delete(it.id); else openDiff.add(it.id);
-      fillDetail();
-    });
-    line.appendChild(tg);
-  }
   const fillDetail = () => {
     detail.replaceChildren();
-    if (!openDiff.has(it.id)) return;
-    if (it.diff?.length) detail.appendChild(diffLines(it.diff));
-    if (it.files) {
-      for (const [k, label] of [["added", "xfFilesAdded"], ["modified", "xfFilesModified"], ["removed", "xfFilesRemoved"]]) {
-        if (it.files[k]?.length) detail.appendChild(el("div", "xffiles", `${t(label)}: ${it.files[k].join(", ")}`));
-      }
-    }
+    if (openDiff.has(it.id) && it.diff?.length) detail.appendChild(diffLines(it.diff));
   };
-  fillDetail();
-  wrap.appendChild(detail);
+  // 실제 내용 diff 가 있을 때만 토글을 단다(없으면 버튼이 거짓 약속이 된다).
+  if (it.diff?.length) {
+    const tg = el("button", "xfdiffbtn" + (openDiff.has(it.id) ? " on" : ""), t("xfDiff")) as HTMLButtonElement;
+    tg.addEventListener("click", () => {
+      if (openDiff.has(it.id)) openDiff.delete(it.id); else openDiff.add(it.id);
+      tg.classList.toggle("on", openDiff.has(it.id));
+      fillDetail();
+    });
+    actions.push(tg);
+  }
+
+  const { wrap, meta } = itemRow({
+    cls: it.state === "blocked" ? "blocked" : "", check: cb, badge: badge(it.state),
+    name: name || kind, kind: name ? kind : "", path: sub, actions,
+  });
+  if (reason) meta.appendChild(el("div", "xfreason mut", reason));
+  if (it.files) {
+    const f = filesLine(it.files);
+    if (f) meta.appendChild(f);
+  }
+  // 토글이 있을 때만 붙인다 - 없는 행에 빈 칸을 :empty 규칙 하나에 기대지 않는다.
+  if (it.diff?.length) {
+    fillDetail();
+    wrap.appendChild(detail);
+  }
   for (const w of it.warnings || []) wrap.appendChild(notice(w));
-  if (it.state === "blocked" && it.reason && it.code !== "secret_missing") wrap.appendChild(notice(errText({ code: it.code, target: it.target, message: it.reason }), "err"));
+  if (blocked) wrap.appendChild(notice(blockMsg, "err"));
   if (it.conflicts?.length) {
     const box = el("div", "xfconf");
     box.appendChild(el("div", "dlabel", t("xfConflict")));
     for (const p of it.conflicts as string[]) {
       const r = el("div", "xfconfrow");
       const sel = document.createElement("select");
+      sel.className = "catsel xfsel";
       sel.innerHTML = `<option value="keep">${esc(t("xfKeep"))}</option><option value="take">${esc(t("xfTake"))}</option>`;
       sel.value = choices[it.id]?.[p] || "keep";
       sel.addEventListener("change", () => { (choices[it.id] ||= {})[p] = sel.value as "keep" | "take"; });
-      r.append(el("span", "xfid", p), sel);
+      r.append(keySpan(p), sel);
       box.appendChild(r);
     }
     wrap.appendChild(box);
@@ -380,7 +477,7 @@ function planRow(it: any): HTMLElement {
       const r = el("div", "xfconfrow");
       const i = document.createElement("input");
       i.type = "password";
-      i.className = "xfinput";
+      i.className = "xfinput xfsecret";
       i.placeholder = t("xfSecretPh");
       i.value = secrets[it.id]?.[p] || "";
       i.addEventListener("input", () => {
@@ -388,7 +485,7 @@ function planRow(it: any): HTMLElement {
         cb.disabled = !secretsFilled(it);
         if (cb.disabled) { cb.checked = false; checked.delete(it.id); }
       });
-      r.append(el("span", "xfid", p), i);
+      r.append(keySpan(p), i);
       box.appendChild(r);
     }
     wrap.appendChild(box);
@@ -401,11 +498,14 @@ const secretsFilled = (it: any): boolean =>
 
 function failedList(failed: any[]): HTMLElement {
   const box = el("div", "xflist");
-  box.appendChild(el("div", "dlabel", t("xfFailed")));
+  box.appendChild(el("div", "dlabel xfseclabel", t("xfFailed")));
   for (const f of failed) {
-    const r = el("div", "xfitem");
-    r.append(idSpan(f.id), el("span", "xftgt", errText({ code: f.code, target: f.target || itemName(f.id), message: f.reason })));
-    box.appendChild(r);
+    const { kind, name } = itemParts(f.id);
+    const { wrap } = itemRow({ cls: "blocked", name: name || kind, kind: name ? kind : "" });
+    // 실패 사유는 경로가 아니라 문장이다 - 잘라내면 정작 무엇이 막혔는지가 사라진다.
+    wrap.appendChild(el("div", "xfreason",
+      errText({ code: f.code, target: f.target || itemName(f.id), message: f.reason })));
+    box.appendChild(wrap);
   }
   return box;
 }
@@ -415,9 +515,9 @@ async function renderHistory(box: HTMLElement): Promise<void> {
   box.replaceChildren(el("div", "dlabel", t("xfHistory")));
   if (!h.imports?.length) { box.appendChild(el("div", "empty", t("xfNoHistory"))); return; }
   for (const x of h.imports) {
-    const r = el("div", "xfitem");
-    const line = el("div", "xfline");
-    line.append(el("span", "xfid", x.id), el("span", "xftgt", `${x.source_host ?? ""} · ${x.items.length} · ${x.bundle}`));
+    const { wrap: r, line } = itemRow({
+      name: x.id, kind: `${x.source_host ?? ""} · ${x.items.length}`, path: x.bundle,
+    });
     const res = el("div", "xfres");
     if (x.undone_at) line.appendChild(el("span", "badge", t("xfUndone")));
     else {
@@ -440,7 +540,7 @@ async function renderHistory(box: HTMLElement): Promise<void> {
       b.addEventListener("click", undo(false, b));
       line.appendChild(b);
     }
-    r.append(line, res);
+    r.appendChild(res);
     box.appendChild(r);
   }
 }
@@ -511,15 +611,17 @@ async function showStatus(from: string, box: HTMLElement): Promise<void> {
   if (!r || r.ok === false) { box.appendChild(notice(errText(r), "err")); return; }
   const pull = el("button", "xfbtn primary", t("xfSyncPull"));
   pull.addEventListener("click", () => { syncFrom = from; plan = null; tab = "import"; renderTransfer(); });
-  const sum = Object.keys(SYNC_BADGE).filter((k) => r.summary?.[k]).map((k) => `${t(SYNC_BADGE[k][0])} ${r.summary[k]}`);
-  box.append(el("div", "xfsum", [from, ...sum].join(" · ")), pull);
+  box.append(summary(from, r.summary || {}, SYNC_BADGE,
+    Object.keys(SYNC_BADGE).filter((k) => r.summary?.[k])), pull);
+  const list = el("div", "xflist");
   for (const it of r.items) {
     if (it.state === "in-sync" && !showAll) continue;
     const [k, cls] = SYNC_BADGE[it.state] || [it.state, ""];
-    const line = el("div", "xfitem");
-    const l = el("div", "xfline");
-    l.append(el("span", "badge" + (cls ? " " + cls : ""), t(k)), idSpan(it.id));
-    line.appendChild(l);
-    box.appendChild(line);
+    const { kind, name } = itemParts(it.id);
+    list.appendChild(itemRow({
+      badge: el("span", "badge" + (cls ? " " + cls : ""), t(k)),
+      name: name || kind, kind: name ? kind : "",
+    }).wrap);
   }
+  box.appendChild(list);
 }

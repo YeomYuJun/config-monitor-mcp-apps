@@ -531,30 +531,102 @@
   .rconfirm .ok{border:none;background:var(--warn);color:#fff;border-radius:5px;padding:4px 10px;font-size:11px;cursor:pointer}
   .rconfirm .no{border:none;background:none;color:var(--mut);font-size:11px;cursor:pointer}
 
-  /* diff */
-  .xftabs{display:flex;gap:4px;border-bottom:1px solid var(--line2);margin-bottom:12px}
-  .xftab{border:none;background:none;padding:7px 12px;font-size:12.5px;color:var(--mut);cursor:pointer;border-bottom:2px solid transparent}
-  .xftab.sel{color:var(--fg);border-bottom-color:var(--accent);font-weight:600}
-  .xfrow{display:flex;gap:6px;margin-bottom:8px}
-  .xfinput{flex:1;min-width:0;font-family:var(--mono);font-size:12px;padding:6px 8px;border:1px solid var(--line2);border-radius:6px}
+  /* 이관·동기화(transfer)
+     탭은 밑줄이 아니라 분절 컨트롤(segmented)로 둔다 - 패널 안의 또 다른 가로줄은 바로 위
+     헤더 구분선과 겹쳐 읽혀 층이 하나 더 생긴 것처럼 보인다. .scopechip 과 같은 결. */
+  .xftabs{display:inline-flex;gap:3px;padding:3px;background:#EDEFF3;border:1px solid var(--line2);
+    border-radius:9px;margin-bottom:16px}
+  .xftab{border:none;background:none;padding:5px 15px;font-size:12px;font-weight:600;color:var(--mut);
+    cursor:pointer;border-radius:6px;white-space:nowrap}
+  /* 위 button:hover:not(:disabled) 가 (0,2,1) 이라 .xftab:hover 로는 못 이긴다
+     (.scopechip.on:hover 와 같은 이유 - 흰 배경이 덮이면 흰 글자만 남아 라벨이 사라진다). */
+  .xftabs .xftab:hover:not(:disabled){color:var(--fg2);background:rgba(255,255,255,.65);border:none}
+  .xftab.sel,.xftabs .xftab.sel:hover:not(:disabled){background:var(--panel);color:var(--fg);
+    box-shadow:0 1px 2px rgba(20,24,34,.12)}
+  .xfrow{display:flex;gap:6px;margin-bottom:10px}
+  .xfinput{flex:1;min-width:0;font-family:var(--mono);font-size:12px;padding:7px 10px;
+    border:1px solid var(--line2);border-radius:6px;background:var(--panel);color:var(--fg);outline:none}
+  .xfinput:focus{border-color:var(--accent)}
   .xfinput.xfshort{flex:0 0 170px}
-  .xfopts{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:8px;font-size:12px}
-  .xfbtns{display:flex;gap:6px;margin:8px 0}
-  .xfbtn{font-size:12px;padding:5px 12px;border:1px solid var(--line2);border-radius:6px;background:var(--panel);cursor:pointer;white-space:nowrap}
+  .xfopts{display:flex;flex-wrap:wrap;gap:8px 16px;margin-bottom:10px;font-size:12px}
+  /* checkbox() 가 붙이는 라벨 - 지금까지 CSS 가 없어 입력과 글자가 baseline 으로 붙어 어긋나 있었다. */
+  .xfchk{display:inline-flex;align-items:center;gap:6px;cursor:pointer;user-select:none;
+    font-size:12px;color:var(--fg2);white-space:nowrap}
+  .xfchk input{margin:0;flex:0 0 auto;cursor:pointer}
+  #xfer input[type=checkbox]{accent-color:var(--accent);width:14px;height:14px}
+  .xfbtns{display:flex;gap:6px;margin:10px 0}
+  .xfbtn{font-size:12px;font-weight:500;padding:6px 13px;border:1px solid var(--line2);border-radius:6px;
+    background:var(--panel);color:var(--fg2);cursor:pointer;white-space:nowrap}
+  /* primary 는 button:hover:not(:disabled) 에 밀려 hover 때 흰 배경 + 흰 글자가 됐다(라벨이 사라짐). */
   .xfbtn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
-  .xfout,.xfres,.xfrecent,.xfhist{display:flex;flex-direction:column;gap:6px;margin-top:8px}
-  .xfreport{font-family:var(--mono);font-size:11.5px;white-space:pre-wrap;word-break:break-all;background:#F7F8FA;border:1px solid var(--line2);border-radius:6px;padding:8px 10px;margin:0}
-  .xfsum{font-size:12px;color:var(--mut)}
-  .xflist{display:flex;flex-direction:column;gap:4px}
-  .xfitem{border:1px solid var(--line2);border-radius:6px;padding:6px 8px;display:flex;flex-direction:column;gap:5px}
-  .xfitem.blocked{border-color:rgba(192,57,43,.35)}
-  .xfline{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
-  .xfid{font-family:var(--mono);font-size:12px;word-break:break-all}
-  .xftgt{font-family:var(--mono);font-size:11px;color:var(--mut2);word-break:break-all;flex:1;min-width:0}
-  .xffiles{font-family:var(--mono);font-size:11px;color:var(--mut)}
-  .xfconf{display:flex;flex-direction:column;gap:4px}
-  .xfconfrow{display:flex;align-items:center;gap:8px}
+  .xfbtn.primary:hover:not(:disabled){background:#2550CE;border-color:#2550CE;color:#fff}
+  .xfout,.xfres,.xfrecent,.xfhist{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+  /* 비어 있어도 margin-top 과 부모 gap 을 먹어 행 아래에 빈 칸이 남는다(기록 행마다 한 칸씩). */
+  .xfout:empty,.xfres:empty,.xfrecent:empty,.xfhist:empty{display:none}
+  .xfreport{font-family:var(--mono);font-size:11.5px;line-height:1.6;white-space:pre-wrap;word-break:break-all;
+    background:var(--panel);border:1px solid var(--line2);border-radius:7px;padding:11px 13px;margin:0;color:var(--fg2)}
+  .xfseclabel{margin-top:6px}
+
+  /* 상태 요약 - 한 줄 문자열로 이으면 어디가 끊기는지 안 보인다. 숫자를 세우고
+     아래 목록 배지와 같은 색 점을 달아 둘이 눈으로 이어지게 한다. */
+  .xfsum{display:flex;flex-wrap:wrap;align-items:center;gap:6px 13px;padding:9px 12px;
+    background:var(--panel);border:1px solid var(--line2);border-radius:7px}
+  .xfsumhost{font-family:var(--mono);font-size:11.5px;font-weight:600;color:var(--fg2)}
+  .xfsumchip{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--mut)}
+  .xfsumchip::before{content:"";width:7px;height:7px;border-radius:50%;background:#C3C8D0;flex:0 0 auto}
+  .xfsumchip.ok::before{background:var(--ok)}
+  .xfsumchip.warn::before{background:var(--warn)}
+  .xfsumchip.err::before{background:var(--del)}
+  .xfsumchip b{font-family:var(--mono);font-size:12.5px;font-weight:600;color:var(--fg)}
+  .xfsumchip.zero{opacity:.42}
+
+  /* 목록 행. 패널 바닥(#FAFAFB)과 거의 같은 색이라 테두리만 남아 카드로 안 읽혔다 -
+     .file 행처럼 흰 바탕 + 숨 쉴 패딩을 준다. 위젯 높이가 660px 로 고정이라
+     .file 보다 더 띄우지는 않는다(한 화면에 보이는 줄 수가 그만큼 준다). */
+  .xflist{display:flex;flex-direction:column;gap:5px}
+  .xfitem{background:var(--panel);border:1px solid var(--line2);border-radius:7px;padding:9px 11px;
+    display:flex;flex-direction:column;gap:7px}
+  .xfitem.blocked{border-color:rgba(192,57,43,.3);background:#FEFBFB}
+  /* 늘어나는 칸은 .xfmeta 하나뿐이다. 둘 이상 두면 뒤엣것이 0 폭까지 눌려
+     긴 경로가 한 글자씩 세로로 쏟아진다(예전 .xfid + .xftgt 조합이 그랬다). */
+  .xfline{display:flex;align-items:center;gap:10px}
+  .xfline>input[type=checkbox],.xfline>button{flex:0 0 auto}
+  .xfline>.badge{flex:0 0 auto;min-width:46px;text-align:center;padding:3px 7px;font-size:10.5px}
+  .xfmeta{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:2px}
+  .xftop{display:flex;align-items:baseline;gap:7px;min-width:0}
+  .xfname{font-family:var(--mono);font-size:12.5px;font-weight:600;color:var(--fg);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .xfkind{font-size:10.5px;color:var(--mut2);flex:0 0 auto;white-space:nowrap}
+  .xfpath{font-family:var(--mono);font-size:11px;color:var(--mut);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .xffiles{font-size:11px;color:var(--mut2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .xfreason{font-size:11.5px;line-height:1.5;color:#A3312A;overflow-wrap:anywhere}
+  .xfreason.mut{color:var(--mut)}
+  .xfact{flex:0 0 auto;display:flex;align-items:center;gap:5px}
+  /* 외부 경로 목록은 경로가 곧 내용이라 끝을 잘라내면 남는 게 없다 - 두 줄까지 접는다. */
+  .xfitem.ext .xfname{white-space:normal;overflow-wrap:anywhere;display:-webkit-box;
+    -webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .xfdiffbtn{border:1px solid var(--line2);background:var(--panel);color:var(--mut);border-radius:5px;
+    padding:3px 9px;font-family:var(--mono);font-size:10.5px;font-weight:600;cursor:pointer}
+  .xfdiffbtn:hover:not(:disabled){border-color:var(--accent);color:var(--accent);background:#F4F6FE}
+  .xfdiffbtn.on,.xfdiffbtn.on:hover:not(:disabled){border-color:var(--accent);background:var(--accent);color:#fff}
+
+  /* 충돌 선택·시크릿 입력. 키는 길고 조작부는 고정 폭이라 2열 그리드로 세운다. */
+  .xfconf{display:flex;flex-direction:column;gap:6px;padding:9px 11px;background:#F5F6F9;
+    border:1px solid var(--line2);border-radius:6px}
+  .xfconf .dlabel{font-size:10px}
+  .xfconfrow{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px}
+  .xfid{font-family:var(--mono);font-size:11.5px;color:var(--fg2);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .xfconfrow .xfsecret{width:150px}
+  /* 기본 select 는 이 화면의 다른 입력과 높이·테두리·글꼴이 전부 달라 혼자 OS 위젯으로 튄다.
+     화살표·테두리는 이미 있는 .catsel 을 그대로 쓰고(같은 셀렉트를 두 번 정의하지 않는다),
+     여기선 한글 라벨("이 PC 값 유지")에 맞춰 글꼴을 sans 로 바꾸고 입력칸 높이만 맞춘다. */
+  .xfsel{font-family:var(--sans);font-size:11.5px;padding:5px 30px 5px 11px}
+  .xfdetail:empty{display:none}
   .xfdetail .diffwrap{margin-top:0}
+
+  /* diff */
   .diffwrap{border:1px solid var(--line2);border-radius:6px;overflow:hidden;background:var(--panel);margin-top:12px}
   .diffhead{display:flex;align-items:center;gap:9px;padding:8px 13px;background:#F3F4F6;
     border-bottom:1px solid var(--line2);font-family:var(--mono);font-size:11px;color:var(--mut)}
