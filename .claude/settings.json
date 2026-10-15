@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m unittest tests.test_smoke.ConfigEdit tests.test_smoke.ClaudeConfigDump)",
+      "Bash(python -m unittest tests.test_smoke)",
+      "PowerShell($errs = $null; $null = [System.Management.Automation.Language.Parser]::ParseFile\\('C:\\\\config-monitor-mcp\\\\src\\\\watcher.ps1', [ref]$null, [ref]$errs\\); if \\($errs\\) { $errs | ForEach-Object { $_.ToString\\(\\) } } else { 'watcher.ps1: parse OK' })",
+      "Bash(git checkout *)",
+      "Bash(git add *)"
+    ]
+  }
+}

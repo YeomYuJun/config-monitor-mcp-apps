@@ -33,3 +33,6 @@ pack-source.ps1
 .state/
 marketplace-info/
 marketplace-info.zip
+
+# 이관 번들 (테스트용 로컬 산출물)
+*.cmbundle
