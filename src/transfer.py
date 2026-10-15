@@ -1052,7 +1052,11 @@ class Planner:
             libs += [x for x in lib_store.load_cfg(self.store).get("libraries") or [] if isinstance(x, str)]
         except (OSError, ValueError):
             pass
-        return [x for x in libs if os.path.isdir(x)]
+        out = []
+        for x in libs:                          # env 와 스토어에 같은 폴더가 둘 다 있을 수 있다
+            if os.path.isdir(x) and not any(_ncase(x) == _ncase(y) for y in out):
+                out.append(x)
+        return out
 
     def setup_paths(self):
         """번들 external 가운데 이 PC 에 없는 경로의 짝을 정한다. 우선순위: 이번 요청의 roots > 저장된 짝
@@ -2103,7 +2107,7 @@ def cmd_apply(a, on_done=None):
     b = _open_bundle(a.bundle)
     pl = _make_plan(a, b)
     if a.plan_id != pl.plan_id:
-        emit(False, "plan_stale", "plan 뒤에 이 PC 의 대상이 바뀌었습니다. 다시 plan 해서 확인하세요",
+        emit(False, "plan_stale", "비교한 뒤에 이 PC 의 대상이나 경로 짝이 바뀌었습니다. 다시 비교해서 확인하세요",
              target=b.path, plan_id=pl.plan_id)
     rows = {r["id"]: r for r in pl.items}
     want = [x.strip() for x in a.ids.split(",") if x.strip()] if a.ids else \

@@ -17,6 +17,7 @@ let outPath = "";
 let bundlePath = "";
 let plan: any = null;
 let showAll = false;
+let showBlocked = false;
 const checked = new Set<string>();
 const choices: Record<string, Record<string, "keep" | "take">> = {};
 const secrets: Record<string, Record<string, string>> = {};
@@ -356,10 +357,7 @@ function renderPlan(out: HTMLElement): void {
   out.appendChild(sum);
   for (const w of plan.warnings || []) out.appendChild(notice(w));
   if (plan.roots?.length) out.appendChild(rootsBox(out));
-  const all = checkbox(t("xfShowAll"));
-  all.input.checked = showAll;
-  all.input.addEventListener("change", () => { showAll = all.input.checked; renderPlan(out); });
-  out.appendChild(all.label);
+  out.appendChild(viewToggles(() => renderPlan(out)));
 
   fillPlanList(out);
 
@@ -412,13 +410,27 @@ function filesLine(files: any): HTMLElement | null {
 
 const applyLabel = (): string => `${t("xfApply")} (${checked.size})`;
 
+// 목록 거르기. 동일·제외(바꿀 게 없음)와 불가(지금 할 수 없음)는 기본으로 숨긴다. 시크릿이 없어 불가인 서버는
+// 값을 넣으면 고를 수 있으므로 숨기지 않는다 - 숨기면 값을 넣을 자리가 사라진다.
+function viewToggles(redraw: () => void): HTMLElement {
+  const row = el("div", "xfopts");
+  const all = checkbox(t("xfShowAll"));
+  all.input.checked = showAll;
+  all.input.addEventListener("change", () => { showAll = all.input.checked; redraw(); });
+  const blk = checkbox(t("xfShowBlocked"));
+  blk.input.checked = showBlocked;
+  blk.input.addEventListener("change", () => { showBlocked = blk.input.checked; redraw(); });
+  row.append(all.label, blk.label);
+  return row;
+}
+const hiddenRow = (it: any): boolean =>
+  (!showAll && (it.state === "same" || it.state === "skipped")) ||
+  (!showBlocked && it.state === "blocked" && it.code !== "secret_missing");
+
 // 항목 목록과 외부 경로 묶음. 패널과 크게 보기 창이 같은 함수로 그리므로 체크 상태(checked·exclude)가 하나다.
 function fillPlanList(box: HTMLElement): void {
   const list = el("div", "xflist");
-  for (const it of plan.items) {
-    if (!showAll && (it.state === "same" || it.state === "skipped")) continue;
-    list.appendChild(planRow(it));
-  }
+  for (const it of plan.items) if (!hiddenRow(it)) list.appendChild(planRow(it));
   box.appendChild(list);
   const ext = plan.external || [];
   if (ext.length) {
@@ -445,10 +457,7 @@ function openPlanModal(): void {
   openModal(`${t("xfTabImport")} · ${plan.source?.host ?? ""}`, (body, close) => {
     const draw = () => {
       body.replaceChildren();
-      const all = checkbox(t("xfShowAll"));
-      all.input.checked = showAll;
-      all.input.addEventListener("change", () => { showAll = all.input.checked; draw(); });
-      body.appendChild(all.label);
+      body.appendChild(viewToggles(draw));
       fillPlanList(body);
       const row = el("div", "modalrow");
       const go = el("button", "xfbtn primary", applyLabel()) as HTMLButtonElement;
@@ -463,6 +472,7 @@ function openPlanModal(): void {
     draw();
   }, {
     cls: "wide",
+    closeBtn: true,
     onClose: () => {
       modalApplyBtn = null;
       if (plan && planOut?.isConnected) renderPlan(planOut);
@@ -597,16 +607,17 @@ function planRow(it: any): HTMLElement {
 const HOOK_ORDER: Record<string, number> = { new: 0, blocked: 1, same: 2 };
 function hooksBox(it: any): HTMLElement {
   const list = [...it.hooks].sort((a: any, b: any) => (HOOK_ORDER[a.state] ?? 9) - (HOOK_ORDER[b.state] ?? 9));
-  const hidden = showAll ? 0 : list.filter((h: any) => h.state === "same").length;
   const n = (s: string) => list.filter((h: any) => h.state === s).length;
   const title = [`${t("xfHooks")} ${list.length}`,
     ...(["new", "blocked", "same"] as const).filter((s) => n(s)).map((s) => `${t(STATE_BADGE[s][0])} ${n(s)}`)].join(" · ");
-  return foldBox(title, "hooks:" + it.id, (box) => fillHooks(box, list, hidden));
+  return foldBox(title, "hooks:" + it.id, (box) => fillHooks(box, list));
 }
 
-function fillHooks(box: HTMLElement, list: any[], hidden: number): void {
+// 훅 줄도 목록과 같은 거르기를 따른다(동일은 "동일·제외도 표시", 불가는 "불가도 표시"). 숨긴 개수는 한 줄로 남긴다.
+function fillHooks(box: HTMLElement, list: any[]): void {
+  const hide = (h: any) => (h.state === "same" && !showAll) || (h.state === "blocked" && !showBlocked);
   for (const h of list) {
-    if (h.state === "same" && !showAll) continue;
+    if (hide(h)) continue;
     const cb = document.createElement("input");
     cb.type = "checkbox";
     cb.disabled = h.state !== "new";
@@ -617,7 +628,10 @@ function fillHooks(box: HTMLElement, list: any[], hidden: number): void {
       kind: h.event + (h.matcher ? ` · ${h.matcher}` : ""), path: hookLine(h),
     }).wrap);
   }
-  if (hidden) box.appendChild(el("div", "xfreason mut", tf("xfHookDupHidden", { n: hidden })));
+  const dup = showAll ? 0 : list.filter((h: any) => h.state === "same").length;
+  const dead = showBlocked ? 0 : list.filter((h: any) => h.state === "blocked").length;
+  if (dead) box.appendChild(el("div", "xfreason mut", tf("xfHookBlockedHidden", { n: dead })));
+  if (dup) box.appendChild(el("div", "xfreason mut", tf("xfHookDupHidden", { n: dup })));
 }
 
 // 접는 묶음. 현재 파일 뷰어·Diff 와 같은 .curwrap 접기를 쓴다. 수십 줄짜리라 기본은 접고, 펼친 상태는

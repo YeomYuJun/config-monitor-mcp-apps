@@ -587,6 +587,14 @@
   /* 가져오기 목록 크게 보기 - 위젯 거의 전체를 덮는다. 적용·닫기 줄은 길게 내려도 아래에 붙어 있다. */
   .modal.wide{width:min(980px,100%);height:calc(100vh - 36px);background:#FAFAFB}
   .modal.wide .modalbody{gap:8px}
+  /* 머리줄: 제목 + 오른쪽 위 닫기(.panelclose 와 같은 버튼). 길게 내려도 위에 붙어 있다. */
+  .modal.wide .modaltitle{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:10px;
+    background:#FAFAFB;padding:12px 18px 10px;border-bottom:1px solid var(--line2)}
+  .modal.wide .modaltitle .panelclose{margin-left:auto}
+  /* 전체화면에서는 Desktop 프롬프트 입력창이 iframe 아래를 덮는다(.app.fullscreen .left 의 136px 와 같은 이유).
+     창을 위로 붙이고 그만큼 줄여 적용·닫기 줄이 가리지 않게 한다. */
+  body:has(.app.fullscreen) .modalback{align-items:flex-start}
+  body:has(.app.fullscreen) .modal.wide{height:calc(100vh - 36px - 136px)}
   .modal.wide .modalrow{position:sticky;bottom:-16px;margin:4px -18px -16px;padding:10px 18px 14px;
     background:var(--panel);border-top:1px solid var(--line2)}
 

@@ -34,8 +34,9 @@ export function clearPending(b: HTMLButtonElement, txt?: string): void {
 // (인라인 경고는 같은 버튼의 라벨만 바뀌어 읽지 않고 두 번 누르기 쉽다).
 // 배경 클릭과 Esc 로 닫히고, 위젯 iframe 안에서도 fixed 는 iframe 뷰포트 기준이라 중앙에 온다.
 // opts.cls 는 패널에 붙일 모양(wide = 위젯 거의 전체), opts.onClose 는 닫힐 때(버튼·배경·Esc 모두) 한 번 불린다.
+// opts.closeBtn 은 제목 줄 오른쪽에 닫기 버튼을 둔다 - 큰 창은 바깥이 거의 안 보여 배경 클릭으로 닫는다는 걸 알기 어렵다.
 export function openModal(title: string, fill: (body: HTMLElement, close: () => void) => void,
-                          opts: { cls?: string; onClose?: () => void } = {}): void {
+                          opts: { cls?: string; onClose?: () => void; closeBtn?: boolean } = {}): void {
   const back = document.createElement("div");
   back.className = "modalback";
   const panel = document.createElement("div");
@@ -54,6 +55,16 @@ export function openModal(title: string, fill: (body: HTMLElement, close: () => 
   };
   document.addEventListener("keydown", onKey);
   back.addEventListener("click", (e) => { if (e.target === back) close(); });
+  if (opts.closeBtn) {
+    head.textContent = "";
+    const x = document.createElement("button");
+    x.className = "panelclose";
+    x.textContent = `${t("close")} ✕`;
+    x.addEventListener("click", () => close());
+    const tt = document.createElement("span");
+    tt.textContent = title;
+    head.append(tt, x);
+  }
   panel.append(head, body);
   back.appendChild(panel);
   document.body.appendChild(back);
