@@ -5,7 +5,7 @@
 // 파일 선택 다이얼로그는 위젯 iframe 에서 쓸 수 없어 경로는 문자열로 받는다.
 import { callTool, jparse, askClaude, canAskClaude } from "./bridge";
 import { t, tf, errText, okText, getLang } from "./i18n";
-import { $, esc, setPending, clearPending, flashToast } from "./widgets";
+import { $, esc, setPending, clearPending, flashToast, openModal } from "./widgets";
 import { ABS_PATH_RE } from "./helpers";
 import { setDetailOpen, setSelectedPath } from "./state";
 import { applyDetailState } from "./detail";
@@ -22,6 +22,8 @@ const choices: Record<string, Record<string, "keep" | "take">> = {};
 const secrets: Record<string, Record<string, string>> = {};
 const openDiff = new Set<string>();
 let applyBtn: HTMLButtonElement | null = null;
+let modalApplyBtn: HTMLButtonElement | null = null;     // 크게 보기 창이 열려 있을 때의 적용 버튼
+let planOut: HTMLElement | null = null;                 // 가져오기 탭의 목록 자리(크게 보기를 닫으면 다시 그린다)
 // 경로 맞춤: 사용자가 표에서 고친 짝만 담는다(나머지는 서버가 저장된 짝과 추정으로 채운다).
 // 짝은 화면에 보인 값 자체를 바꾸므로, 고친 뒤에는 다시 비교해야 적용할 수 있다.
 let roots: Record<string, string> = {};
@@ -346,9 +348,12 @@ async function runPlan(out: HTMLElement): Promise<void> {
 }
 
 function renderPlan(out: HTMLElement): void {
+  planOut = out;
   out.replaceChildren();
-  out.appendChild(summary(plan.source?.host ?? "", plan.summary || {}, STATE_BADGE,
-    ["new", "changed", "same", "blocked", "skipped"]));
+  const sum = summary(plan.source?.host ?? "", plan.summary || {}, STATE_BADGE,
+    ["new", "changed", "same", "blocked", "skipped"]);
+  sum.appendChild(expandBtn());
+  out.appendChild(sum);
   for (const w of plan.warnings || []) out.appendChild(notice(w));
   if (plan.roots?.length) out.appendChild(rootsBox(out));
   const all = checkbox(t("xfShowAll"));
@@ -356,21 +361,9 @@ function renderPlan(out: HTMLElement): void {
   all.input.addEventListener("change", () => { showAll = all.input.checked; renderPlan(out); });
   out.appendChild(all.label);
 
-  const list = el("div", "xflist");
-  for (const it of plan.items) {
-    if (!showAll && (it.state === "same" || it.state === "skipped")) continue;
-    list.appendChild(planRow(it));
-  }
-  out.appendChild(list);
+  fillPlanList(out);
 
-  const ext = plan.external || [];
-  if (ext.length) {
-    const miss = ext.filter((e: any) => !e.exists).length;
-    const title = `${t("xfExternal")} ${ext.length}` + (miss ? ` · ${t("xfMissing")} ${miss}` : "");
-    out.appendChild(foldBox(title, "external", (box) => fillExternal(box, ext)));
-  }
-
-  const btn = el("button", "xfbtn primary", `${t("xfApply")} (${checked.size})`) as HTMLButtonElement;
+  const btn = el("button", "xfbtn primary", applyLabel()) as HTMLButtonElement;
   applyBtn = btn;
   if (rootsDirty) { btn.disabled = true; btn.title = t("xfRootsDirty"); }
   const res = el("div", "xfres");
@@ -417,6 +410,66 @@ function filesLine(files: any): HTMLElement | null {
   return e;
 }
 
+const applyLabel = (): string => `${t("xfApply")} (${checked.size})`;
+
+// 항목 목록과 외부 경로 묶음. 패널과 크게 보기 창이 같은 함수로 그리므로 체크 상태(checked·exclude)가 하나다.
+function fillPlanList(box: HTMLElement): void {
+  const list = el("div", "xflist");
+  for (const it of plan.items) {
+    if (!showAll && (it.state === "same" || it.state === "skipped")) continue;
+    list.appendChild(planRow(it));
+  }
+  box.appendChild(list);
+  const ext = plan.external || [];
+  if (ext.length) {
+    const miss = ext.filter((e: any) => !e.exists).length;
+    const title = `${t("xfExternal")} ${ext.length}` + (miss ? ` · ${t("xfMissing")} ${miss}` : "");
+    box.appendChild(foldBox(title, "external", (b) => fillExternal(b, ext)));
+  }
+}
+
+// 요약 카드 오른쪽 끝의 크게 보기 버튼(겹친 네모 두 개). 좁은 패널에서 잘리는 경로·이름을 넓게 보며 체크를 고른다.
+function expandBtn(): HTMLElement {
+  const b = el("button", "xficon") as HTMLButtonElement;
+  b.title = t("xfExpand");
+  b.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" ' +
+    'stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="13" height="13" rx="2"/>' +
+    '<path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg>';
+  b.addEventListener("click", openPlanModal);
+  return b;
+}
+
+// 크게 보기. 위젯 거의 전체를 덮는 창에 같은 목록을 그린다 - 여기서 바꾼 체크는 패널의 체크다.
+// 닫으면 패널 목록을 다시 그려 두 화면이 어긋나지 않게 한다. 적용은 패널의 적용과 같은 동작이다.
+function openPlanModal(): void {
+  openModal(`${t("xfTabImport")} · ${plan.source?.host ?? ""}`, (body, close) => {
+    const draw = () => {
+      body.replaceChildren();
+      const all = checkbox(t("xfShowAll"));
+      all.input.checked = showAll;
+      all.input.addEventListener("change", () => { showAll = all.input.checked; draw(); });
+      body.appendChild(all.label);
+      fillPlanList(body);
+      const row = el("div", "modalrow");
+      const go = el("button", "xfbtn primary", applyLabel()) as HTMLButtonElement;
+      if (rootsDirty) { go.disabled = true; go.title = t("xfRootsDirty"); }
+      go.addEventListener("click", () => { close(); applyBtn?.click(); });
+      const no = el("button", "xfbtn", t("close"));
+      no.addEventListener("click", close);
+      modalApplyBtn = go;
+      row.append(go, no);
+      body.appendChild(row);
+    };
+    draw();
+  }, {
+    cls: "wide",
+    onClose: () => {
+      modalApplyBtn = null;
+      if (plan && planOut?.isConnected) renderPlan(planOut);
+    },
+  });
+}
+
 // 설정이 가리키는 외부 경로. 경로가 곧 이름이다(항목 이름이 따로 없다) - 이름 자리에 경로, 아래에 이를 가리키는 주체.
 function fillExternal(box: HTMLElement, ext: any[]): void {
   for (const e of ext) {
@@ -438,7 +491,7 @@ function planRow(it: any): HTMLElement {
   cb.checked = checked.has(it.id);
   cb.addEventListener("change", () => {
     if (cb.checked) checked.add(it.id); else checked.delete(it.id);
-    if (applyBtn) applyBtn.textContent = `${t("xfApply")} (${checked.size})`;
+    for (const b of [applyBtn, modalApplyBtn]) if (b) b.textContent = applyLabel();
   });
 
   const blocked = it.state === "blocked" && it.reason && it.code !== "secret_missing";

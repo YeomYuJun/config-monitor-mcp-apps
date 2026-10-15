@@ -579,6 +579,16 @@
   .xfsumchip.err::before{background:var(--del)}
   .xfsumchip b{font-family:var(--mono);font-size:12.5px;font-weight:600;color:var(--fg)}
   .xfsumchip.zero{opacity:.42}
+  /* 크게 보기(겹친 네모) - 요약 카드 오른쪽 끝. 행 안 diff 버튼과 같은 결의 작은 아이콘 버튼. */
+  .xficon{margin-left:auto;width:26px;height:26px;padding:0;display:inline-flex;align-items:center;justify-content:center;
+    border:1px solid var(--line2);border-radius:6px;background:var(--panel);color:var(--mut);cursor:pointer;flex:0 0 auto}
+  .xficon:hover:not(:disabled){border-color:var(--accent);color:var(--accent);background:#F4F6FE}
+  .xficon svg{display:block;pointer-events:none}
+  /* 가져오기 목록 크게 보기 - 위젯 거의 전체를 덮는다. 적용·닫기 줄은 길게 내려도 아래에 붙어 있다. */
+  .modal.wide{width:min(980px,100%);height:calc(100vh - 36px);background:#FAFAFB}
+  .modal.wide .modalbody{gap:8px}
+  .modal.wide .modalrow{position:sticky;bottom:-16px;margin:4px -18px -16px;padding:10px 18px 14px;
+    background:var(--panel);border-top:1px solid var(--line2)}
 
   /* 목록 행. 패널 바닥(#FAFAFB)과 거의 같은 색이라 테두리만 남아 카드로 안 읽혔다 -
      .file 행처럼 흰 바탕 + 숨 쉴 패딩을 준다. 위젯 높이가 660px 로 고정이라

@@ -33,18 +33,25 @@ export function clearPending(b: HTMLButtonElement, txt?: string): void {
 // 화면 중앙 모달. 되돌릴 수 없는 등록/실행 앞에서는 인라인 경고보다 흐름을 끊는 확인이 맞다
 // (인라인 경고는 같은 버튼의 라벨만 바뀌어 읽지 않고 두 번 누르기 쉽다).
 // 배경 클릭과 Esc 로 닫히고, 위젯 iframe 안에서도 fixed 는 iframe 뷰포트 기준이라 중앙에 온다.
-export function openModal(title: string, fill: (body: HTMLElement, close: () => void) => void): void {
+// opts.cls 는 패널에 붙일 모양(wide = 위젯 거의 전체), opts.onClose 는 닫힐 때(버튼·배경·Esc 모두) 한 번 불린다.
+export function openModal(title: string, fill: (body: HTMLElement, close: () => void) => void,
+                          opts: { cls?: string; onClose?: () => void } = {}): void {
   const back = document.createElement("div");
   back.className = "modalback";
   const panel = document.createElement("div");
-  panel.className = "modal";
+  panel.className = "modal" + (opts.cls ? " " + opts.cls : "");
   const head = document.createElement("div");
   head.className = "modaltitle";
   head.textContent = title;
   const body = document.createElement("div");
   body.className = "modalbody";
   const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
-  const close = () => { back.remove(); document.removeEventListener("keydown", onKey); };
+  const close = () => {
+    if (!back.isConnected) return;
+    back.remove();
+    document.removeEventListener("keydown", onKey);
+    opts.onClose?.();
+  };
   document.addEventListener("keydown", onKey);
   back.addEventListener("click", (e) => { if (e.target === back) close(); });
   panel.append(head, body);
