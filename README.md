@@ -85,25 +85,25 @@ Files under snapshot watch. `~/.claude.json`, `~/.claude/settings.json` and the 
 
 <img src="assets/img/settings-section.png" width="520" alt="Settings cards">
 
-Every section as cards, grouped by purpose and filterable by scope. When two items share a name, the one that is **not** applied is flagged (`overridden by project`). Add or remove items right on the card.
+Every section as cards, grouped by purpose and filterable by scope. When two items share a name, the one that is **not** applied is flagged (`overridden by project`). Add or remove items right on the card. → [More on settings](USAGE.md#settings)
 
 ### History and diff
 
 <img src="assets/img/history-diff.png" width="440" alt="History and diff">
 
-Each edit is one revision named after what it did. Click a revision to see what changed, compare with any other, or **Restore** — restoring is itself snapshotted, so it can be undone too. Noise such as usage counters in `~/.claude.json` is filtered out.
+Each edit is one revision named after what it did. Click a revision to see what changed, compare with any other, or **Restore** — restoring is itself snapshotted, so it can be undone too. Noise such as usage counters in `~/.claude.json` is filtered out. → [More on history](USAGE.md#history-and-diff)
 
 ### Library
 
 <img src="assets/img/library-section.png" width="520" alt="Library">
 
-A library is any folder shaped like `.claude`. Install its skills, agents and commands into the global config or a project, and its tools as **hooks** or **MCP servers**. Items are compared by content, so you see `Installed`, `Changed` or `Conflict` at a glance.
+A library is any folder shaped like `.claude`. Install its skills, agents and commands into the global config or a project, and its tools as **hooks** or **MCP servers**. Items are compared by content, so you see `Installed`, `Modified` or `Conflict` at a glance.
 
-Git repos and plugin marketplaces can be registered too. They are cached and pinned to a commit, and only update when you press refresh.
+Git repos and plugin marketplaces can be registered too. They are cached and pinned to a commit, and only update when you press refresh. → [More on the library](USAGE.md#library)
 
 ### Plugins
 
-Claude Code plugins appear in their own section, and what they contribute is merged into the regular cards with a `plugin` badge. Browse a marketplace, check a plugin's contents and token cost before installing, then enable, disable, update or uninstall it.
+Claude Code plugins appear in their own section, and what they contribute is merged into the regular cards with a `plugin` badge. Browse a marketplace, check a plugin's contents and token cost before installing, then enable, disable, update or uninstall it. → [More on plugins](USAGE.md#plugins)
 
 ### Transfer and sync
 
@@ -113,7 +113,7 @@ Claude Code plugins appear in their own section, and what they contribute is mer
 
 A bundle from another PC usually points at other drives and folders. Import matches them to this PC — by your library folder or the same folder on another drive — and you can correct the match. Anything that still points at a missing path is **left out** instead of breaking your setup, and a working server here is merged with the bundle rather than replaced. Paths it cannot match can be handed to Claude with one button. Every import can be undone.
 
-**Sync** keeps several PCs aligned through a shared folder (OneDrive, Syncthing, a git checkout).
+**Sync** keeps several PCs aligned through a shared folder (OneDrive, Syncthing, a git checkout). → [More on transfer and sync](USAGE.md#transfer-and-sync)
 
 ## Ask Claude
 
@@ -124,7 +124,7 @@ Everything the dashboard does is an MCP tool, so you can just ask:
 - *"Remove the `foo` skill from project bar."* → the same edit tools, with the same snapshots
 - *"Import `D:\bundles\laptop.cmbundle` but keep my model setting."* → `config_import_plan` / `config_import_apply`
 
-Changes made in chat show up in the open dashboard within a few seconds.
+Changes made in chat show up in the open dashboard within a few seconds. → [More on asking Claude](USAGE.md#asking-claude)
 
 ## Safety
 
