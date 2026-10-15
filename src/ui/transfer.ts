@@ -4,7 +4,7 @@
 //   Sync    config_sync_setup / push / status(4상태). 다른 PC 가져오기는 Import 탭을 syncFrom 으로 연다
 // 파일 선택 다이얼로그는 위젯 iframe 에서 쓸 수 없어 경로는 문자열로 받는다.
 import { callTool, jparse } from "./bridge";
-import { t, errText } from "./i18n";
+import { t, tf, errText, okText, getLang } from "./i18n";
 import { $, esc, setPending, clearPending, flashToast } from "./widgets";
 import { ABS_PATH_RE } from "./helpers";
 import { setDetailOpen, setSelectedPath } from "./state";
@@ -76,6 +76,19 @@ function badge(state: string): HTMLElement {
   return el("span", "badge" + (cls ? " " + cls : ""), t(k));
 }
 
+function itemName(id: string): string {
+  const i = id.indexOf("/");
+  const cat = i < 0 ? id : id.slice(0, i);
+  const label = t("xfCat." + cat) === "xfCat." + cat ? cat : t("xfCat." + cat);
+  return i < 0 ? label : `${label} ${id.slice(i + 1)}`;
+}
+
+function idSpan(id: string): HTMLElement {
+  const s = el("span", "xfid", itemName(id));
+  s.title = id;
+  return s;
+}
+
 function notice(msg: string, kind: "err" | "warn" | "ok" = "warn"): HTMLElement {
   return el("div", "anotice " + kind, msg);
 }
@@ -140,15 +153,65 @@ function renderExport(pane: HTMLElement): void {
       }));
       out.replaceChildren();
       if (!r || r.ok === false) { out.appendChild(notice(errText(r), "err")); return; }
-      if (!dryRun) flashToast(r.message);
+      if (!dryRun) flashToast(okText(r, "xfExported", ` · ${r.bundle}`));
       for (const w of r.warnings || []) out.appendChild(notice(w));
-      out.appendChild(el("pre", "xfreport", (r.report || []).join("\n")));
+      out.appendChild(el("pre", "xfreport", reportLines(r, dryRun).join("\n")));
       if (!dryRun) void fillRecent(recent);
     } finally { clearPending(b); }
   };
   dry.addEventListener("click", () => run(dry, true));
   go.addEventListener("click", () => run(go, false));
   void fillRecent(recent);
+}
+
+const EXT_SCOPE: Record<string, string> = { "cc.mcp-user": "Claude Code", "desk.mcp": "Desktop" };
+
+// 백엔드 report 는 한국어 문장이라 영어 화면은 같은 구조 필드로 다시 그린다(transfer.py Collector.report 와 같은 구성).
+function reportLines(r: any, dryRun: boolean): string[] {
+  if (getLang() === "ko") return r.report || [];
+  const lines: string[] = [dryRun ? t("xfRepTargets") : `${t("xfRepResult")}: ${r.bundle}`];
+  for (const [cat, n] of Object.entries(r.counts || {})) lines.push(`- ${itemName(cat)}: ${n}`);
+  const p = r.plugins || {};
+  if (Object.keys(p).length) {
+    lines.push("- " + tf("xfRepPlugins", { n: p.declared, m: p.market?.length ?? 0, b: p.builtin?.length ?? 0, i: p.inline?.length ?? 0 }));
+    if (p.added_explicit?.length) lines.push(`  - ${t("xfRepAddedExplicit")}: ${p.added_explicit.join(", ")}`);
+    if (p.dropped?.length) lines.push(`  - ${t("xfRepDropped")}: ${p.dropped.join(", ")}`);
+  }
+  const sec = r.secrets || [];
+  if (sec.length) {
+    lines.push("- " + tf(r.include_secrets ? "xfRepSecretsIn" : "xfRepSecretsOut", { n: sec.length }));
+    for (const x of sec) lines.push(`  - ${itemName(x.item)}: ${x.path}`);
+  }
+  const ext: any[] = r.external || [];
+  if (ext.length) {
+    lines.push("- " + t("xfRepExternal"));
+    const disp = (e: any) => e.path + (e.exists ? "" : ` [${t("xfRepMissingHere")}]`);
+    for (const kind of new Set(ext.map((e) => e.kind as string))) {
+      const rows = ext.filter((e) => e.kind === kind);
+      lines.push(`  - ${t("xfExt." + kind)}`);
+      if (kind === "mcp") {
+        type Group = { name: string; scopes: string[]; paths: string[] };
+        const by = new Map<string, Group>();
+        for (const e of rows) for (const o of e.owners || []) {
+          const g: Group = by.get(o.toLowerCase()) ?? { name: o, scopes: [], paths: [] };
+          by.set(o.toLowerCase(), g);
+          g.paths.push(disp(e));
+          for (const sc of e.scopes || []) if (!g.scopes.includes(sc)) g.scopes.push(sc);
+        }
+        for (const g of [...by.values()].sort((a, b) => a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1)) {
+          const where = Object.keys(EXT_SCOPE).filter((sc) => g.scopes.includes(sc)).map((sc) => EXT_SCOPE[sc]).join(", ");
+          lines.push(`    - ${g.name} (${where}): ${g.paths.join(", ")}`);
+        }
+      } else if (kind === "plugin-dirs" || kind === "library") lines.push(...rows.map((e) => `    - ${disp(e)}`));
+      else lines.push(...rows.map((e) => `    - ${disp(e)} (${(e.owners || []).join(", ")})`));
+    }
+  }
+  if (r.skipped?.length) {
+    lines.push("- " + tf("xfRepSkipped", { n: r.skipped.length }));
+    for (const x of r.skipped) lines.push(`  - ${itemName(x.id)}: ${x.reason}`);
+  }
+  if (r.warnings?.length) lines.push("- " + t("xfRepWarnings"), ...r.warnings.map((w: string) => `  - ${w}`));
+  return lines;
 }
 
 function checkbox(text: string): { label: HTMLElement; input: HTMLInputElement } {
@@ -246,7 +309,8 @@ function renderPlan(out: HTMLElement): void {
       const args = { planId: plan.plan_id, ids: [...checked], secrets, choices };
       const r = jparse(syncFrom ? await callTool("config_sync_pull", { from: syncFrom, ...args })
         : await callTool("config_import_apply", { bundle: bundlePath, ...args }));
-      res.replaceChildren(notice(errText(r, t("failed")), r?.ok ? "ok" : "err"));
+      const n = r?.applied?.length;
+      res.replaceChildren(notice(r?.ok ? okText(r, "xfImported", n ? ` (${n})` : "") : errText(r, t("failed")), r?.ok ? "ok" : "err"));
       if (r?.failed?.length) res.appendChild(failedList(r.failed));
       if (r && (r.ok || r.code === "partial")) {
         plan = null;
@@ -270,7 +334,7 @@ function planRow(it: any): HTMLElement {
     if (cb.checked) checked.add(it.id); else checked.delete(it.id);
     if (applyBtn) applyBtn.textContent = `${t("xfApply")} (${checked.size})`;
   });
-  line.append(cb, badge(it.state), el("span", "xfid", it.id), el("span", "xftgt", it.target || it.reason || ""));
+  line.append(cb, badge(it.state), idSpan(it.id), el("span", "xftgt", it.target || it.reason || ""));
   wrap.appendChild(line);
   const detail = el("div", "xfdetail");
   if (it.diff?.length || it.files) {
@@ -294,7 +358,7 @@ function planRow(it: any): HTMLElement {
   fillDetail();
   wrap.appendChild(detail);
   for (const w of it.warnings || []) wrap.appendChild(notice(w));
-  if (it.state === "blocked" && it.reason && it.code !== "secret_missing") wrap.appendChild(notice(it.reason, "err"));
+  if (it.state === "blocked" && it.reason && it.code !== "secret_missing") wrap.appendChild(notice(errText({ code: it.code, target: it.target, message: it.reason }), "err"));
   if (it.conflicts?.length) {
     const box = el("div", "xfconf");
     box.appendChild(el("div", "dlabel", t("xfConflict")));
@@ -311,7 +375,7 @@ function planRow(it: any): HTMLElement {
   }
   if (it.code === "secret_missing") {
     const box = el("div", "xfconf");
-    box.appendChild(notice(it.reason, "err"));
+    box.appendChild(notice(errText({ code: it.code, target: it.target, message: it.reason }), "err"));
     for (const p of it.missing_secrets as string[]) {
       const r = el("div", "xfconfrow");
       const i = document.createElement("input");
@@ -340,7 +404,7 @@ function failedList(failed: any[]): HTMLElement {
   box.appendChild(el("div", "dlabel", t("xfFailed")));
   for (const f of failed) {
     const r = el("div", "xfitem");
-    r.append(el("span", "xfid", f.id), el("span", "xftgt", errText({ code: f.code, target: f.target || f.id, message: f.reason })));
+    r.append(idSpan(f.id), el("span", "xftgt", errText({ code: f.code, target: f.target || itemName(f.id), message: f.reason })));
     box.appendChild(r);
   }
   return box;
@@ -361,7 +425,8 @@ async function renderHistory(box: HTMLElement): Promise<void> {
         setPending(b);
         try {
           const u = jparse(await callTool("config_import_undo", { importId: x.id, force }));
-          res.replaceChildren(notice(errText(u, t("failed")), u?.ok ? "ok" : "err"));
+          const n = u?.restored?.length;
+          res.replaceChildren(notice(u?.ok ? okText(u, "xfUndoDone", n ? ` (${n})` : "") : errText(u, t("failed")), u?.ok ? "ok" : "err"));
           if (u?.failed?.length) {
             res.appendChild(failedList(u.failed));
             const fb = el("button", "xfbtn", t("xfUndoForce")) as HTMLButtonElement;
@@ -418,8 +483,9 @@ async function renderSync(pane: HTMLElement): Promise<void> {
     setPending(push);
     try {
       const r = jparse(await callTool("config_sync_push", { includeSecrets: sec.input.checked }));
-      res.replaceChildren(notice(errText(r, t("failed")), r?.ok ? "ok" : "err"));
-      if (r?.ok) flashToast(r.message);
+      const msg = r?.ok ? okText(r, "xfPushed", ` · ${r.bundle}`) : errText(r, t("failed"));
+      res.replaceChildren(notice(msg, r?.ok ? "ok" : "err"));
+      if (r?.ok) flashToast(msg);
     } finally { clearPending(push); }
   });
   out.append(opts, warn, push, res);
@@ -445,13 +511,14 @@ async function showStatus(from: string, box: HTMLElement): Promise<void> {
   if (!r || r.ok === false) { box.appendChild(notice(errText(r), "err")); return; }
   const pull = el("button", "xfbtn primary", t("xfSyncPull"));
   pull.addEventListener("click", () => { syncFrom = from; plan = null; tab = "import"; renderTransfer(); });
-  box.append(el("div", "xfsum", r.message), pull);
+  const sum = Object.keys(SYNC_BADGE).filter((k) => r.summary?.[k]).map((k) => `${t(SYNC_BADGE[k][0])} ${r.summary[k]}`);
+  box.append(el("div", "xfsum", [from, ...sum].join(" · ")), pull);
   for (const it of r.items) {
     if (it.state === "in-sync" && !showAll) continue;
     const [k, cls] = SYNC_BADGE[it.state] || [it.state, ""];
     const line = el("div", "xfitem");
     const l = el("div", "xfline");
-    l.append(el("span", "badge" + (cls ? " " + cls : ""), t(k)), el("span", "xfid", it.id));
+    l.append(el("span", "badge" + (cls ? " " + cls : ""), t(k)), idSpan(it.id));
     line.appendChild(l);
     box.appendChild(line);
   }

@@ -275,7 +275,7 @@ class Collector:
         self.items.append({"id": iid, "category": cat, "strategy": "tree", "rel": self.rel(p),
                            "hash": tree_digest(rows), "size": size, "files": len(rows), **extra, "_src": p})
         if size > SIZE_WARN:
-            self.warnings.append(f"{iid}: {size // (1024 * 1024)}MB")
+            self.warnings.append(f"{disp_id(iid)}: {size // (1024 * 1024)}MB 로 {SIZE_WARN // (1024 * 1024)}MB 를 넘음")
 
     def add_json(self, cat, iid, key, obj, refs):
         obj, found = prepare_json(cat, iid, obj, self.tokens)
@@ -418,7 +418,7 @@ class Collector:
             try:
                 servers = _load(p).get("mcpServers") or {}
             except (OSError, ValueError):
-                self.warnings.append(f"{cat}: {p} 를 읽지 못함")
+                self.warnings.append(f"{LABELS[cat]}: {p} 를 읽지 못함")
                 continue
             for name, server in sorted(servers.items()):
                 if isinstance(server, dict):
@@ -480,6 +480,7 @@ class Collector:
         return c
 
     def report(self, out_path=None):
+        """영어 화면은 이 줄 대신 src/ui/transfer.ts reportLines 가 같은 구성으로 그린다."""
         lines = [f"export 결과: {out_path}" if out_path else "이관 대상"]
         counts = self.counts()
         for cat in [c for c, *_ in TREE_CATS] + [c for c, *_ in FILE_CATS] + \
@@ -1267,7 +1268,7 @@ def _summary_fields(col, out=None):
     return {"counts": col.counts(), "plugins": col.plugins, "external": col.external,
             "skipped": col.skipped, "warnings": col.warnings,
             "secrets": [{"item": iid, "path": k} for iid, d in col.secrets.items() for k in d],
-            "report": col.report(out)}
+            "include_secrets": col.include_secrets, "report": col.report(out)}
 
 
 def _json_arg(v, name):
