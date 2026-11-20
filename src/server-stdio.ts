@@ -4,11 +4,12 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { INSTRUCTIONS } from "./instructions.ts";
 import { autoStartWatcher, registerAll } from "./mcp-tools.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const server = new McpServer({ name: "config-monitor", version: "0.1.0" });
+const server = new McpServer({ name: "config-monitor", version: "0.1.0" }, { instructions: INSTRUCTIONS });
 registerAll(server, __dirname);
 
 const transport = new StdioServerTransport();

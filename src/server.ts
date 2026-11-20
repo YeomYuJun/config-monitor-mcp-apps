@@ -10,6 +10,7 @@ import express from "express";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import fs from "node:fs/promises";
+import { INSTRUCTIONS } from "./instructions.ts";
 import { autoStartWatcher, registerAll, buildTools, langScript } from "./mcp-tools.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -86,7 +87,7 @@ app.post("/api/tool/:name", async (req, res) => {
 app.post("/mcp", async (req, res) => {
   // stateless 패턴: 요청마다 server+transport 신규. 서버 인스턴스 하나를 재사용하면
   // connect 가 내부 transport 를 덮어써 동시 요청의 응답이 뒤바뀌거나 유실될 수 있다.
-  const server = new McpServer({ name: "config-monitor", version: "0.1.0" });
+  const server = new McpServer({ name: "config-monitor", version: "0.1.0" }, { instructions: INSTRUCTIONS });
   registerAll(server, __dirname);
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
