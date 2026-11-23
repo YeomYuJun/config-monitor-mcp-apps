@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // server-stdio.ts - stdio transport (포트 불필요, 호스트가 프로세스를 spawn).
 // 같은 진입 파일이 --watcher 로 watcher 를, --http 로 HTTP 대시보드 서버(server.ts)를 돌린다.
-// 번들(plugin/config-monitor/server.js)이 파일 하나라서 서버가 띄우는 자식도 이 파일을 다시 실행한다.
+// 번들(plugin/config-monitor/server.mjs)이 파일 하나라서 서버가 띄우는 자식도 이 파일을 다시 실행한다.
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { dirname } from "node:path";

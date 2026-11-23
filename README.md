@@ -20,7 +20,7 @@ It is an [MCP App](https://modelcontextprotocol.io): the dashboard renders insid
 
 ## Quick start
 
-You need **Windows**. The server is one Node.js file, `plugin/config-monitor/server.js`; it needs no Python and no `npm install`.
+You need **Windows**. The server is one Node.js file, `plugin/config-monitor/server.mjs`; it needs no Python and no `npm install`.
 
 **Claude Code** — load the plugin folder:
 
@@ -38,7 +38,7 @@ claude --plugin-dir config-monitor-mcp-apps/plugin/config-monitor
 "mcpServers": {
   "config-monitor": {
     "command": "node",
-    "args": ["C:/path/to/config-monitor-mcp-apps/plugin/config-monitor/server.js"],
+    "args": ["C:/path/to/config-monitor-mcp-apps/plugin/config-monitor/server.mjs"],
     "env": { "CONFIG_MONITOR_LANG": "en" }
   }
 }
@@ -174,7 +174,7 @@ Only the fields shown on cards are read. Conversation history in `~/.claude.json
 ```bash
 npm run typecheck
 npm test
-npm run build:plugin                  # plugin/config-monitor/server.js, dist/dashboard.html and release/*.mcpb
+npm run build:plugin                  # plugin/config-monitor/server.mjs, dist/dashboard.html and release/*.mcpb
 npx tsx scripts/demo_profile.ts Z:\   # demo profile used for the screenshots
 ```
 

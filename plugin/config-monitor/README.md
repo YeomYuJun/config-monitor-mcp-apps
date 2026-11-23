@@ -15,9 +15,9 @@ Changes to your settings, and the removal of another plugin or MCP server, run o
 
 ## Processes it runs
 
-- The MCP server itself: `node server.js` from this plugin folder.
-- A file watcher, only when you start it from the dashboard or with the `watcher_start` tool. It is a second Node process (`server.js --watcher`) that keeps running after the session ends until you stop it with `watcher_stop`.
-- A local dashboard server on `127.0.0.1` port 3002, only when you choose to open the dashboard in a browser (`server.js --http`). It accepts requests only from that address.
+- The MCP server itself: `node server.mjs` from this plugin folder.
+- A file watcher, only when you start it from the dashboard or with the `watcher_start` tool. It is a second Node process (`server.mjs --watcher`) that keeps running after the session ends until you stop it with `watcher_stop`.
+- A local dashboard server on `127.0.0.1` port 3002, only when you choose to open the dashboard in a browser (`server.mjs --http`). It accepts requests only from that address.
 - `powershell.exe`, to find and stop the watcher process and to open the browser.
 - `git`, only for remote libraries and marketplaces that you register.
 - The `claude` command line, only when you install, update or remove a whole plugin or marketplace through the dashboard.
@@ -59,13 +59,13 @@ Config Monitor sends no telemetry and talks to no other service.
 Claude Desktop chat does not load local MCP servers from plugins. To use Config Monitor there:
 
 1. Download `config-monitor-<version>.mcpb` from the project's GitHub releases and double-click it, or drag it into the Claude Desktop window, or choose **Settings > Extensions > Advanced settings > Install Extension**. Desktop runs it with its built-in Node.js.
-2. Or register the server by hand: open `claude_desktop_config.json` (**Settings > Developer > Edit Config**), add the entry below with the full path of this plugin's `server.js`, and restart Claude Desktop. This needs Node.js 20 or later on `PATH`.
+2. Or register the server by hand: open `claude_desktop_config.json` (**Settings > Developer > Edit Config**), add the entry below with the full path of this plugin's `server.mjs`, and restart Claude Desktop. This needs Node.js 20 or later on `PATH`.
 
 ```json
 "mcpServers": {
   "config-monitor": {
     "command": "node",
-    "args": ["C:/path/to/config-monitor/server.js"],
+    "args": ["C:/path/to/config-monitor/server.mjs"],
     "env": { "CONFIG_MONITOR_LANG": "en" }
   }
 }

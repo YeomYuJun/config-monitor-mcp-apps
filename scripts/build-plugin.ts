@@ -2,8 +2,8 @@
 //
 //   npm run build:plugin      (vite build 로 src/dist/dashboard.html 을 먼저 만든다)
 //
-// 쓰는 것: plugin/config-monitor/server.js, plugin/config-monitor/dist/dashboard.html,
-//          release/config-monitor-<version>.mcpb(manifest.json + 같은 server.js + dashboard.html).
+// 쓰는 것: plugin/config-monitor/server.mjs, plugin/config-monitor/dist/dashboard.html,
+//          release/config-monitor-<version>.mcpb(manifest.json + 같은 server.mjs + dashboard.html).
 // .mcpb 는 디렉토리 제출물이 아니라 GitHub 릴리스에 올릴 파일이라 플러그인 폴더 밖에 둔다.
 import fs from "node:fs";
 import path from "node:path";
@@ -21,7 +21,7 @@ const manifest = JSON.parse(fs.readFileSync(path.join(PLUGIN, ".claude-plugin", 
 const html = path.join(REPO, "src", "dist", "dashboard.html");
 if (!fs.existsSync(html)) throw new Error(`${html} not found - run 'npm run build' first`);
 
-const serverJs = path.join(PLUGIN, "server.js");
+const serverJs = path.join(PLUGIN, "server.mjs");
 await build({
   entryPoints: [path.join(REPO, "src", "server-stdio.ts")],
   outfile: serverJs,
@@ -50,10 +50,10 @@ const mcpb = {
   ...(manifest.repository ? { repository: { type: "git", url: manifest.repository } } : {}),
   server: {
     type: "node",
-    entry_point: "server.js",
+    entry_point: "server.mjs",
     mcp_config: {
       command: "node",
-      args: ["${__dirname}/server.js"],
+      args: ["${__dirname}/server.mjs"],
       env: { CONFIG_MONITOR_LANG: "${user_config.language}" },
     },
   },
@@ -75,7 +75,7 @@ const now = new Date();
 const attr = (0o100644 << 16) >>> 0;
 writeZip(out, [
   { name: "manifest.json", data: Buffer.from(JSON.stringify(mcpb, null, 2) + "\n", "utf-8"), date: now, attr },
-  { name: "server.js", data: fs.readFileSync(serverJs), date: now, attr },
+  { name: "server.mjs", data: fs.readFileSync(serverJs), date: now, attr },
   { name: "dist/dashboard.html", data: fs.readFileSync(html), date: now, attr },
 ]);
 

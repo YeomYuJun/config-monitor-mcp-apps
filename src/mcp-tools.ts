@@ -31,11 +31,27 @@ export const RESOURCE_URI = "ui://config-monitor/dashboard.html";
 export const WATCHER_FLAG = "--watcher";
 export const HTTP_FLAG = "--http";
 
-/** 번들(plugin/config-monitor/server.js)이면 그 파일, 저장소에서 tsx 로 돌면 src/server-stdio.ts. */
+/** 번들(plugin/config-monitor/server.mjs)이면 그 파일, 저장소에서 tsx 로 돌면 src/server-stdio.ts. */
 export function serverEntry(scriptDir: string): string {
-  const bundled = path.join(scriptDir, "server.js");
+  const bundled = path.join(scriptDir, "server.mjs");
   return existsSync(bundled) ? bundled : path.join(scriptDir, "server-stdio.ts");
 }
+
+/**
+ * 자식 Node 프로세스를 띄울 실행 파일. 없으면 null.
+ * Claude Desktop 의 내장 Node 에서는 process.execPath 가 앱 실행 파일이고 호스트가 그 실행을 거부하므로 PATH 의 node 를 찾는다.
+ */
+export function nodeBin(): string | null {
+  if (!process.versions.electron) return process.execPath;
+  const name = process.platform === "win32" ? "node.exe" : "node";
+  for (const dir of (process.env.PATH || process.env.Path || "").split(path.delimiter)) {
+    const p = dir && path.join(dir, name);
+    if (p && existsSync(p)) return p;
+  }
+  return null;
+}
+
+const NODE_NOT_FOUND = "Node.js was not found on PATH. The built-in Node.js of Claude Desktop cannot start a second process; install Node.js 20 or later";
 
 /** 진입 파일을 mode 로 다시 띄우는 node 인자. tsx 로 돌 때는 execArgv 에 tsx 로더가 들어 있다. */
 export function entryArgs(scriptDir: string, mode: string, ...rest: string[]): string[] {
@@ -614,13 +630,16 @@ export function buildTools(scriptDir: string): ToolDef[] {
         const store = STORE();
         const cur = await cas.cmdWatcherStatus({ store }) as Record<string, any>;
         if (cur.running) return docResult({ ok: true, code: "noop", message: "Already running", pid: cur.pid, changed: false });
+        const bin = nodeBin();
+        if (!bin) return docResult({ ok: false, code: "node_not_found", message: NODE_NOT_FOUND, changed: false });
         // 좀비/중복 watcher 정리(상태 신뢰성과 무관하게 단일 인스턴스 보장) 후 새로 기동.
         await killWatchers();
         await fs.rm(path.join(store, "watcher.json"), { force: true }).catch(() => {});
         // 서버가 끝나도 watcher 는 남아야 하므로 분리해 띄운다. stdin 은 MCP 채널이라 물려주지 않는다.
-        spawn(process.execPath, entryArgs(scriptDir, WATCHER_FLAG, "--store", store), {
+        // error 리스너가 없으면 실행 실패가 잡히지 않는 예외가 되어 서버가 죽는다. 실패는 아래 heartbeat 폴링이 드러낸다.
+        spawn(bin, entryArgs(scriptDir, WATCHER_FLAG, "--store", store), {
           cwd: scriptDir, detached: true, stdio: "ignore", windowsHide: true,
-        }).unref();
+        }).on("error", () => {}).unref();
         // heartbeat 가 쓰일 때까지 폴링(최대 ~5.6s) 후 실제 상태를 반환(허위 ok 방지).
         let st: Record<string, any> = {};
         for (let i = 0; i < 8; i++) {
@@ -1199,10 +1218,16 @@ export function buildTools(scriptDir: string): ToolDef[] {
             fh = await fs.open(log, "a");
           } catch { /* 로그를 못 열어도 기동은 시도한다 */ }
           const out: number | "ignore" = fh ? fh.fd : "ignore";
-          const child = spawn(process.execPath, entryArgs(scriptDir, HTTP_FLAG), {
+          const bin = nodeBin();
+          if (!bin) {
+            await fh?.close();
+            return docResult({ ok: false, code: "node_not_found", message: NODE_NOT_FOUND });
+          }
+          const child = spawn(bin, entryArgs(scriptDir, HTTP_FLAG), {
             cwd: scriptDir, detached: true, windowsHide: true,
             stdio: ["ignore", out, out], env: { ...process.env, PORT: String(port) },
           });
+          child.on("error", () => {});   // 실행 실패는 아래 프로브가 server_unreachable 로 드러낸다
           child.unref();
           await fh?.close();   // 자식은 자기 핸들을 물려받았으므로 부모 쪽은 닫아도 된다
           // 기동 대기(최대 ~15s). tsx 콜드 스타트는 이 PC 에서 4초 안팎이지만 여유를 둔다.

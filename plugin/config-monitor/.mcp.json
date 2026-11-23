@@ -2,7 +2,7 @@
   "mcpServers": {
     "config-monitor": {
       "command": "node",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/server.js"],
+      "args": ["${CLAUDE_PLUGIN_ROOT}/server.mjs"],
       "env": {
         "CONFIG_MONITOR_LANG": "${user_config.language}"
       }

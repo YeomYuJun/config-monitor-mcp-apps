@@ -227,7 +227,7 @@ const I18N: Record<string, Record<string, string>> = {
     "err.lock_timeout": "다른 작업이 스토어 락을 잡고 있어 기다리다 중단했습니다", "err.internal": "내부 오류",
     "err.timeout": "시간 안에 끝나지 않아 중단했습니다", "err.crash": "백엔드 스크립트가 비정상 종료했습니다",
     "err.bad_output": "백엔드 스크립트의 출력을 읽을 수 없습니다", "err.project_not_found": "프로젝트를 찾을 수 없습니다: {target}",
-    "err.server_unreachable": "대시보드 서버가 응답하지 않습니다: {target}", "err.watcher_start_failed": "watcher 를 시작하지 못했습니다",
+    "err.server_unreachable": "대시보드 서버가 응답하지 않습니다: {target}", "err.watcher_start_failed": "watcher 를 시작하지 못했습니다", "err.node_not_found": "PATH 에서 Node.js 를 찾지 못했습니다. Claude Desktop 내장 Node 는 프로세스를 하나 더 띄울 수 없어 Node.js 20 이상 설치가 필요합니다",
   },
   en: {
     newFile: "New", modified: "Modified", deleted: "Deleted", unchanged: "Same",
@@ -452,7 +452,7 @@ const I18N: Record<string, Record<string, string>> = {
     "err.lock_timeout": "Gave up waiting for a store lock held by another operation", "err.internal": "Internal error",
     "err.timeout": "Stopped because it did not finish in time", "err.crash": "Backend script exited abnormally",
     "err.bad_output": "Cannot read the backend script output", "err.project_not_found": "Project not found: {target}",
-    "err.server_unreachable": "Dashboard server is not responding: {target}", "err.watcher_start_failed": "Could not start the watcher",
+    "err.server_unreachable": "Dashboard server is not responding: {target}", "err.watcher_start_failed": "Could not start the watcher", "err.node_not_found": "Node.js was not found on PATH. Install Node.js 20 or later",
   },
 };
 

@@ -38463,8 +38463,17 @@ import path6 from "node:path";
 import fs15 from "node:fs/promises";
 import { existsSync } from "node:fs";
 function serverEntry(scriptDir) {
-  const bundled = path6.join(scriptDir, "server.js");
+  const bundled = path6.join(scriptDir, "server.mjs");
   return existsSync(bundled) ? bundled : path6.join(scriptDir, "server-stdio.ts");
+}
+function nodeBin() {
+  if (!process.versions.electron) return process.execPath;
+  const name = process.platform === "win32" ? "node.exe" : "node";
+  for (const dir of (process.env.PATH || process.env.Path || "").split(path6.delimiter)) {
+    const p3 = dir && path6.join(dir, name);
+    if (p3 && existsSync(p3)) return p3;
+  }
+  return null;
 }
 function entryArgs(scriptDir, mode2, ...rest) {
   return [...process.execArgv, serverEntry(scriptDir), mode2, ...rest];
@@ -39001,14 +39010,17 @@ function buildTools(scriptDir) {
         const store = STORE();
         const cur = await cmdWatcherStatus({ store });
         if (cur.running) return docResult({ ok: true, code: "noop", message: "Already running", pid: cur.pid, changed: false });
+        const bin = nodeBin();
+        if (!bin) return docResult({ ok: false, code: "node_not_found", message: NODE_NOT_FOUND, changed: false });
         await killWatchers();
         await fs15.rm(path6.join(store, "watcher.json"), { force: true }).catch(() => {
         });
-        spawn2(process.execPath, entryArgs(scriptDir, WATCHER_FLAG, "--store", store), {
+        spawn2(bin, entryArgs(scriptDir, WATCHER_FLAG, "--store", store), {
           cwd: scriptDir,
           detached: true,
           stdio: "ignore",
           windowsHide: true
+        }).on("error", () => {
         }).unref();
         let st = {};
         for (let i = 0; i < 8; i++) {
@@ -39644,12 +39656,19 @@ function buildTools(scriptDir) {
           } catch {
           }
           const out3 = fh ? fh.fd : "ignore";
-          const child = spawn2(process.execPath, entryArgs(scriptDir, HTTP_FLAG), {
+          const bin = nodeBin();
+          if (!bin) {
+            await fh?.close();
+            return docResult({ ok: false, code: "node_not_found", message: NODE_NOT_FOUND });
+          }
+          const child = spawn2(bin, entryArgs(scriptDir, HTTP_FLAG), {
             cwd: scriptDir,
             detached: true,
             windowsHide: true,
             stdio: ["ignore", out3, out3],
             env: { ...process.env, PORT: String(port) }
+          });
+          child.on("error", () => {
           });
           child.unref();
           await fh?.close();
@@ -39711,7 +39730,7 @@ function registerAll(server, scriptDir) {
     return { contents: [{ uri: RESOURCE_URI, mimeType: p, text: html.replace("<head>", "<head>" + langScript()) }] };
   });
 }
-var pexec, RESOURCE_URI, WATCHER_FLAG, HTTP_FLAG, READ, WRITE, EDIT, text;
+var pexec, RESOURCE_URI, WATCHER_FLAG, HTTP_FLAG, NODE_NOT_FOUND, READ, WRITE, EDIT, text;
 var init_mcp_tools = __esm({
   "src/mcp-tools.ts"() {
     "use strict";
@@ -39730,6 +39749,7 @@ var init_mcp_tools = __esm({
     RESOURCE_URI = "ui://config-monitor/dashboard.html";
     WATCHER_FLAG = "--watcher";
     HTTP_FLAG = "--http";
+    NODE_NOT_FOUND = "Node.js was not found on PATH. The built-in Node.js of Claude Desktop cannot start a second process; install Node.js 20 or later";
     READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
     WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
     EDIT = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false };
