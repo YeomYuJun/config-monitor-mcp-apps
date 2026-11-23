@@ -4,7 +4,7 @@
 //   Sync    config_sync_setup / push / status(4상태). 다른 PC 가져오기는 Import 탭을 syncFrom 으로 연다
 // 파일 선택 다이얼로그는 위젯 iframe 에서 쓸 수 없어 경로는 문자열로 받는다.
 import { callTool, jparse, askClaude, canAskClaude } from "./bridge";
-import { t, tf, errText, okText, getLang } from "./i18n";
+import { t, tf, errText, okText } from "./i18n";
 import { $, esc, setPending, clearPending, flashToast, openModal } from "./widgets";
 import { ABS_PATH_RE } from "./helpers";
 import { setDetailOpen, setSelectedPath } from "./state";
@@ -244,9 +244,8 @@ function renderExport(pane: HTMLElement): void {
 
 const EXT_SCOPE: Record<string, string> = { "cc.mcp-user": "Claude Code", "desk.mcp": "Desktop" };
 
-// 백엔드 report 는 한국어 문장이라 영어 화면은 같은 구조 필드로 다시 그린다(transfer.py Collector.report 와 같은 구성).
+// 백엔드 report 는 영어 문장이라 화면은 같은 구조 필드로 다시 그린다(core/transfer.ts Collector.report 와 같은 구성).
 function reportLines(r: any, dryRun: boolean): string[] {
-  if (getLang() === "ko") return r.report || [];
   const lines: string[] = [dryRun ? t("xfRepTargets") : `${t("xfRepResult")}: ${r.bundle}`];
   for (const [cat, n] of Object.entries(r.counts || {})) lines.push(`- ${itemName(cat)}: ${n}`);
   const p = r.plugins || {};
@@ -408,13 +407,13 @@ function filesLine(files: any): HTMLElement | null {
   return e;
 }
 
-// 백엔드 경고는 한국어 문장이다(대화의 Claude 가 읽는다). 영어 화면은 같은 순서로 오는 code 로 다시 쓴다
+// 백엔드 경고는 영어 문장이다(대화의 Claude 가 읽는다). 화면은 같은 순서로 오는 code 로 다시 쓴다
 // (cli_result: code 가 번역의 기준). 모르는 code 나 code 가 없는 옛 결과는 원문 그대로.
 function warnTexts(msgs: string[] | undefined, codes: any[] | undefined): string[] {
   return (msgs || []).map((m, i) => {
     const c = codes?.[i];
     const key = c ? "warn." + c.code : "";
-    return getLang() !== "ko" && c && t(key) !== key ? tf(key, c) : m;
+    return c && t(key) !== key ? tf(key, c) : m;
   });
 }
 
@@ -519,7 +518,7 @@ function planRow(it: any): HTMLElement {
   const blockTarget = it.code === "keep_working" ? it.key : it.missing_paths?.[0] ?? it.target;
   const blockMsg = blocked ? errText({ code: it.code, target: blockTarget, message: it.reason }) : "";
   // 경로와 설명은 다른 자리에 둔다. .xfpath 는 한 줄로 자르는 칸이라 문장을 넣으면 뜻이
-  // 잘려나간다(제외 항목은 target 없이 reason 만 온다 - transfer.py Collector 의 skipped).
+  // 잘려나간다(제외 항목은 target 없이 reason 만 온다 - core/transfer.ts Collector 의 skipped).
   // 막힘 안내가 대상 경로를 문장 안에 품을 때는 경로 줄을 접는다 - 같은 문자열이 두 번 뜬다.
   // 서버 행의 target 은 늘 같은 설정 파일이고 꼬리표(MCP 서버 (Claude Code))가 이미 그 파일을 말한다 - 줄을 아낀다.
   const server = it.category === "cc.mcp-user" || it.category === "desk.mcp";

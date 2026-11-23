@@ -29,7 +29,7 @@ export let knownProjects: string[] = [];
 // config-monitor 스토어에 등록된 마켓 URL(정규화). 공식 마켓 프리셋을 이미 등록된 상태에서
 // 다시 권하지 않기 위해서만 쓴다.
 export const cmMarketUrls = new Set<string>();
-// URL 이 없는 스토어 마켓(로컬 경로로 등록된 것 - marketplace.py 의 kind local/str-path 는
+// URL 이 없는 스토어 마켓(로컬 경로로 등록된 것 - core/marketplace.ts 의 kind local/str-path 는
 // url:None 이다). 이런 마켓은 헤더에 'Claude Code 등록' 버튼이 아예 안 그려지므로,
 // 카탈로그 행의 비활성 사유가 그 버튼을 가리키면 없는 것을 가리키게 된다.
 // **없는 쪽을 모은다**: 이름을 못 찾으면 기본(버튼을 가리키는) 문구로 떨어져 기존 동작이 된다.

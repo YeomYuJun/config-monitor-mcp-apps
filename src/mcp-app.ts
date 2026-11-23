@@ -153,7 +153,7 @@ $("watcher-toggle").addEventListener("click", async () => {
       flashToast(t("toastWatcherStop"));
       await refreshWatcher();
     } else {
-      // watcher.py 가 spawn 후 heartbeat 를 쓰기까지 1~2s 걸린다.
+      // watcher 가 spawn 후 heartbeat 를 쓰기까지 1~2s 걸린다.
       // 시작 직후 status 는 아직 정지이므로 잠시 기다렸다가 재폴링한다.
       const r = jparse(await callTool("watcher_start"));
       if (r && r.ok === false) {
@@ -400,7 +400,7 @@ $("snap").addEventListener("click", async () => {
   const r = jparse(raw);
   if (r && r.ok === false) { openReasonModal(t("failed"), errText(r)); return; }
   // 변경이 없어 생략된 경우까지 "생성됨" 토스트를 띄우지 않는다. 평문은 재시작 전 서버의 응답이다.
-  if (r?.ok === true ? r.code === "noop" : raw.trim().startsWith("변경 없음")) { flashToast(t("snapNoChange")); return; }
+  if (r?.ok === true ? r.code === "noop" : /^(No changes|변경 없음)/.test(raw.trim())) { flashToast(t("snapNoChange")); return; }
   flashToast(t("toastSnapshot"));
   await refresh();
   if (selectedPath) selectFile(selectedPath);

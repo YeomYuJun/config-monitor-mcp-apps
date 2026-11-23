@@ -127,7 +127,7 @@ function renderDiscover(host: HTMLElement, r: any, pick: (u: string) => void): v
 // Library 와 Marketplace 를 가르는 축은 전송 방식이 아니라 `.claude-plugin/marketplace.json`
 // 유무다. 그래서 입력칸을 로컬/원격으로 쪼개지 않고 하나만 두고, 전송 방식은 판별한다.
 // owner/repo 축약은 remote_fetch._validate_url 이 스킴 없는 문자열을 거부하므로 여기서
-// GitHub URL 로 편다(marketplace.py 의 축약 처리와 같은 규칙). 편 결과는 화면에 적어
+// GitHub URL 로 편다(core/marketplace.ts 의 축약 처리와 같은 규칙). 편 결과는 화면에 적어
 // 무엇을 clone 하는지 누르기 전에 보이게 한다.
 type LibSource = { kind: "local" | "git" | ""; url: string; expanded: boolean };
 function classifyLibSource(raw: string): LibSource {

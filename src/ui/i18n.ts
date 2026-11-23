@@ -50,7 +50,7 @@ const I18N: Record<string, Record<string, string>> = {
     toastWatcherStart: "watcher 시작", toastWatcherStop: "watcher 중지", toastRestored: "복원됨 · 현재 상태 자동 백업",
     langTitle: "Switch to English",
     failed: "실패", loading: "불러오는 중…", fetchFail: "조회 실패", unknown: "알 수 없음",
-    emptyTracked: "추적 파일 없음 - cas.py track 으로 추가", emptyCards: "항목 없음 / 파일 미발견",
+    emptyTracked: "추적 파일 없음 - config_track 으로 추가", emptyCards: "항목 없음 / 파일 미발견",
     noHistory: "스냅샷 이력 없음 (먼저 스냅샷)", emptyTrackedResp: "상태를 불러오지 못했습니다 (빈 응답)",
     emptyConfigResp: "설정을 불러오지 못했습니다 (빈 응답)", trackedStatus: "추적 상태", deletedHash: "삭제됨",
     delConfirm: "삭제확정", trashMoveHint: ".trash 로 이동(복구 가능)",
@@ -208,6 +208,12 @@ const I18N: Record<string, Record<string, string>> = {
     "err.partial": "일부 항목만 처리했습니다", "err.sync_unconfigured": "동기화 폴더가 설정되지 않았습니다",
     "err.changed_since_import": "가져온 뒤에 바뀌어 건너뛰었습니다: {target}", "err.write_failed": "쓰지 못했습니다: {target}", "err.project_missing": "이 PC 에 대상 프로젝트가 없습니다: {target}",
     "err.blocked": "불가 항목이라 적용하지 않았습니다: {target}",
+    "warn.paths_missing": "이 PC 에 없는 경로 {n}개 - 그 경로를 쓰는 훅과 MCP 서버는 빼고 가져옵니다",
+    "warn.restart_after": "Claude Code 나 Desktop 이 실행 중이면 가져온 직후 이 파일들을 다시 쓸 수 있습니다. 가져온 뒤 다시 시작하세요",
+    "warn.desktop_dir_new": "Claude Desktop 폴더가 없어 새로 만듭니다: {target}",
+    "warn.store_new": "스토어가 아직 없어 적용할 때 만듭니다: {target}",
+    "warn.secret_env_dropped": "시크릿 값이 없어 이 env 키는 가져오지 않습니다: {target}",
+    "warn.lib_fetch": "내용을 받으려면 라이브러리 fetch 가 필요합니다: {target}",
     "err.path_missing": "이 PC 에 없는 경로라 가져오지 않습니다: {target}",
     "err.keep_working": "이 PC 의 값이 동작 중이라 바꾸지 않습니다: {target}",
     "err.invalid_arg": "입력 형식이 맞지 않습니다: {target}", "err.not_tracked": "추적 중인 경로가 아닙니다: {target}",
@@ -270,7 +276,7 @@ const I18N: Record<string, Record<string, string>> = {
     toastWatcherStart: "watcher started", toastWatcherStop: "watcher stopped", toastRestored: "Restored · current state backed up",
     langTitle: "한국어로 전환",
     failed: "Failed", loading: "Loading…", fetchFail: "fetch failed", unknown: "unknown",
-    emptyTracked: "No tracked files - add with cas.py track", emptyCards: "No items / file not found",
+    emptyTracked: "No tracked files - add with config_track", emptyCards: "No items / file not found",
     noHistory: "No snapshot history (snapshot first)", emptyTrackedResp: "Failed to load status (empty response)",
     emptyConfigResp: "Failed to load settings (empty response)", trackedStatus: "tracked status", deletedHash: "deleted",
     delConfirm: "Confirm delete", trashMoveHint: "Move to .trash (recoverable)",
@@ -467,16 +473,17 @@ export const t = (k: string): string => (I18N[lang] || I18N.ko)[k] ?? k;
 const has = (k: string): boolean => k in (I18N[lang] || I18N.ko);
 export const tf = (k: string, params: Record<string, unknown>): string =>
   t(k).replace(/\{(\w+)\}/g, (_, n) => String(params[n] ?? "")).replace(/[:\s]+$/, "");
+// 서버 message 는 영어다. 두 언어 모두 code 로 이 표의 문구를 고르고, 표에 없는 code 는 서버 문장을 그대로 보인다.
 export function errText(r: any, fallback = t("failed")): string {
   const key = r?.code ? `err.${r.code}` : "";
-  const s = lang !== "ko" && key && has(key) ? tf(key, { target: r.target }) : r?.message || fallback;
+  const s = key && has(key) ? tf(key, { target: r.target }) : r?.message || fallback;
   return r?.detail && !s.includes(r.detail) ? `${s}\n${r.detail}` : s;
 }
-export const okText = (r: any, key: string, tail = ""): string =>
-  lang === "ko" && r?.message ? r.message : t(key) + (r?.code === "noop" ? t("noopSuffix") : "") + tail;
+export const okText = (_r: any, key: string, tail = ""): string =>
+  t(key) + (_r?.code === "noop" ? t("noopSuffix") : "") + tail;
 export const getLang = (): string => lang;
 
-// 백엔드(claude_config.py)가 한국어로 만드는 카드 이름·필드 이름. 결과는 대화의 Claude 도 읽으므로 백엔드는
+// 백엔드(core/claude_config.ts)가 한국어로 만드는 카드 이름·필드 이름. 결과는 대화의 Claude 도 읽으므로 백엔드는
 // 그대로 두고 화면에서만 바꾼다. 카드 대부분은 이름이 파일·항목 이름이라 번역할 것이 이 몇 개뿐이다.
 const CARD_EN: Record<string, string> = {
   "＋ 새 스킬": "＋ New skill", "＋ 새 에이전트": "＋ New agent", "＋ 새 규칙": "＋ New rule",

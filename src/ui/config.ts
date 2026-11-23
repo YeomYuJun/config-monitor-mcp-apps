@@ -456,7 +456,7 @@ function renderConfigSection(host: HTMLElement, sec: any): void {
   host.appendChild(secEl);
 }
 
-// inline edit controls. edit meta is set by claude_config.py.
+// inline edit controls. edit meta is set by core/claude_config.ts.
 //   perm/hook            : 항목 chips + adder
 //   mcp/skill/agent      : 카드 자체 제거 버튼 (인라인 확인)
 //   mcp-add/skill-add/agent-add : adder 만 (입력 파싱 후 해당 add 도구 호출)
@@ -783,7 +783,7 @@ function buildAddUI(edit: any): HTMLElement {
     const sp = v.indexOf(" ");
     const name = sp < 0 ? v : v.slice(0, sp);
     const rest = sp < 0 ? "" : v.slice(sp + 1).trim();
-    // 서버 _safe_name(config_edit.py)과 **같은 규칙**을 여기서도 본다. 서버가 어차피 막지만
+    // 서버 safeName(core/config_edit.ts)과 **같은 규칙**을 여기서도 본다. 서버가 어차피 막지만
     // 그 거부는 토스트로만 흘러 사라진다 - 입력칸 옆에 남겨야 무엇이 틀렸는지 알 수 있다.
     if (!safeSegment(name)) {
       notice.show(t("nameBad"));

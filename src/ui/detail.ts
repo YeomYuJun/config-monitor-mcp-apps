@@ -12,8 +12,8 @@ import {
 
 let rawDiff = false;   // 원문 diff 토글(무시 키 프로필 미적용). 파일을 바꿔도 유지
 // cas 가 무시 키 변경을 알리는 문장의 접두어. UI 는 접두어만 번역하고 뒤의 키 목록은 그대로 보인다.
-const IGNORED_ONLY = "무시 목록 항목만 다름";
-const IGNORED_ALSO = "# 무시 목록 항목도 바뀜";
+const IGNORED_ONLY = "Only ignored keys differ";
+const IGNORED_ALSO = "# Ignored keys also changed";
 
 const revTime = (r: any) => (r.time || "").replace("T", " ").slice(0, 19);
 const revLabel = (id: string) => {
@@ -228,9 +228,9 @@ function renderDiff(diff: string, fromLabel: string, toLabel: string, ignored = 
   // (변경 없음 / 개행·BOM 만 다름 / 스냅샷 없음 등)이므로 그대로 안내로 보여준다.
   if (!/^@@/m.test(diff)) {
     const msg = diff.trim();
-    const mapped = msg === "텍스트 변경 없음" ? t("noDiff")
-      : msg.startsWith("줄 내용 동일") ? t("eolOnlyDiff")
-      : msg.startsWith("표기만 다름") ? t("formatOnlyDiff")
+    const mapped = msg === "No text changes" ? t("noDiff")
+      : msg.startsWith("Same line content") ? t("eolOnlyDiff")
+      : msg.startsWith("Only formatting differs") ? t("formatOnlyDiff")
       : msg.startsWith(IGNORED_ONLY) ? t("ignoredOnlyDiff") + msg.slice(IGNORED_ONLY.length) : msg;
     area.innerHTML = `<div class="diffempty">${esc(mapped || t("noDiff"))}</div>`;
     return;
