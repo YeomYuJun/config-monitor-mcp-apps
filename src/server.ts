@@ -62,7 +62,7 @@ app.get("/", async (_req, res) => {
     html = html.replace("<head>", '<head><script>window.__CONFIG_MONITOR_HTTP__=true;</script>' + langScript());
     res.type("html").send(html);
   } catch {
-    res.status(500).send("dist/dashboard.html 없음 - 먼저 'npm run build' 를 실행하세요.");
+    res.status(500).send("dist/dashboard.html not found - run 'npm run build' first");
   }
 });
 

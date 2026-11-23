@@ -1,30 +1,72 @@
 // mcp-tools.ts - config-monitor 의 모든 도구 정의 + 등록 (stdio / http 공용).
 //
-// 설계: 검증된 Python 레이어(cas.py / claude_config.py / config_edit.py)를 child_process 로
-//       shell-out 해 재사용. buildTools() 가 도구 정의를 만들고, MCP(registerAll) 와
-//       HTTP REST(server.ts) 가 동일한 핸들러를 공유한다.
+// 설계: 도구는 같은 프로세스에서 src/core 의 cmd* 함수를 부른다. buildTools() 가 도구 정의를 만들고,
+//       MCP(registerAll) 와 HTTP REST(server.ts) 가 동일한 핸들러를 공유한다.
 import { z } from "zod";
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import path from "node:path";
 import fs from "node:fs/promises";
 import { existsSync } from "node:fs";
-import os from "node:os";
 import {
   registerAppTool,
   registerAppResource,
   RESOURCE_MIME_TYPE,
 } from "@modelcontextprotocol/ext-apps/server";
+import * as cas from "./core/cas.ts";
+import * as claudeConfig from "./core/claude_config.ts";
+import type { CliDoc } from "./core/cli_result.ts";
+import * as configEdit from "./core/config_edit.ts";
+import { defaultStore, pyDumpsEx } from "./core/lib_store.ts";
+import * as library from "./core/library.ts";
+import * as pluginCatalog from "./core/plugin_catalog.ts";
+import * as pluginCli from "./core/plugin_cli.ts";
+import * as prefs from "./core/prefs.ts";
+import * as transfer from "./core/transfer.ts";
 
 const pexec = promisify(execFile);
 export const RESOURCE_URI = "ui://config-monitor/dashboard.html";
+
+// 서버 진입 파일의 실행 방식. 같은 진입 파일을 이 인자로 다시 띄워 watcher 와 HTTP 대시보드 서버를 돌린다.
+export const WATCHER_FLAG = "--watcher";
+export const HTTP_FLAG = "--http";
+
+/** 번들(plugin/config-monitor/server.js)이면 그 파일, 저장소에서 tsx 로 돌면 src/server-stdio.ts. */
+export function serverEntry(scriptDir: string): string {
+  const bundled = path.join(scriptDir, "server.js");
+  return existsSync(bundled) ? bundled : path.join(scriptDir, "server-stdio.ts");
+}
+
+/** 진입 파일을 mode 로 다시 띄우는 node 인자. tsx 로 돌 때는 execArgv 에 tsx 로더가 들어 있다. */
+export function entryArgs(scriptDir: string, mode: string, ...rest: string[]): string[] {
+  return [...process.execArgv, serverEntry(scriptDir), mode, ...rest];
+}
+
+/**
+ * 이 설치본의 watcher 프로세스를 고르는 PowerShell 명령. list 면 고른 프로세스를 출력만 하고, 아니면 끈다.
+ * node 쪽은 " --watcher " 와, 진입 파일 전체 경로 또는 같은 스토어 경로가 커맨드라인에 있어야 한다(서버 자신은 --watcher 가 없다).
+ * 스토어 경로로도 고르는 이유: 플러그인은 버전마다 설치 폴더가 달라 업데이트 뒤의 서버는 옛 진입 경로를 모른다.
+ */
+export function watcherKillCommand(scriptDir: string, list = false, store = ""): string {
+  const q = (s: string) => s.replace(/'/g, "''");
+  const wpy = q(path.join(scriptDir, "watcher.py").replace(/\\/g, "/"));
+  const entry = q(serverEntry(scriptDir));
+  const nodeNames = [...new Set(["node.exe", path.basename(process.execPath).toLowerCase()])].map((n) => `'${q(n)}'`).join(",");
+  const where = store ? `($_.CommandLine.Contains('${entry}') -or $_.CommandLine.Contains('${q(store)}'))` : `$_.CommandLine.Contains('${entry}')`;
+  return "Get-CimInstance Win32_Process | Where-Object { " +
+    `((@(${nodeNames}) -contains $_.Name.ToLower()) -and $_.CommandLine -and ${where} -and $_.CommandLine.Contains(' ${WATCHER_FLAG} ')) -or ` +
+    `((($_.Name -like 'python*') -or ($_.Name -eq 'py.exe')) -and $_.CommandLine -like '*${wpy}*') -or ` +
+    "(($_.Name -eq 'powershell.exe') -and $_.CommandLine -like '*-File*watcher.ps1*') } | " +
+    "Where-Object { $_.ProcessId -ne $PID } | " +
+    (list ? "ForEach-Object { $_.ProcessId }" : "ForEach-Object { Stop-Process -Id $_.ProcessId -Force }");
+}
 
 // CONFIG_MONITOR_LANG: 대시보드 시작 언어. ko/ko-KR/KO_KR 계열 -> ko, en/en-US/EN 계열 -> en.
 // 미지정이면 null 을 돌려 UI 가 스스로 결정하게 둔다(저장된 토글 선택 -> 없으면 ko).
 // 인식 못 하는 값은 ko(안전한 기본). 지역 접미사는 '-'/'_' 앞자리만 본다.
 export function resolveLang(raw?: string): "ko" | "en" | null {
   const v = String(raw ?? "").trim().toLowerCase().split(/[-_]/)[0];
-  if (!v) return null;
+  if (!v || v === "auto") return null;   // 플러그인 userConfig 의 기본값 auto 는 미지정과 같다
   return v === "en" ? "en" : "ko";
 }
 
@@ -41,13 +83,20 @@ const EDIT = { readOnlyHint: false, destructiveHint: true, idempotentHint: false
 
 type ToolResult = { content: { type: "text"; text: string }[]; structuredContent?: Record<string, unknown> };
 const text = (t: string): ToolResult => ({ content: [{ type: "text", text: t }] });
-function jsonResult(t: string): ToolResult {
-  let parsed: unknown;
-  try { parsed = JSON.parse(t); } catch { parsed = undefined; }
-  return {
-    content: [{ type: "text", text: t }],
-    ...(parsed !== undefined ? { structuredContent: parsed as Record<string, unknown> } : {}),
-  };
+// 문서의 PyFloat(설정 파일의 1.0)와 bigint 는 JSON.stringify 가 다루지 못하므로 Python json.dumps 와 같은 표기로 쓴다.
+function docResult(doc: unknown): ToolResult {
+  const t = pyDumpsEx(doc, { ensureAscii: false });
+  return { content: [{ type: "text", text: t }], structuredContent: JSON.parse(t) as Record<string, unknown> };
+}
+
+/** cmd* 는 오류를 문서로 돌려준다. 그래도 던지면 도구가 실패하지 않게 internal 문서로 바꾼다. */
+async function runCore(op: string, fn: () => Promise<CliDoc>): Promise<ToolResult> {
+  try {
+    return docResult(await fn());
+  } catch (e) {
+    const err = e instanceof Error ? e : new Error(String(e));
+    return docResult({ ok: false, code: "internal", message: `${op} failed: ${err.name}: ${err.message}`, detail: err.stack ?? err.message });
+  }
 }
 
 export interface ToolDef {
@@ -58,73 +107,25 @@ export interface ToolDef {
 
 // 모든 데이터/액션 도구 정의(show_config_monitor 같은 UI 전용 도구는 제외).
 export function buildTools(scriptDir: string): ToolDef[] {
-  const PY = process.env.CONFIG_MONITOR_PYTHON || "python";
-  // Windows 콘솔 기본 인코딩(cp949)은 한글/em-dash 출력 시 UnicodeEncodeError 로 Python 을 죽인다.
-  // 자식 stdout/stderr 를 UTF-8 로 강제(PYTHONUTF8=1, PYTHONIOENCODING=utf-8).
-  const PY_ENV = { ...process.env, PYTHONUTF8: "1", PYTHONIOENCODING: "utf-8" };
-  // lib_store.default_store() 와 같은 규칙이어야 Python 쪽과 같은 스토어를 가리킨다.
-  const LEGACY_WIN_STORE = "D:\\.claude-snapshot";
-  const STORE = process.env.CLAUDE_SNAPSHOT_STORE ||
-    (process.platform === "win32" && existsSync(LEGACY_WIN_STORE) ? LEGACY_WIN_STORE
-      : path.join(os.homedir(), ".claude-snapshot"));
-  // timeout 은 그 호출 안에서 순차로 도는 하위 작업 상한의 합보다 커야 한다. 작으면 정상 진행 중인
-  // git clone 을 끊는다. 60초는 LOCK_STALE_SEC 와 같아 끊긴 호출이 남긴 락을 다음 호출이 회수할 수 있다.
-  const QUERY_OPS: Record<string, Set<string>> = {
-    "cas.py": new Set(["status", "history", "cat", "diff", "watcher-status"]),
-    "prefs.py": new Set(["get"]),
-    "library.py": new Set(["scan", "catalog", "market-discover"]),
-  };
-  const NET_OPS = new Set(["remote-add", "market-add", "plugin-fetch", "fetch"]);
-  const TRANSFER_WRITE_OPS = new Set(["export", "apply", "undo", "sync-push", "sync-pull"]);
-  const timeoutMs = (script: string, args: string[]): number => {
-    if (script === "claude_config.py" || script === "plugin_catalog.py") return 30_000;
-    if (script === "plugin_cli.py") return 660_000;
-    if (script === "transfer.py") {
-      if (args.includes("--install-plugins")) return 1_260_000;
-      return args.some((x) => TRANSFER_WRITE_OPS.has(x)) ? 120_000 : 30_000;
-    }
-    if (script === "library.py" && args.some((x) => NET_OPS.has(x))) return 1_860_000;
-    if (args.some((x) => QUERY_OPS[script]?.has(x))) return 30_000;
-    return 60_000;
-  };
-  const tail = (s: unknown) => (typeof s === "string" ? s.slice(-2048) : "");
-  const isJson = (s: string) => { try { JSON.parse(s); return true; } catch { return false; } };
-  // 항상 JSON 문자열을 돌려주고 throw 하지 않는다. 판정은 호출부가 stdout 의 ok 로 한다.
-  const runPy = async (script: string, args: string[]): Promise<string> => {
-    const op = `${script} ${args[0] ?? ""}`.trim();
-    try {
-      const { stdout } = await pexec(PY, [path.join(scriptDir, script), ...args], {
-        env: PY_ENV,
-        maxBuffer: 16 * 1024 * 1024,
-        timeout: timeoutMs(script, args),
-      });
-      if (isJson(stdout)) return stdout;
-      return JSON.stringify({ ok: false, code: "bad_output", message: `${op} 의 출력이 JSON 이 아닙니다`, detail: tail(stdout) });
-    } catch (e: any) {
-      const stdout: string = typeof e?.stdout === "string" ? e.stdout : "";
-      if (stdout.trim() && isJson(stdout)) return stdout;
-      const detail = `${tail(stdout)}\n--- stderr ---\n${tail(e?.stderr)}`;
-      if (e?.killed && e?.signal) {
-        return JSON.stringify({ ok: false, code: "timeout", message: `${op} 가 ${timeoutMs(script, args) / 1000}초 안에 끝나지 않아 중단했습니다`, detail });
-      }
-      const exit = typeof e?.code === "number" ? e.code : String(e?.code ?? e?.message ?? e);
-      return JSON.stringify({ ok: false, code: "crash", message: `${op} 가 exit ${exit} 으로 끝났습니다`, detail });
-    }
-  };
+  // lib_store.defaultStore 가 스토어 위치 규칙의 한 곳이다. env 는 호출 시점에 읽는다.
+  const STORE = () => defaultStore();
+  type Kind = "allow" | "deny" | "ask";
 
   type ImportOpts = { secrets?: object; choices?: object; roots?: Record<string, string>; exclude?: string[] };
-  const importArgs = (a: ImportOpts): string[] => [
-    ...(a.secrets && Object.keys(a.secrets).length ? ["--secrets", JSON.stringify(a.secrets)] : []),
-    ...(a.choices && Object.keys(a.choices).length ? ["--choices", JSON.stringify(a.choices)] : []),
-    ...(a.roots && Object.keys(a.roots).length ? ["--roots", JSON.stringify(a.roots)] : []),
-    ...(a.exclude?.length ? ["--exclude", a.exclude.join(",")] : []),
-  ];
+  // transfer 의 cmd* 는 JSON 인자와 쉼표 목록을 CLI 문자열 그대로 받는다(파싱 오류 문서까지 같게 하려고).
+  const importArgs = (a: ImportOpts): transfer.ImportArgs => ({
+    ...(a.secrets && Object.keys(a.secrets).length ? { secrets: JSON.stringify(a.secrets) } : {}),
+    ...(a.choices && Object.keys(a.choices).length ? { choices: JSON.stringify(a.choices) } : {}),
+    ...(a.roots && Object.keys(a.roots).length ? { roots: JSON.stringify(a.roots) } : {}),
+    ...(a.exclude?.length ? { exclude: a.exclude.join(",") } : {}),
+  });
+  const csv = (xs?: string[]) => (xs?.length ? xs.join(",") : undefined);
 
   // 추적 중인 프로젝트 .claude 디렉토리(전역 기본 추적분 제외). 대시보드가 get_tracked 로 같은
   // 목록을 만들어 넘기던 것을 서버가 스스로 구해, 대화에서 projects 를 몰라도 되게 한다.
   const trackedProjectDirs = async (): Promise<string[]> => {
     try {
-      const st = JSON.parse((await runPy("cas.py", ["status", "--json"])).trim().split("\n").pop() || "{}");
+      const st = await cas.cmdStatus({}) as Record<string, any>;
       const defaults = new Set<string>(st.defaults || []);
       const out: string[] = [];
       for (const k of ["modified", "new", "unchanged"]) {
@@ -144,7 +145,7 @@ export function buildTools(scriptDir: string): ToolDef[] {
     const norm = (p: string) => p.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
     const dirs = new Set<string>(await trackedProjectDirs());
     try {
-      const pj = JSON.parse(await runPy("claude_config.py", ["projects"]));
+      const pj = await claudeConfig.cmdProjects({}) as Record<string, any>;
       for (const p of pj.projects || []) if (p.has_claude) dirs.add(p.claude_dir);
     } catch { /* projects 목록이 없어도 추적분만으로 푼다 */ }
     const all = [...dirs];
@@ -153,21 +154,21 @@ export function buildTools(scriptDir: string): ToolDef[] {
     if (byPath.length) return { dir: byPath[0] };
     const byName = all.filter((d) => path.basename(path.dirname(d)).toLowerCase() === r);
     if (byName.length === 1) return { dir: byName[0] };
-    if (byName.length > 1) return { code: "ambiguous", error: `프로젝트 이름 '${ref}' 이 여러 개에 해당합니다. 경로로 지정해 주세요`, candidates: byName };
-    return { code: "project_not_found", error: `프로젝트 '${ref}' 을 찾을 수 없습니다(추적 중이거나 ~/.claude.json 에 있는 프로젝트만 가능)`, candidates: all };
+    if (byName.length > 1) return { code: "ambiguous", error: `Project name '${ref}' matches more than one project. Specify it by path`, candidates: byName };
+    return { code: "project_not_found", error: `Project '${ref}' was not found (only tracked projects and projects listed in ~/.claude.json can be used)`, candidates: all };
   };
 
   // 마지막 편집 도구 호출 표식. 파일에 두는 이유: Desktop 위젯과 대화 중인 Claude 가 서로 다른
   // 서버 프로세스를 쓸 수 있어(Cowork 별도 인스턴스 등) 메모리 카운터로는 서로를 못 본다.
-  const CHANGE_FILE = path.join(STORE, "changes.json");
+  const CHANGE_FILE = () => path.join(STORE(), "changes.json");
   const readChange = async (): Promise<{ seq: number; tool?: string; at?: string }> => {
-    try { return JSON.parse(await fs.readFile(CHANGE_FILE, "utf-8")); } catch { return { seq: 0 }; }
+    try { return JSON.parse(await fs.readFile(CHANGE_FILE(), "utf-8")); } catch { return { seq: 0 }; }
   };
   const bumpChange = async (tool: string): Promise<void> => {
     try {
       const prev = await readChange();
-      await fs.mkdir(STORE, { recursive: true });
-      await fs.writeFile(CHANGE_FILE, JSON.stringify({ seq: Math.max(Date.now(), prev.seq + 1), tool, at: new Date().toISOString() }));
+      await fs.mkdir(STORE(), { recursive: true });
+      await fs.writeFile(CHANGE_FILE(), JSON.stringify({ seq: Math.max(Date.now(), prev.seq + 1), tool, at: new Date().toISOString() }));
     } catch { /* 표식 실패는 편집 결과를 바꾸지 않는다 */ }
   };
 
@@ -192,14 +193,14 @@ export function buildTools(scriptDir: string): ToolDef[] {
     const meta = pf ? {
       ...d.meta,
       inputSchema: d.meta.inputSchema.extend({
-        project: z.string().optional().describe("대상 프로젝트(폴더 이름 또는 경로). 지정하면 그 프로젝트의 .claude 를 대상으로 하고 경로 인자를 대신 채운다. 생략 시 전역"),
+        project: z.string().optional().describe("Target project (folder name or path). When given, the tool acts on that project's .claude and fills the path argument for you. Omit for the global config"),
       }),
     } : d.meta;
     const run = async (a: any) => {
       if (pf && a?.project) {
         const [field, sub] = pf;
         const r = await resolveProject(String(a.project));
-        if (!r.dir) return jsonResult(JSON.stringify({ ok: false, code: r.code, target: String(a.project), message: r.error, candidates: r.candidates }));
+        if (!r.dir) return docResult({ ok: false, code: r.code, message: r.error, target: String(a.project), candidates: r.candidates });
         const subdir = sub === "*item" ? (ITEM_DIRS[a.itemKind] || a.itemKind) : sub;
         a = { ...a, [field]: a[field] || path.join(r.dir, subdir) };
         delete a.project;
@@ -220,60 +221,56 @@ export function buildTools(scriptDir: string): ToolDef[] {
       name: "get_config",
       meta: {
         title: "Get Claude Config",
-        description: "Claude 설정 항목의 상세(카드 단위). 대화에서는 먼저 summarize_config 로 개요를 보고, 여기서는 sections/scope/query 로 범위를 좁히고 compact=true 로 받는다 - 전체 dump 는 200KB 를 넘는다. " +
-          "각 카드의 edit 에 편집 도구가 받는 경로(settings/skillsDir/dir 등)가 들어 있다. projects 를 생략하면 추적 중인 프로젝트를 자동으로 포함한다",
+        description: "Details of Claude config items, one card per item. In a conversation, call summarize_config first for the overview, then narrow here with sections/scope/query and request compact=true; the full dump exceeds 200KB. " +
+          "Each card's edit field holds the path an edit tool takes (settings/skillsDir/dir, etc.). When projects is omitted, tracked projects are included automatically",
         inputSchema: z.object({
-          projects: z.array(z.string()).optional().describe("프로젝트 .claude 디렉토리들. 생략 시 추적 중인 프로젝트 전부"),
-          sections: z.array(z.string()).optional().describe("섹션 id 목록(예: hooks, perm, skills, agents, mcp-desktop, claude-json, plugins). summarize_config 의 id 와 같다"),
-          scope: z.enum(["global", "project"]).optional().describe("global=전역(~/.claude · Desktop)만, project=프로젝트 .claude 항목만"),
-          query: z.string().optional().describe("이름·값 부분일치(대소문자 무시)"),
-          compact: z.boolean().optional().describe("true 면 카드를 이름·배지·스코프·edit·짧은 설명으로 축약. 대화에서는 기본으로 켠다"),
-          includeMissing: z.boolean().optional().describe("true 면 .claude.json 프로젝트 카드에 .claude 폴더가 없는 경로도 포함"),
+          projects: z.array(z.string()).optional().describe("Project .claude directories. Omit for all tracked projects"),
+          sections: z.array(z.string()).optional().describe("Section ids (e.g. hooks, perm, skills, agents, mcp-desktop, claude-json, plugins). Same ids as summarize_config"),
+          scope: z.enum(["global", "project"]).optional().describe("global = only global items (~/.claude and Desktop), project = only project .claude items"),
+          query: z.string().optional().describe("Substring match on names and values (case-insensitive)"),
+          compact: z.boolean().optional().describe("true shrinks each card to name, badge, scope, edit and a short description. Turn it on by default in conversations"),
+          includeMissing: z.boolean().optional().describe("true also includes .claude.json project cards whose path has no .claude folder"),
         }), annotations: READ,
       },
-      run: async (a: { projects?: string[]; sections?: string[]; scope?: string; query?: string; compact?: boolean; includeMissing?: boolean }) => {
-        const args = ["dump"];
+      run: async (a: { projects?: string[]; sections?: string[]; scope?: "global" | "project"; query?: string; compact?: boolean; includeMissing?: boolean }) => {
         const projects = a.projects ?? await trackedProjectDirs();
-        if (projects.length) args.push("--projects", ...projects);
-        if (a.sections && a.sections.length) args.push("--sections", ...a.sections);
-        if (a.scope) args.push("--scope", a.scope);
-        if (a.query) args.push("--query", a.query);
-        if (a.compact) args.push("--compact");
-        if (a.includeMissing) args.push("--include-missing");
-        return jsonResult(await runPy("claude_config.py", args));
+        return runCore("get_config", () => claudeConfig.cmdDump({
+          projects: projects.length ? projects : null,
+          sections: a.sections?.length ? a.sections : null,
+          scope: a.scope || null, query: a.query || null,
+          compact: !!a.compact, includeMissing: !!a.includeMissing,
+        }));
       },
     },
     {
       name: "summarize_config",
       meta: {
         title: "Summarize Claude Config",
-        description: "현재 Claude 설정의 개요: 섹션별 개수·적재등급(eager/lazy/never)·전역/프로젝트 분포·이름 목록, 전역-프로젝트 이름 충돌(어느 쪽이 적용되는지), 플러그인 상태 분포. " +
-          "설정을 분석·정리·불필요 항목 제거를 논의할 때 이걸 먼저 부르고, 특정 항목은 get_config(sections=[...], compact=true) 로 내려간다. 파일은 읽지 않고 상태만 요약한다",
+        description: "Overview of the current Claude config: per-section count, load class (eager/lazy/never), global/project split and names; global-vs-project name collisions (which side applies); plugin state distribution. " +
+          "Call this first when analysing or cleaning up the config or discussing which items to remove, then drill into specific items with get_config(sections=[...], compact=true). It summarizes state only and does not return file contents",
         inputSchema: z.object({
-          projects: z.array(z.string()).optional().describe("프로젝트 .claude 디렉토리들. 생략 시 추적 중인 프로젝트 전부"),
+          projects: z.array(z.string()).optional().describe("Project .claude directories. Omit for all tracked projects"),
         }), annotations: READ,
       },
       run: async (a: { projects?: string[] }) => {
-        const args = ["summary"];
         const projects = a.projects ?? await trackedProjectDirs();
-        if (projects.length) args.push("--projects", ...projects);
-        return jsonResult(await runPy("claude_config.py", args));
+        return runCore("summarize_config", () => claudeConfig.cmdSummary({ projects: projects.length ? projects : null }));
       },
     },
     {
       name: "get_prefs",
       meta: {
         title: "Get Dashboard Preferences",
-        description: "[UI 전용] 대시보드 표시 설정(섹션 프리셋/숨김 목록/빈 섹션 처리) JSON. 설정 내용과 무관한 화면 옵션이다",
+        description: "[UI only] Dashboard display preferences as JSON (section preset, hidden list, empty-section handling). These are screen options unrelated to the config contents",
         inputSchema: z.object({}), annotations: READ,
       },
-      run: async () => jsonResult(await runPy("prefs.py", ["get", "--store", STORE])),
+      run: async () => runCore("get_prefs", () => prefs.cmdGet({ store: STORE() })),
     },
     {
       name: "set_prefs",
       meta: {
         title: "Set Dashboard Preferences",
-        description: "[UI 전용] 대시보드 표시 설정을 저장. 스토어 미초기화면 ok:false 와 사유를 반환(조용히 성공하지 않음)",
+        description: "[UI only] Save dashboard display preferences. If the store is not initialized, returns ok:false with the reason (it never reports success silently)",
         inputSchema: z.object({
           sections: z.object({
             preset: z.enum(["all", "common", "custom"]).optional(),
@@ -281,28 +278,26 @@ export function buildTools(scriptDir: string): ToolDef[] {
             hideEmpty: z.boolean().optional(),
             includeMissingProjects: z.boolean().optional(),
             groupsCollapsed: z.array(z.string()).optional(),
-          }).optional().describe("덮어쓸 키만 보낸다"),
+          }).optional().describe("Send only the keys to overwrite"),
           view: z.object({
             selectedPath: z.string().optional(),
             detailOpen: z.boolean().optional(),
             scope: z.string().optional(),
             libTarget: z.string().optional(),
-          }).optional().describe("보던 자리(선택 파일·패널·필터). 위젯이 다시 올라올 때 복원한다"),
+          }).optional().describe("Where the user was (selected file, panel, filter). Restored when the widget is loaded again"),
         }), annotations: WRITE,
       },
-      // execFile 은 셸을 거치지 않으므로 JSON 을 argv 한 칸으로 넘겨도 인용 문제가 없다.
       run: async (a: { sections?: Record<string, unknown>; view?: Record<string, unknown> }) =>
-        jsonResult(await runPy("prefs.py",
-          ["set", "--store", STORE, "--json", JSON.stringify({ sections: a.sections || {}, view: a.view || {} })])),
+        runCore("set_prefs", () => prefs.cmdSet({ store: STORE(), json: JSON.stringify({ sections: a.sections || {}, view: a.view || {} }) })),
     },
     {
       name: "get_tracked",
       meta: {
         title: "Get Tracked File Status",
-        description: "스냅샷 추적 파일들의 변경 상태(new/modified/deleted/unchanged)와 watcher 상태, 마지막 편집 도구 호출(change.seq). 어떤 설정 파일이 스냅샷 대비 바뀌었는지 볼 때",
+        description: "Change state of snapshot-tracked files (new/modified/deleted/unchanged), watcher state, and the last edit tool call (change.seq). Use it to see which config files changed since the snapshot",
         inputSchema: z.object({
-          phase: z.enum(["boot", "refresh", "poll"]).optional().describe("[UI 전용] 위젯이 왜 부르는지. 스토어의 widget.log 에 남는다"),
-          instance: z.string().optional().describe("[UI 전용] 위젯 인스턴스 id"),
+          phase: z.enum(["boot", "refresh", "poll"]).optional().describe("[UI only] Why the widget is calling. Logged to widget.log in the store"),
+          instance: z.string().optional().describe("[UI only] Widget instance id"),
         }), annotations: READ,
       },
       run: async (a: { phase?: string; instance?: string }) => {
@@ -310,283 +305,267 @@ export function buildTools(scriptDir: string): ToolDef[] {
         // 폴링은 양이 많아 남기지 않고, 부트·전체 refresh 만 한 줄씩 적는다.
         if (a?.phase && a.phase !== "poll") {
           const line = `${new Date().toISOString()} ${a.phase} ${a.instance || "-"}\n`;
-          await fs.mkdir(STORE, { recursive: true }).then(() => fs.appendFile(path.join(STORE, "widget.log"), line)).catch(() => {});
+          await fs.mkdir(STORE(), { recursive: true }).then(() => fs.appendFile(path.join(STORE(), "widget.log"), line)).catch(() => {});
         }
-        const raw = await runPy("cas.py", ["status", "--json"]);
-        // 대시보드 폴링이 이 한 호출로 다른 클라이언트의 편집까지 알아야 한다(호출 하나 = 프로세스 하나).
-        try {
-          const st = JSON.parse(raw.trim().split("\n").pop() || "");
+        // 대시보드 폴링이 이 한 호출로 다른 클라이언트의 편집까지 알아야 한다.
+        return runCore("get_tracked", async () => {
+          const st = await cas.cmdStatus({});
           st.change = await readChange();
-          return jsonResult(JSON.stringify(st));
-        } catch { return jsonResult(raw); }
+          return st;
+        });
       },
     },
     {
       name: "config_track",
       meta: {
         title: "Track Config Path",
-        description: "설정 파일/폴더를 스냅샷 추적 대상에 추가(감시 전용). 프로젝트 폴더나 .claude 를 주면 " +
-          "settings.json + settings.local.json 을 자동 감지, 파일 경로면 그 파일만. 편집은 하지 않음",
+        description: "Add a config file or folder to snapshot tracking (watch only). Given a project folder or .claude, it detects " +
+          "settings.json and settings.local.json automatically; given a file path, it tracks only that file. Does not edit anything",
         inputSchema: z.object({
-          path: z.string().describe("프로젝트 폴더 / .claude 폴더 / 설정 파일의 절대경로"),
+          path: z.string().describe("Absolute path of a project folder, a .claude folder or a config file"),
         }), annotations: WRITE,
       },
-      run: async (a: { path: string }) => jsonResult(await runPy("cas.py", ["track", "--json", a.path])),
+      run: async (a: { path: string }) => runCore("config_track", () => cas.cmdTrack({ paths: [a.path] })),
     },
     {
       name: "config_untrack",
       meta: {
         title: "Untrack Config Path",
-        description: "추적 목록에서 파일을 제거(파일 자체는 그대로). 프로젝트 추적 행 제거용",
+        description: "Remove a file from the tracking list (the file itself is left as is). Used to remove a project tracking row",
         inputSchema: z.object({
-          path: z.string().describe("추적 중인 파일의 절대경로(행에 표시된 경로)"),
+          path: z.string().describe("Absolute path of the tracked file (the path shown on the row)"),
         }), annotations: WRITE,
       },
-      run: async (a: { path: string }) => jsonResult(await runPy("cas.py", ["untrack", "--json", a.path])),
+      run: async (a: { path: string }) => runCore("config_untrack", () => cas.cmdUntrack({ paths: [a.path] })),
     },
     {
       name: "list_projects",
       meta: {
         title: "List Claude Code Projects",
-        description: ".claude.json 의 projects 를 {projects:[{path, name, claude_dir, has_claude}]} 로 반환. 기본은 .claude 있는 프로젝트만, includeMissing=true 면 .claude 없는 경로도 낸다. 시스템 임시 폴더와 Claude Desktop 작업 공간(scratch-workspaces) 아래 경로는 항상 제외한다. UI 가 원클릭 track/설치 대상 후보로 사용",
+        description: "Return the projects in .claude.json as {projects:[{path, name, claude_dir, has_claude}]}. By default only projects with a .claude folder; includeMissing=true also returns paths without one. Paths under the system temp folder and the Claude Desktop workspace (scratch-workspaces) are always excluded. The UI uses it for one-click track/install target candidates",
         inputSchema: z.object({
-          includeMissing: z.boolean().optional().describe("true 면 .claude 폴더가 없는 프로젝트 경로도 포함"),
+          includeMissing: z.boolean().optional().describe("true also includes project paths that have no .claude folder"),
         }), annotations: READ,
       },
       run: async (a: { includeMissing?: boolean }) =>
-        jsonResult(await runPy("claude_config.py", a.includeMissing ? ["projects", "--include-missing"] : ["projects"])),
+        runCore("list_projects", () => claudeConfig.cmdProjects({ includeMissing: !!a.includeMissing })),
     },
     {
       name: "get_file_history",
       meta: {
         title: "Get File History",
-        description: "특정 파일의 스냅샷 리비전 이력(git log 스타일). 내용이 바뀐 스냅샷만 추리고, 무시 키 프로필이 있는 파일은 무시 키만 다른 리비전을 접는다",
-        inputSchema: z.object({ path: z.string().describe("추적 중인 파일의 절대경로") }), annotations: READ,
+        description: "Snapshot revision history of one file (git log style). Keeps only snapshots where the content changed; for files with an ignored-keys profile, revisions that differ only in ignored keys are folded",
+        inputSchema: z.object({ path: z.string().describe("Absolute path of the tracked file") }), annotations: READ,
       },
-      run: async (a: { path: string }) => jsonResult(await runPy("cas.py", ["history", a.path, "--json"])),
+      run: async (a: { path: string }) => runCore("get_file_history", () => cas.cmdHistory({ path: a.path })),
     },
     {
       name: "get_file_content",
       meta: {
         title: "Get Current File Content",
-        description: "추적 중인 설정 파일의 현재 내용을 그대로 반환(읽기 전용 뷰어). 추적 목록 밖 경로는 거부",
-        inputSchema: z.object({ path: z.string().describe("추적 중인 파일의 절대경로") }), annotations: READ,
+        description: "Return the current content of a tracked config file as is (read-only viewer). Paths outside the tracking list are refused",
+        inputSchema: z.object({ path: z.string().describe("Absolute path of the tracked file") }), annotations: READ,
       },
-      run: async (a: { path: string }) => jsonResult(await runPy("cas.py", ["cat", a.path, "--json"])),
+      run: async (a: { path: string }) => runCore("get_file_content", () => cas.cmdCat({ path: a.path })),
     },
     {
       name: "get_diff",
       meta: {
         title: "Get File Diff",
-        description: "파일의 두 리비전(또는 스냅샷 vs 현재) 간 unified diff. 무시 키 프로필이 있는 파일은 무시 키를 뺀 diff 에 '무시 목록 항목도 바뀜' 각주가 붙는다(raw=true 면 원문). from/to 미지정 시 최신 스냅샷 vs 작업본",
+        description: "Unified diff between two revisions of a file (or a snapshot vs the current file). For files with an ignored-keys profile, the diff leaves out ignored keys and carries a footnote when ignored-list items also changed (raw=true gives the original). Without from/to, compares the latest snapshot with the working file",
         inputSchema: z.object({
           path: z.string(),
-          from: z.string().optional().describe("스냅샷 id (생략 시 최신 스냅샷)"),
-          to: z.string().optional().describe("스냅샷 id 또는 'work'(기본=현재 파일)"),
-          raw: z.boolean().optional().describe("true 면 무시 키 프로필을 적용하지 않은 원문 diff"),
+          from: z.string().optional().describe("Snapshot id (omit for the latest snapshot)"),
+          to: z.string().optional().describe("Snapshot id or 'work' (default = the current file)"),
+          raw: z.boolean().optional().describe("true gives the original diff without applying the ignored-keys profile"),
         }), annotations: READ,
       },
-      run: async (a: { path: string; from?: string; to?: string; raw?: boolean }) => {
-        const args = ["diff", a.path, "--json"];
-        if (a.from) args.push("--from", a.from);
-        if (a.to) args.push("--to", a.to);
-        if (a.raw) args.push("--raw");
-        return jsonResult(await runPy("cas.py", args));
-      },
+      run: async (a: { path: string; from?: string; to?: string; raw?: boolean }) =>
+        runCore("get_diff", () => cas.cmdDiff({ path: a.path, from: a.from || undefined, to: a.to || undefined, raw: !!a.raw })),
     },
     {
       name: "snapshot_now",
       meta: {
         title: "Snapshot Now",
-        description: "추적 파일 현재 상태로 스냅샷 1개 생성",
+        description: "Create one snapshot of the current state of the tracked files",
         inputSchema: z.object({ message: z.string().optional() }), annotations: WRITE,
       },
-      run: async (a: { message?: string }) => jsonResult(await runPy("cas.py", ["snapshot", "-m", a.message || "manual", "--json"])),
+      run: async (a: { message?: string }) => runCore("snapshot_now", () => cas.cmdSnapshot({ message: a.message || "manual" })),
     },
     {
       name: "snapshot_gc",
       meta: {
         title: "Snapshot GC",
-        description: "보존 기한(기본 90일)이 지난 스냅샷과 미참조 객체를 정리. dryRun=true 면 계산만 하고 지우지 않음. 최신 스냅샷과 현재 index 참조 객체는 항상 보존",
+        description: "Delete snapshots older than the retention period (default 90 days) and unreferenced objects. dryRun=true only computes and deletes nothing. The latest snapshot and objects referenced by the current index are always kept",
         inputSchema: z.object({
-          keepDays: z.number().optional().describe("보존 일수(기본 90)"),
-          dryRun: z.boolean().optional().describe("true 면 정리 대상 계산만"),
+          keepDays: z.number().optional().describe("Retention in days (default 90)"),
+          dryRun: z.boolean().optional().describe("true only computes what would be deleted"),
         }), annotations: WRITE,
       },
-      run: async (a: { keepDays?: number; dryRun?: boolean }) => {
-        const args = ["gc", "--json", "--keep-days", String(a.keepDays ?? 90)];
-        if (a.dryRun) args.push("--dry-run");
-        return jsonResult(await runPy("cas.py", args));
-      },
+      run: async (a: { keepDays?: number; dryRun?: boolean }) =>
+        runCore("snapshot_gc", () => cas.cmdGc({ keepDays: a.keepDays ?? 90, dryRun: !!a.dryRun })),
     },
     {
       name: "config_restore",
       meta: {
         title: "Restore File From Snapshot",
-        description: "추적 파일을 특정 스냅샷 버전으로 복원. 복원 전 현재 상태를 스냅샷(되돌림 지점) + .bak 백업",
+        description: "Restore a tracked file to a given snapshot version. Before restoring, the current state is snapshotted (as a rollback point) and backed up to .bak",
         inputSchema: z.object({
-          path: z.string().describe("복원할 추적 파일의 절대경로"),
-          from: z.string().describe("복원할 스냅샷 id"),
+          path: z.string().describe("Absolute path of the tracked file to restore"),
+          from: z.string().describe("Snapshot id to restore from"),
         }), annotations: EDIT,
       },
       run: async (a: { path: string; from: string }) =>
-        jsonResult(await runPy("cas.py", ["restore", a.path, "--from", a.from])),
+        runCore("config_restore", () => cas.cmdRestore({ path: a.path, from: a.from })),
     },
     {
       name: "config_export",
       meta: {
         title: "Export Config Bundle",
-        description: "다른 PC 로 옮길 설정을 번들(out 이 .cmbundle 이면 zip, 아니면 폴더)로 만든다. 소스는 읽기만 한다. " +
-          "결과의 report 는 항목별 개수와 번들에 담지 못한 외부 경로(MCP 실행 파일, 훅 스크립트, 플러그인 폴더, 라이브러리) 목록이다. " +
-          "시크릿은 기본으로 값을 빼고 자리표시자만 남긴다. dryRun=true 면 번들을 쓰지 않고 목록만 낸다",
+        description: "Build a bundle of the config to move to another PC (a zip if out ends in .cmbundle, otherwise a folder). Sources are only read. " +
+          "The result's report lists per-item counts and the external paths the bundle could not include (MCP executables, hook scripts, plugin folders, libraries). " +
+          "By default secret values are left out and only placeholders remain. dryRun=true writes no bundle and only returns the lists",
         inputSchema: z.object({
-          out: z.string().optional().describe("번들 경로(dryRun 이 아니면 필수, 이미 있으면 거부)"),
-          dryRun: z.boolean().optional().describe("true 면 쓰지 않고 이관 대상과 외부 경로만 보고"),
-          includeSecrets: z.boolean().optional().describe("true 면 시크릿 값을 번들의 secrets.json 에 평문으로 넣는다"),
+          out: z.string().optional().describe("Bundle path (required unless dryRun; refused if it already exists)"),
+          dryRun: z.boolean().optional().describe("true writes nothing and only reports what would be moved and the external paths"),
+          includeSecrets: z.boolean().optional().describe("true puts secret values in plain text into the bundle's secrets.json"),
           withOptional: z.array(z.enum(["local", "memory", "agent-memory"])).optional()
-            .describe("기본 제외 항목 포함. local = ~/.claude/settings.local.json, memory = 프로젝트 메모리(~/.claude/projects/*/memory), agent-memory = ~/.claude/agent-memory"),
+            .describe("Include items excluded by default. local = ~/.claude/settings.local.json, memory = project memory (~/.claude/projects/*/memory), agent-memory = ~/.claude/agent-memory"),
         }), annotations: WRITE,
       },
       run: async (a: { out?: string; dryRun?: boolean; includeSecrets?: boolean; withOptional?: string[] }) => {
-        const args = ["--store", STORE, a.dryRun ? "inventory" : "export"];
-        if (!a.dryRun) {
-          // 상대경로는 이 서버 프로세스의 작업 폴더 기준으로 풀려 엉뚱한 곳에 생긴다.
-          if (!a.out || !path.isAbsolute(a.out))
-            return jsonResult(JSON.stringify({ ok: false, code: "invalid_arg", message: "out 은 절대경로여야 합니다", target: "out" }));
-          args.push("--out", a.out);
-          if (a.includeSecrets) args.push("--include-secrets");
-        }
-        if (a.withOptional?.length) args.push("--with-optional", a.withOptional.join(","));
-        return jsonResult(await runPy("transfer.py", args));
+        const withOptional = csv(a.withOptional);
+        if (a.dryRun) return runCore("config_export", () => transfer.cmdInventory({ store: STORE(), withOptional }));
+        // 상대경로는 이 서버 프로세스의 작업 폴더 기준으로 풀려 엉뚱한 곳에 생긴다.
+        if (!a.out || !path.isAbsolute(a.out))
+          return docResult({ ok: false, code: "invalid_arg", message: "out must be an absolute path", target: "out" });
+        const out = a.out;
+        return runCore("config_export", () => transfer.cmdExport({ store: STORE(), out, withOptional, includeSecrets: !!a.includeSecrets }));
       },
     },
     {
       name: "config_import_plan",
       meta: {
         title: "Plan Config Import",
-        description: "번들을 이 PC 와 항목별로 비교한다. 아무것도 쓰지 않는다. 항목 상태는 new / same / changed(diff 포함) / blocked(시크릿 없음 등) / skipped. " +
-          "settings 는 병합 결과와 비교하고 값이 다른 스칼라는 conflicts 에 경로로 나온다(기본은 이 PC 값 유지). 결과의 plan_id 를 config_import_apply 에 넘긴다. " +
-          "다른 PC 의 번들은 드라이브·도구 폴더가 다르다: roots[] 는 이 PC 에 없는 경로의 짝(source = library·drive 추정, user·claude 확정, none 짝 없음), " +
-          "unresolved[] 는 짝을 찾지 못한 경로다. 그 경로를 쓰는 훅(cc.settings 의 hooks[] state=blocked)과 MCP 서버(code=path_missing)는 쓰지 않고, " +
-          "동작 중인 이 PC 서버를 죽은 경로로 덮는 변경은 code=keep_working 으로 막는다. 동작 중인 서버는 번들 값과 합친다: " +
-          "이 PC 에만 있는 키는 남기고 번들에만 있는 키는 더하고, 다른 값은 conflicts(command·args·env.<키>, 기본 keep)로 나온다. 짝을 찾으려면 이 PC 를 탐색한 뒤 config_import_roots 로 저장하거나 roots 를 넘겨 다시 plan 한다",
+        description: "Compare a bundle with this PC item by item. Writes nothing. Item states are new / same / changed (with diff) / blocked (missing secret, etc.) / skipped. " +
+          "settings are compared against the merged result, and scalars with different values appear in conflicts by path (default keeps this PC's value). Pass the result's plan_id to config_import_apply. " +
+          "A bundle from another PC has different drive and tool folders: roots[] pairs paths that do not exist on this PC (source = library/drive for guessed, user/claude for certain, none for no pair), " +
+          "and unresolved[] lists paths with no pair. Hooks that use such a path (hooks[] state=blocked in cc.settings) and MCP servers (code=path_missing) are not written, " +
+          "and a change that would overwrite a working server on this PC with a dead path is blocked with code=keep_working. A working server is merged with the bundle value: " +
+          "keys only on this PC stay, keys only in the bundle are added, and differing values appear in conflicts (command, args, env.<key>; default keep). To find pairs, explore this PC and save them with config_import_roots, or pass roots and plan again",
         inputSchema: z.object({
-          bundle: z.string().optional().describe("번들 경로(.cmbundle zip 또는 폴더, 절대경로)"),
-          syncFrom: z.string().optional().describe("bundle 대신 동기화 폴더의 다른 PC(profile). 적용은 config_sync_pull"),
-          secrets: z.record(z.record(z.string())).optional().describe('자리표시자 값 {"<item id>": {"<경로>": "<값>"}}'),
+          bundle: z.string().optional().describe("Bundle path (.cmbundle zip or folder, absolute path)"),
+          syncFrom: z.string().optional().describe("Another PC (profile) in the sync folder, instead of bundle. Apply with config_sync_pull"),
+          secrets: z.record(z.record(z.string())).optional().describe('Placeholder values {"<item id>": {"<path>": "<value>"}}'),
           choices: z.record(z.union([z.enum(["keep", "take"]), z.record(z.enum(["keep", "take"]))])).optional()
-            .describe('스칼라 충돌 선택 {"<item id>": "take"} 또는 {"<item id>": {"<경로>": "take"}}. 생략 시 keep'),
+            .describe('Scalar conflict choices {"<item id>": "take"} or {"<item id>": {"<path>": "take"}}. Default keep'),
           roots: z.record(z.string()).optional()
-            .describe('경로 짝 {"<번들 쪽 루트>": "<이 PC 폴더 절대경로>"}. "" 이면 그 루트를 맞추지 않는다. 생략 시 저장된 짝과 추정을 쓴다'),
-          exclude: z.array(z.string()).optional().describe("가져오지 않을 훅 id(plan 결과 cc.settings 의 hooks[].id)"),
+            .describe('Path pairs {"<bundle-side root>": "<absolute folder path on this PC>"}. "" leaves that root unmatched. Omit to use saved pairs and guesses'),
+          exclude: z.array(z.string()).optional().describe("Hook ids not to import (hooks[].id of cc.settings in the plan result)"),
         }), annotations: READ,
       },
       run: async (a: { bundle?: string; syncFrom?: string } & ImportOpts) =>
-        jsonResult(await runPy("transfer.py", ["--store", STORE, "plan",
-          ...(a.syncFrom ? ["--sync-from", a.syncFrom] : ["--bundle", a.bundle ?? ""]), ...importArgs(a)])),
+        runCore("config_import_plan", () => transfer.cmdPlan({
+          store: STORE(), ...(a.syncFrom ? { syncFrom: a.syncFrom } : { bundle: a.bundle ?? "" }), ...importArgs(a),
+        })),
     },
     {
       name: "config_import_apply",
       meta: {
         title: "Apply Config Import",
-        description: "config_import_plan 결과를 그대로 적용한다. plan 뒤에 이 PC 의 대상이 바뀌었으면 plan_stale 로 거부한다. ids 를 생략하면 new/changed 전부. " +
-          "바뀌는 파일·폴더는 .trash 나 .bak 으로 남기고 전후 스냅샷을 찍는다. 결과의 import_id 로 config_import_undo 할 수 있다",
+        description: "Apply a config_import_plan result as planned. If the targets on this PC changed after the plan, it is refused with plan_stale. Omit ids to apply all new/changed items. " +
+          "Changed files and folders are kept in .trash or .bak, and snapshots are taken before and after. The result's import_id can be passed to config_import_undo",
         inputSchema: z.object({
           bundle: z.string(),
-          planId: z.string().describe("config_import_plan 의 plan_id"),
-          ids: z.array(z.string()).optional().describe("적용할 항목 id. 생략 시 new/changed 전부"),
-          installPlugins: z.boolean().optional().describe("true 면 적용 뒤 켜진 마켓 플러그인 중 없는 것을 claude CLI 로 설치(네트워크, 최대 20분)"),
+          planId: z.string().describe("plan_id from config_import_plan"),
+          ids: z.array(z.string()).optional().describe("Item ids to apply. Omit for all new/changed items"),
+          installPlugins: z.boolean().optional().describe("true installs, after applying, enabled marketplace plugins that are missing, via the claude CLI (network, up to 20 minutes)"),
           secrets: z.record(z.record(z.string())).optional(),
           choices: z.record(z.union([z.enum(["keep", "take"]), z.record(z.enum(["keep", "take"]))])).optional(),
           roots: z.record(z.string()).optional()
-            .describe('경로 짝 {"<번들 쪽 루트>": "<이 PC 폴더 절대경로>"}. "" 이면 그 루트를 맞추지 않는다. 생략 시 저장된 짝과 추정을 쓴다'),
-          exclude: z.array(z.string()).optional().describe("가져오지 않을 훅 id(plan 결과 cc.settings 의 hooks[].id)"),
+            .describe('Path pairs {"<bundle-side root>": "<absolute folder path on this PC>"}. "" leaves that root unmatched. Omit to use saved pairs and guesses'),
+          exclude: z.array(z.string()).optional().describe("Hook ids not to import (hooks[].id of cc.settings in the plan result)"),
         }), annotations: EDIT,
       },
-      run: async (a: { bundle: string; planId: string; ids?: string[]; installPlugins?: boolean } & ImportOpts) => {
-        const args = ["--store", STORE, "apply", "--bundle", a.bundle, "--plan-id", a.planId, ...importArgs(a)];
-        if (a.ids?.length) args.push("--ids", a.ids.join(","));
-        if (a.installPlugins) args.push("--install-plugins");
-        return jsonResult(await runPy("transfer.py", args));
-      },
+      run: async (a: { bundle: string; planId: string; ids?: string[]; installPlugins?: boolean } & ImportOpts) =>
+        runCore("config_import_apply", () => transfer.cmdApply({
+          store: STORE(), bundle: a.bundle, planId: a.planId, ...importArgs(a), ids: csv(a.ids), installPlugins: !!a.installPlugins,
+        })),
     },
     {
       name: "config_import_roots",
       meta: {
         title: "Save Import Path Roots",
-        description: "가져오기의 경로 짝을 확인해 저장한다. 설정 파일은 바꾸지 않고, 다음 config_import_plan 이 이 짝을 쓴다(사용자가 가져오기 화면에서 다시 비교·적용). " +
-          "from 은 plan 결과 roots[].from 이나 unresolved[].source_path 의 상위 폴더, to 는 이 PC 에 실제로 있는 폴더. " +
-          "번들 쪽에 그 루트 아래 없는 경로가 없거나, to 가 없거나, 그 짝으로 풀리는 경로가 하나도 없으면 그 짝은 저장하지 않고 이유를 돌려준다",
+        description: "Check and save path pairs for importing. Config files are not changed; the next config_import_plan uses these pairs (the user compares and applies again in the import screen). " +
+          "from is roots[].from from the plan result or a parent folder of unresolved[].source_path; to is a folder that actually exists on this PC. " +
+          "If the bundle has no missing path under that root, to does not exist, or the pair resolves no path at all, that pair is not saved and the reason is returned",
         inputSchema: z.object({
-          bundle: z.string().optional().describe("번들 경로(.cmbundle zip 또는 폴더, 절대경로)"),
-          syncFrom: z.string().optional().describe("bundle 대신 동기화 폴더의 다른 PC(profile)"),
-          roots: z.record(z.string()).describe('{"<번들 쪽 루트>": "<이 PC 폴더 절대경로>"}'),
+          bundle: z.string().optional().describe("Bundle path (.cmbundle zip or folder, absolute path)"),
+          syncFrom: z.string().optional().describe("Another PC (profile) in the sync folder, instead of bundle"),
+          roots: z.record(z.string()).describe('{"<bundle-side root>": "<absolute folder path on this PC>"}'),
         }), annotations: WRITE,
       },
       run: async (a: { bundle?: string; syncFrom?: string; roots: Record<string, string> }) =>
-        jsonResult(await runPy("transfer.py", ["--store", STORE, "roots",
-          ...(a.syncFrom ? ["--from", a.syncFrom] : ["--bundle", a.bundle ?? ""]), "--roots", JSON.stringify(a.roots)])),
+        runCore("config_import_roots", () => transfer.cmdRoots({
+          store: STORE(), ...(a.syncFrom ? { syncFrom: a.syncFrom } : { bundle: a.bundle ?? "" }), roots: JSON.stringify(a.roots),
+        })),
     },
     {
       name: "config_import_undo",
       meta: {
         title: "Undo Config Import",
-        description: "가져오기 한 번을 되돌린다(.trash 와 .bak 에서 원래 것을 되살리고, .claude.json 은 그 서버 키만 되돌린다). " +
-          "가져온 뒤 바뀐 항목은 건너뛰고 failed 에 changed_since_import 로 알린다. force=true 면 그래도 되돌린다",
+        description: "Undo one import (restores the originals from .trash and .bak; in .claude.json only those server keys are reverted). " +
+          "Items changed after the import are skipped and reported in failed as changed_since_import. force=true reverts them anyway",
         inputSchema: z.object({
-          importId: z.string().describe("config_import_apply 결과나 config_import_history 의 id"),
+          importId: z.string().describe("id from a config_import_apply result or from config_import_history"),
           force: z.boolean().optional(),
         }), annotations: EDIT,
       },
       run: async (a: { importId: string; force?: boolean }) =>
-        jsonResult(await runPy("transfer.py", ["--store", STORE, "undo", "--import-id", a.importId, ...(a.force ? ["--force"] : [])])),
+        runCore("config_import_undo", () => transfer.cmdUndo({ store: STORE(), importId: a.importId, force: !!a.force })),
     },
     {
       name: "config_sync_setup",
       meta: {
         title: "Set Sync Folder",
-        description: "PC 간 동기화에 쓸 공유 폴더(OneDrive · Syncthing · git 작업 폴더)와 이 PC 의 이름(profile, 생략 시 호스트명)을 정한다. " +
-          "각 PC 는 <dir>/<profile>/ 에 폴더 번들을 올린다. config-monitor 는 git 명령을 실행하지 않는다",
-        inputSchema: z.object({ dir: z.string().describe("공유 폴더 절대경로(이미 있어야 함)"), profile: z.string().optional() }),
+        description: "Set the shared folder used to sync between PCs (OneDrive, Syncthing, a git working folder) and this PC's name (profile; defaults to the host name). " +
+          "Each PC writes a folder bundle to <dir>/<profile>/. config-monitor does not run git commands",
+        inputSchema: z.object({ dir: z.string().describe("Absolute path of the shared folder (must already exist)"), profile: z.string().optional() }),
         annotations: WRITE,
       },
       run: async (a: { dir: string; profile?: string }) =>
-        jsonResult(await runPy("transfer.py", ["--store", STORE, "sync-setup", "--dir", a.dir, ...(a.profile ? ["--profile", a.profile] : [])])),
+        runCore("config_sync_setup", () => transfer.cmdSyncSetup({ store: STORE(), dir: a.dir, profile: a.profile || undefined })),
     },
     {
       name: "config_sync_status",
       meta: {
         title: "Sync Status",
-        description: "from 이 없으면 동기화 폴더에 있는 PC 목록. from 을 주면 그 PC 와 항목별로 in-sync / local-ahead(이 PC 만 바뀜) / " +
-          "remote-ahead(저쪽만 바뀜) / diverged(양쪽 다 바뀜) / untracked(합의된 기준 없음)",
+        description: "Without from, lists the PCs in the sync folder. With from, compares item by item with that PC: in-sync / local-ahead (only this PC changed) / " +
+          "remote-ahead (only the other PC changed) / diverged (both changed) / untracked (no agreed baseline)",
         inputSchema: z.object({ from: z.string().optional() }), annotations: READ,
       },
       run: async (a: { from?: string }) =>
-        jsonResult(await runPy("transfer.py", ["--store", STORE, "sync-status", ...(a.from ? ["--from", a.from] : [])])),
+        runCore("config_sync_status", () => transfer.cmdSyncStatus({ store: STORE(), syncFrom: a.from || undefined })),
     },
     {
       name: "config_sync_push",
       meta: {
         title: "Sync Push",
-        description: "이 PC 의 설정을 동기화 폴더의 <profile>/ 에 폴더 번들로 올린다(이전 것을 교체). 시크릿은 기본으로 빼고 자리표시자만 남긴다",
+        description: "Write this PC's config as a folder bundle to <profile>/ in the sync folder (replacing the previous one). By default secrets are left out and only placeholders remain",
         inputSchema: z.object({
           includeSecrets: z.boolean().optional(),
           withOptional: z.array(z.enum(["local", "memory", "agent-memory"])).optional(),
         }), annotations: WRITE,
       },
-      run: async (a: { includeSecrets?: boolean; withOptional?: string[] }) => {
-        const args = ["--store", STORE, "sync-push"];
-        if (a.includeSecrets) args.push("--include-secrets");
-        if (a.withOptional?.length) args.push("--with-optional", a.withOptional.join(","));
-        return jsonResult(await runPy("transfer.py", args));
-      },
+      run: async (a: { includeSecrets?: boolean; withOptional?: string[] }) =>
+        runCore("config_sync_push", () => transfer.cmdSyncPush({ store: STORE(), includeSecrets: !!a.includeSecrets, withOptional: csv(a.withOptional) })),
     },
     {
       name: "config_sync_pull",
       meta: {
         title: "Sync Pull",
-        description: "동기화 폴더의 다른 PC 를 가져온다. 먼저 config_import_plan(syncFrom) 으로 plan_id 를 받는다. 동작은 config_import_apply 와 같고, " +
-          "끝나면 가져온 항목과 내용이 같아진 항목의 기준을 그 PC 와 맞춘다(config_import_undo 로 되돌릴 수 있다)",
+        description: "Import another PC from the sync folder. Get a plan_id first with config_import_plan(syncFrom). Behaves like config_import_apply, and " +
+          "when done, sets the baseline of imported items and items whose content now matches to that PC (can be reverted with config_import_undo)",
         inputSchema: z.object({
           from: z.string(),
           planId: z.string(),
@@ -595,25 +574,23 @@ export function buildTools(scriptDir: string): ToolDef[] {
           secrets: z.record(z.record(z.string())).optional(),
           choices: z.record(z.union([z.enum(["keep", "take"]), z.record(z.enum(["keep", "take"]))])).optional(),
           roots: z.record(z.string()).optional()
-            .describe('경로 짝 {"<번들 쪽 루트>": "<이 PC 폴더 절대경로>"}. "" 이면 그 루트를 맞추지 않는다. 생략 시 저장된 짝과 추정을 쓴다'),
-          exclude: z.array(z.string()).optional().describe("가져오지 않을 훅 id(plan 결과 cc.settings 의 hooks[].id)"),
+            .describe('Path pairs {"<bundle-side root>": "<absolute folder path on this PC>"}. "" leaves that root unmatched. Omit to use saved pairs and guesses'),
+          exclude: z.array(z.string()).optional().describe("Hook ids not to import (hooks[].id of cc.settings in the plan result)"),
         }), annotations: EDIT,
       },
-      run: async (a: { from: string; planId: string; ids?: string[]; installPlugins?: boolean } & ImportOpts) => {
-        const args = ["--store", STORE, "sync-pull", "--from", a.from, "--plan-id", a.planId, ...importArgs(a)];
-        if (a.ids?.length) args.push("--ids", a.ids.join(","));
-        if (a.installPlugins) args.push("--install-plugins");
-        return jsonResult(await runPy("transfer.py", args));
-      },
+      run: async (a: { from: string; planId: string; ids?: string[]; installPlugins?: boolean } & ImportOpts) =>
+        runCore("config_sync_pull", () => transfer.cmdSyncPull({
+          store: STORE(), syncFrom: a.from, planId: a.planId, ...importArgs(a), ids: csv(a.ids), installPlugins: !!a.installPlugins,
+        })),
     },
     {
       name: "config_import_history",
       meta: {
         title: "Import / Export History",
-        description: "가져오기(imports, 되돌릴 수 있는 id 포함)와 내보내기(exports, 번들 경로) 기록. 최근 것이 먼저",
+        description: "Record of imports (imports, including ids that can be undone) and exports (exports, bundle paths). Most recent first",
         inputSchema: z.object({}), annotations: READ,
       },
-      run: async () => jsonResult(await runPy("transfer.py", ["--store", STORE, "history"])),
+      run: async () => runCore("config_import_history", () => transfer.cmdHistory({ store: STORE() })),
     },
 
     // ----- watcher 제어 -----
@@ -621,56 +598,55 @@ export function buildTools(scriptDir: string): ToolDef[] {
       name: "watcher_status",
       meta: {
         title: "Watcher Status",
-        description: "상주 watcher(폴링 자동 스냅샷)의 실행 여부/heartbeat 조회",
+        description: "Whether the resident watcher (polling auto-snapshot) is running, and its heartbeat",
         inputSchema: z.object({}), annotations: READ,
       },
-      run: async () => jsonResult(await runPy("cas.py", ["watcher-status"])),
+      run: async () => runCore("watcher_status", () => cas.cmdWatcherStatus({})),
     },
     {
       name: "watcher_start",
       meta: {
         title: "Start Watcher",
-        description: "watcher.py 를 백그라운드로 기동(추적 파일 변경 시 자동 스냅샷). 이미 실행 중이면 no-op",
+        description: "Start the watcher in the background as a separate Node process (auto-snapshot when a tracked file changes). No-op if it is already running",
         inputSchema: z.object({}), annotations: WRITE,
       },
       run: async () => {
-        const cur = JSON.parse(await runPy("cas.py", ["watcher-status"]));
-        if (cur.running) return jsonResult(JSON.stringify({ ok: true, code: "noop", message: "이미 실행 중", pid: cur.pid, changed: false }));
+        const store = STORE();
+        const cur = await cas.cmdWatcherStatus({ store }) as Record<string, any>;
+        if (cur.running) return docResult({ ok: true, code: "noop", message: "Already running", pid: cur.pid, changed: false });
         // 좀비/중복 watcher 정리(상태 신뢰성과 무관하게 단일 인스턴스 보장) 후 새로 기동.
         await killWatchers();
-        await fs.rm(path.join(STORE, "watcher.json"), { force: true }).catch(() => {});
-        // Node 가 detached spawn 하면 (1) 인자 백슬래시가 먹혀 경로가 깨지고 (2) detached 자식이
-        // 즉사한다. 검증 패턴: 일회성 powershell 이 Start-Process 로 독립 기동.
-        const wpy = path.join(scriptDir, "watcher.py").replace(/\\/g, "/");
-        const storeFwd = STORE.replace(/\\/g, "/");
-        const cmd = `Start-Process '${PY}' -WindowStyle Hidden -ArgumentList @('${wpy}','--store','${storeFwd}')`;
-        spawn("powershell.exe", ["-NoProfile", "-Command", cmd], { stdio: "ignore", windowsHide: true, env: PY_ENV });
+        await fs.rm(path.join(store, "watcher.json"), { force: true }).catch(() => {});
+        // 서버가 끝나도 watcher 는 남아야 하므로 분리해 띄운다. stdin 은 MCP 채널이라 물려주지 않는다.
+        spawn(process.execPath, entryArgs(scriptDir, WATCHER_FLAG, "--store", store), {
+          cwd: scriptDir, detached: true, stdio: "ignore", windowsHide: true,
+        }).unref();
         // heartbeat 가 쓰일 때까지 폴링(최대 ~5.6s) 후 실제 상태를 반환(허위 ok 방지).
-        let st: any = {};
+        let st: Record<string, any> = {};
         for (let i = 0; i < 8; i++) {
           await new Promise((r) => setTimeout(r, 700));
-          st = JSON.parse(await runPy("cas.py", ["watcher-status"]));
+          st = await cas.cmdWatcherStatus({ store });
           if (st.running) break;
         }
-        return jsonResult(JSON.stringify({
+        return docResult({
           ok: !!st.running, code: st.running ? "ok" : "watcher_start_failed",
-          message: st.running ? "watcher 기동됨" : "watcher 기동 실패(watcher.json 미갱신 - 권한/PATH 확인)",
+          message: st.running ? "Watcher started" : "Watcher failed to start (watcher.json was not updated; check permissions and PATH)",
           pid: st.pid, changed: true,
-        }));
+        });
       },
     },
     {
       name: "watcher_stop",
       meta: {
         title: "Stop Watcher",
-        description: "실행 중인 watcher 프로세스를 모두 종료(watcher.py 커맨드라인 매칭). Windows 전용",
+        description: "Stop all running watcher processes of this installation (matched by the command line). Windows only",
         inputSchema: z.object({}), annotations: WRITE,
       },
       run: async () => {
         // pid 하나가 아니라 모든 watcher 를 종료(좀비 누적 정리).
         await killWatchers();
-        await fs.rm(path.join(STORE, "watcher.json"), { force: true }).catch(() => {});
-        return jsonResult(JSON.stringify({ ok: true, code: "ok", message: "watcher 종료", changed: true }));
+        await fs.rm(path.join(STORE(), "watcher.json"), { force: true }).catch(() => {});
+        return docResult({ ok: true, code: "ok", message: "Watcher stopped", changed: true });
       },
     },
 
@@ -679,242 +655,201 @@ export function buildTools(scriptDir: string): ToolDef[] {
       name: "config_perm_add",
       meta: {
         title: "Add Permission Rule",
-        description: "settings.json permissions.<allow|deny|ask> 에 규칙 추가 (편집 전 스냅샷+백업). settings 지정 시 그 파일 대상(프로젝트 설정)",
+        description: "Add a rule to permissions.<allow|deny|ask> in settings.json (snapshot and backup before editing). With settings, that file is the target (project settings)",
         inputSchema: z.object({ kind: z.enum(["allow", "deny", "ask"]), rule: z.string(), settings: z.string().optional() }), annotations: EDIT,
       },
-      run: async (a: { kind: string; rule: string; settings?: string }) => {
-        // --settings 는 부모 파서 옵션이라 subcommand 앞에 와야 argparse 가 인식.
-        const args = a.settings ? ["--settings", a.settings] : [];
-        args.push("perm-add", a.kind, a.rule);
-        return jsonResult(await runPy("config_edit.py", args));
-      },
+      run: async (a: { kind: Kind; rule: string; settings?: string }) =>
+        runCore("config_perm_add", () => configEdit.cmdPermAdd({ settings: a.settings || undefined, kind: a.kind, rule: a.rule })),
     },
     {
       name: "config_perm_remove",
       meta: {
         title: "Remove Permission Rule",
-        description: "settings.json permissions 에서 규칙 제거. settings 지정 시 그 파일 대상(프로젝트 설정)",
+        description: "Remove a rule from permissions in settings.json. With settings, that file is the target (project settings)",
         inputSchema: z.object({ kind: z.enum(["allow", "deny", "ask"]), rule: z.string(), settings: z.string().optional() }), annotations: EDIT,
       },
-      run: async (a: { kind: string; rule: string; settings?: string }) => {
-        const args = a.settings ? ["--settings", a.settings] : [];
-        args.push("perm-remove", a.kind, a.rule);
-        return jsonResult(await runPy("config_edit.py", args));
-      },
+      run: async (a: { kind: Kind; rule: string; settings?: string }) =>
+        runCore("config_perm_remove", () => configEdit.cmdPermRemove({ settings: a.settings || undefined, kind: a.kind, rule: a.rule })),
     },
     {
       name: "config_hook_add",
       meta: {
         title: "Add Hook",
-        description: "settings.json hooks.<event> 에 command hook 추가. settings 지정 시 그 파일 대상(프로젝트 설정)",
+        description: "Add a command hook to hooks.<event> in settings.json. With settings, that file is the target (project settings)",
         inputSchema: z.object({ event: z.string(), command: z.string(), matcher: z.string().optional(), settings: z.string().optional() }), annotations: EDIT,
       },
-      run: async (a: { event: string; command: string; matcher?: string; settings?: string }) => {
-        const args = a.settings ? ["--settings", a.settings] : [];
-        args.push("hook-add", a.event, a.command);
-        if (a.matcher) args.push("--matcher", a.matcher);
-        return jsonResult(await runPy("config_edit.py", args));
-      },
+      run: async (a: { event: string; command: string; matcher?: string; settings?: string }) =>
+        runCore("config_hook_add", () => configEdit.cmdHookAdd({
+          settings: a.settings || undefined, event: a.event, command: a.command, matcher: a.matcher || null,
+        })),
     },
     {
       name: "config_hook_remove",
       meta: {
         title: "Remove Hook",
-        description: "settings.json hooks.<event> 에서 command substring 매칭 항목 제거. settings 지정 시 그 파일 대상(프로젝트 설정)",
+        description: "Remove entries from hooks.<event> in settings.json whose command contains needle as a substring. With settings, that file is the target (project settings)",
         inputSchema: z.object({ event: z.string(), needle: z.string(), settings: z.string().optional() }), annotations: EDIT,
       },
-      run: async (a: { event: string; needle: string; settings?: string }) => {
-        const args = a.settings ? ["--settings", a.settings] : [];
-        args.push("hook-remove", a.event, a.needle);
-        return jsonResult(await runPy("config_edit.py", args));
-      },
+      run: async (a: { event: string; needle: string; settings?: string }) =>
+        runCore("config_hook_remove", () => configEdit.cmdHookRemove({ settings: a.settings || undefined, event: a.event, needle: a.needle })),
     },
     {
       name: "config_plugin_toggle",
       meta: {
         title: "Toggle Claude Code Plugin",
-        description: "settings.json 의 enabledPlugins[<id>] 만 켜고 끈다. **적용은 다음 세션부터** — Claude Code 가 세션 시작 시 읽기 때문. id 는 '<플러그인 이름>@<마켓 이름>' 이고 **마켓 매니페스트 엔트리 이름** 쪽에서 온다(plugin.json 의 name/표시 네임스페이스와 다를 수 있다: 실측 notion vs 'Notion'). Plugins 카드의 edit.id 를 그대로 넘길 것 — 대소문자를 고치면 다른 키가 된다. settings 는 그 값을 정한 파일(카드의 edit.settings)을 넘긴다. 플러그인 설치/제거는 하지 않는다(그건 `claude plugin` 의 몫)",
+        description: "Turn enabledPlugins[<id>] in settings.json on or off, and nothing else. **Takes effect from the next session**, because Claude Code reads it at session start. id is '<plugin name>@<marketplace name>' and comes from the **marketplace manifest entry name** (it can differ from plugin.json's name or display namespace: observed notion vs 'Notion'). Pass the Plugins card's edit.id unchanged; changing the case makes it a different key. For settings, pass the file that set the value (the card's edit.settings). Does not install or remove plugins (that is `claude plugin`'s job)",
         inputSchema: z.object({
-          id: z.string().describe("plugin@marketplace — Plugins 카드의 edit.id 원문"),
+          id: z.string().describe("plugin@marketplace, the Plugins card's edit.id verbatim"),
           on: z.boolean(),
-          settings: z.string().optional().describe("대상 settings.json(카드의 edit.settings). 미지정 시 전역"),
+          settings: z.string().optional().describe("Target settings.json (the card's edit.settings). Omit for global"),
         }), annotations: EDIT,
       },
-      run: async (a: { id: string; on: boolean; settings?: string }) => {
-        const args = a.settings ? ["--settings", a.settings] : [];
-        args.push("plugin-toggle", a.id, a.on ? "on" : "off");
-        return jsonResult(await runPy("config_edit.py", args));
-      },
+      run: async (a: { id: string; on: boolean; settings?: string }) =>
+        runCore("config_plugin_toggle", () => configEdit.cmdPluginToggle({ settings: a.settings || undefined, id: a.id, state: a.on ? "on" : "off" })),
     },
     {
       name: "skill_scaffold",
       meta: {
         title: "Scaffold Code Skill",
-        description: "스킬 생성: <skills>/<name>/SKILL.md. content 를 주면 그대로 설치, 없으면 desc 로 스텁. 기본 ~/.claude/skills, skillsDir 또는 project 로 프로젝트 대상",
+        description: "Create a skill: <skills>/<name>/SKILL.md. With content, installs it as given; otherwise writes a stub from desc. Default ~/.claude/skills; use skillsDir or project to target a project",
         inputSchema: z.object({
           name: z.string(), desc: z.string().optional(),
-          content: z.string().optional().describe("SKILL.md 전체 내용(frontmatter 포함). 지정 시 스텁 대신 그대로 설치"),
-          skillsDir: z.string().optional().describe("대상 skills 디렉토리(<프로젝트>/.claude/skills). 생략 시 전역"),
+          content: z.string().optional().describe("Full SKILL.md content (including frontmatter). When given, installed as is instead of a stub"),
+          skillsDir: z.string().optional().describe("Target skills directory (<project>/.claude/skills). Omit for global"),
         }), annotations: EDIT,
       },
-      run: async (a: { name: string; desc?: string; content?: string; skillsDir?: string }) => {
-        const args = a.skillsDir ? ["--skills-dir", a.skillsDir] : [];
-        args.push("skill-scaffold", a.name);
-        if (a.desc) args.push("--desc", a.desc);
-        if (a.content) args.push("--content", a.content);
-        return jsonResult(await runPy("config_edit.py", args));
-      },
+      run: async (a: { name: string; desc?: string; content?: string; skillsDir?: string }) =>
+        runCore("skill_scaffold", () => configEdit.cmdSkillScaffold({
+          skillsDir: a.skillsDir || undefined, name: a.name, desc: a.desc || undefined, content: a.content || null,
+        })),
     },
     {
       name: "config_skill_remove",
       meta: {
         title: "Remove Code Skill",
-        description: "스킬 디렉토리를 .trash 로 이동(복구 가능). 편집 전 스냅샷. " +
-          "skillsDir 지정 시 그 디렉토리 대상(프로젝트-로컬 스킬), 생략 시 ~/.claude/skills",
+        description: "Move a skill directory to .trash (recoverable). Snapshot before editing. " +
+          "With skillsDir, that directory is the target (project-local skills); otherwise ~/.claude/skills",
         inputSchema: z.object({
           name: z.string(),
-          skillsDir: z.string().optional().describe("대상 skills 디렉토리(<프로젝트>/.claude/skills). 생략 시 전역 ~/.claude/skills"),
+          skillsDir: z.string().optional().describe("Target skills directory (<project>/.claude/skills). Omit for global ~/.claude/skills"),
         }), annotations: EDIT,
       },
-      run: async (a: { name: string; skillsDir?: string }) => {
-        // --skills-dir 는 부모 파서 옵션이라 subcommand 앞에 와야 argparse 가 인식.
-        const args = a.skillsDir ? ["--skills-dir", a.skillsDir] : [];
-        args.push("skill-remove", a.name);
-        return jsonResult(await runPy("config_edit.py", args));
-      },
+      run: async (a: { name: string; skillsDir?: string }) =>
+        runCore("config_skill_remove", () => configEdit.cmdSkillRemove({ skillsDir: a.skillsDir || undefined, name: a.name })),
     },
     {
       name: "config_agent_add",
       meta: {
         title: "Scaffold Agent",
-        description: "에이전트 생성: <agents>/<name>.md. content 로 전체 정의(frontmatter 포함) 설치 가능, 없으면 desc/tools/model 스캐폴드. 기본 ~/.claude/agents, agentsDir 또는 project 로 프로젝트 대상",
+        description: "Create an agent: <agents>/<name>.md. content installs a full definition (including frontmatter); otherwise scaffolds from desc/tools/model. Default ~/.claude/agents; use agentsDir or project to target a project",
         inputSchema: z.object({
           name: z.string(), desc: z.string().optional(),
           tools: z.string().optional(), model: z.string().optional(),
-          content: z.string().optional().describe("에이전트 md 전체 내용(frontmatter 포함). 지정 시 desc/tools/model 무시"),
-          agentsDir: z.string().optional().describe("대상 agents 디렉토리(<프로젝트>/.claude/agents). 생략 시 전역"),
+          content: z.string().optional().describe("Full agent md content (including frontmatter). When given, desc/tools/model are ignored"),
+          agentsDir: z.string().optional().describe("Target agents directory (<project>/.claude/agents). Omit for global"),
         }), annotations: EDIT,
       },
-      run: async (a: { name: string; desc?: string; tools?: string; model?: string; content?: string; agentsDir?: string }) => {
-        const args = a.agentsDir ? ["--agents-dir", a.agentsDir] : [];
-        args.push("agent-scaffold", a.name);
-        if (a.desc) args.push("--desc", a.desc);
-        if (a.tools) args.push("--tools", a.tools);
-        if (a.model) args.push("--model", a.model);
-        if (a.content) args.push("--content", a.content);
-        return jsonResult(await runPy("config_edit.py", args));
-      },
+      run: async (a: { name: string; desc?: string; tools?: string; model?: string; content?: string; agentsDir?: string }) =>
+        runCore("config_agent_add", () => configEdit.cmdAgentScaffold({
+          agentsDir: a.agentsDir || undefined, name: a.name, desc: a.desc || undefined,
+          tools: a.tools || undefined, model: a.model || undefined, content: a.content || null,
+        })),
     },
     {
       name: "config_agent_remove",
       meta: {
         title: "Remove Agent",
-        description: "에이전트 <name>(.md) 을 .trash 로 이동(복구 가능). 편집 전 스냅샷. " +
-          "agentsDir 지정 시 그 디렉토리 대상(프로젝트-로컬 에이전트), 생략 시 ~/.claude/agents",
+        description: "Move agent <name> (.md) to .trash (recoverable). Snapshot before editing. " +
+          "With agentsDir, that directory is the target (project-local agents); otherwise ~/.claude/agents",
         inputSchema: z.object({
           name: z.string(),
-          agentsDir: z.string().optional().describe("대상 agents 디렉토리(<프로젝트>/.claude/agents). 생략 시 전역 ~/.claude/agents"),
+          agentsDir: z.string().optional().describe("Target agents directory (<project>/.claude/agents). Omit for global ~/.claude/agents"),
         }), annotations: EDIT,
       },
-      run: async (a: { name: string; agentsDir?: string }) => {
-        // --agents-dir 는 부모 파서 옵션이라 subcommand 앞에 와야 argparse 가 인식.
-        const args = a.agentsDir ? ["--agents-dir", a.agentsDir] : [];
-        args.push("agent-remove", a.name);
-        return jsonResult(await runPy("config_edit.py", args));
-      },
+      run: async (a: { name: string; agentsDir?: string }) =>
+        runCore("config_agent_remove", () => configEdit.cmdAgentRemove({ agentsDir: a.agentsDir || undefined, name: a.name })),
     },
     {
       name: "config_item_add",
       meta: {
         title: "Scaffold Rule / Output Style / Workflow",
-        description: "단일 파일 항목(rule/output-style/workflow) 스텁 생성. rule 에 paths 를 주면 적재가 EAGER 대신 LAZY 가 됨",
+        description: "Create a stub for a single-file item (rule/output-style/workflow). Giving a rule paths makes it load LAZY instead of EAGER",
         inputSchema: z.object({
           itemKind: z.enum(["rule", "output-style", "workflow"]),
-          name: z.string().describe("단일 세그먼트 이름(경로 구분자 불가)"),
+          name: z.string().describe("Single-segment name (no path separators)"),
           desc: z.string().optional(),
-          paths: z.string().optional().describe("rule 전용. 지정하면 매칭 파일을 읽을 때만 적재(LAZY)"),
-          dir: z.string().optional().describe("프로젝트 대상 디렉토리(<...>/.claude/<sub>). 미지정 시 전역"),
+          paths: z.string().optional().describe("rule only. When given, the rule loads only when a matching file is read (LAZY)"),
+          dir: z.string().optional().describe("Project target directory (<...>/.claude/<sub>). Omit for global"),
         }), annotations: WRITE,
       },
-      run: async (a: { itemKind: string; name: string; desc?: string; paths?: string; dir?: string }) => {
-        const args = ["item-scaffold", a.itemKind, a.name];
-        if (a.desc) args.push("--desc", a.desc);
-        if (a.paths) args.push("--paths", a.paths);
-        if (a.dir) args.unshift("--items-dir", a.dir);
-        return jsonResult(await runPy("config_edit.py", args));
-      },
+      run: async (a: { itemKind: configEdit.ItemKind; name: string; desc?: string; paths?: string; dir?: string }) =>
+        runCore("config_item_add", () => configEdit.cmdItemScaffold({
+          itemsDir: a.dir || null, kind: a.itemKind, name: a.name, desc: a.desc || undefined, paths: a.paths || undefined,
+        })),
     },
     {
       name: "config_item_remove",
       meta: {
         title: "Remove Rule / Output Style / Workflow",
-        description: "단일 파일 항목을 .trash 로 이동(복구 가능). dir 지정 시 그 프로젝트에서만 제거",
+        description: "Move a single-file item to .trash (recoverable). With dir, removes it only from that project",
         inputSchema: z.object({
           itemKind: z.enum(["rule", "output-style", "workflow"]),
           name: z.string(),
-          dir: z.string().optional().describe("프로젝트 대상 디렉토리. 미지정 시 전역"),
+          dir: z.string().optional().describe("Project target directory. Omit for global"),
         }), annotations: EDIT,
       },
-      run: async (a: { itemKind: string; name: string; dir?: string }) => {
-        const args = ["item-remove", a.itemKind, a.name];
-        if (a.dir) args.unshift("--items-dir", a.dir);
-        return jsonResult(await runPy("config_edit.py", args));
-      },
+      run: async (a: { itemKind: configEdit.ItemKind; name: string; dir?: string }) =>
+        runCore("config_item_remove", () => configEdit.cmdItemRemove({ itemsDir: a.dir || null, kind: a.itemKind, name: a.name })),
     },
     {
       name: "config_outputstyle_set",
       meta: {
         title: "Activate Output Style",
-        description: "settings 의 outputStyle 을 지정(빈 이름이면 해제). 어떤 스타일이 세션 시작에 적재될지를 바꾸는 스위치",
+        description: "Set outputStyle in settings (an empty name clears it). This switch decides which style is loaded at session start",
         inputSchema: z.object({
-          name: z.string().describe("활성화할 스타일 이름. 빈 문자열이면 선택 해제"),
-          settings: z.string().optional().describe("프로젝트 settings.json 경로. 미지정 시 전역"),
+          name: z.string().describe("Name of the style to activate. An empty string clears the selection"),
+          settings: z.string().optional().describe("Project settings.json path. Omit for global"),
         }), annotations: WRITE,
       },
-      run: async (a: { name: string; settings?: string }) => {
-        const args = ["outputstyle-set", a.name];
-        if (a.settings) args.unshift("--settings", a.settings);
-        return jsonResult(await runPy("config_edit.py", args));
-      },
+      run: async (a: { name: string; settings?: string }) =>
+        runCore("config_outputstyle_set", () => configEdit.cmdOutputstyleSet({ settings: a.settings || undefined, name: a.name })),
     },
     {
       name: "config_memory_remove",
       meta: {
         title: "Remove Memory Topic",
-        description: "프로젝트 메모리 토픽 파일을 .trash 로 이동(복구 가능). MEMORY.md 색인은 대상이 아님",
+        description: "Move a project memory topic file to .trash (recoverable). The MEMORY.md index is not a target",
         inputSchema: z.object({
-          name: z.string().describe("토픽 이름(확장자 제외)"),
-          memoryDir: z.string().describe("<...>/projects/<name>/memory 경로"),
+          name: z.string().describe("Topic name (without extension)"),
+          memoryDir: z.string().describe("Path of <...>/projects/<name>/memory"),
         }), annotations: EDIT,
       },
       run: async (a: { name: string; memoryDir: string }) =>
-        jsonResult(await runPy("config_edit.py",
-          ["--memory-dir", a.memoryDir, "memory-remove", a.name])),
+        runCore("config_memory_remove", () => configEdit.cmdMemoryRemove({ memoryDir: a.memoryDir, name: a.name })),
     },
     {
       name: "config_mcp_add",
       meta: {
         title: "Add/Update MCP Server",
-        description: "mcpServers.<name> 추가/갱신. scope=user 는 ~/.claude.json, scope=desktop 은 claude_desktop_config.json(적용은 Desktop 재시작 필요). 스냅샷+.bak+atomic",
+        description: "Add or update mcpServers.<name>. scope=user writes ~/.claude.json, scope=desktop writes claude_desktop_config.json (Desktop must be restarted to apply). Snapshot, .bak and atomic write",
         inputSchema: z.object({
           name: z.string(),
-          serverJson: z.string().describe('서버 설정 JSON 문자열, 예: {"command":"npx","args":["-y","some-mcp"]}'),
+          serverJson: z.string().describe('Server config as a JSON string, e.g. {"command":"npx","args":["-y","some-mcp"]}'),
           scope: z.enum(["user", "desktop"]).optional(),
         }), annotations: EDIT,
       },
-      run: async (a: { name: string; serverJson: string; scope?: string }) =>
-        jsonResult(await runPy("config_edit.py",
-          ["mcp-add", a.name, "--json", a.serverJson, "--scope", a.scope || "user"])),
+      run: async (a: { name: string; serverJson: string; scope?: "user" | "desktop" }) =>
+        runCore("config_mcp_add", () => configEdit.cmdMcpAdd({ name: a.name, json: a.serverJson, scope: a.scope || "user" })),
     },
     {
       name: "config_mcp_remove",
       meta: {
         title: "Remove MCP Server",
-        description: "mcpServers.<name> 제거. scope=user|desktop (desktop 적용은 재시작 필요). 스냅샷+.bak+atomic",
+        description: "Remove mcpServers.<name>. scope=user|desktop (desktop requires a restart to apply). Snapshot, .bak and atomic write",
         inputSchema: z.object({ name: z.string(), scope: z.enum(["user", "desktop"]).optional() }), annotations: EDIT,
       },
-      run: async (a: { name: string; scope?: string }) =>
-        jsonResult(await runPy("config_edit.py", ["mcp-remove", a.name, "--scope", a.scope || "user"])),
+      run: async (a: { name: string; scope?: "user" | "desktop" }) =>
+        runCore("config_mcp_remove", () => configEdit.cmdMcpRemove({ name: a.name, scope: a.scope || "user" })),
     },
 
     // ----- 라이브러리 토글 (.claude 구조 라이브러리 디렉토리) -----
@@ -922,133 +857,112 @@ export function buildTools(scriptDir: string): ToolDef[] {
       name: "library_scan",
       meta: {
         title: "Scan Personal Library",
-        description: "라이브러리(로컬 등록분 + env + 원격/마켓 캐시)의 agents/skills/commands 를 열거하고 라이브 설정과 해시 비교해 4상태(not_installed/installed/modified/conflict) 반환. 각 행에 source(env|registered|remote|market)·origin·고정 sha·fetched_at, 각 항목에 origin 과 conflict 시 owner 를 붙인다. 각 행의 units 에는 라이브러리 하위(깊이 2)에서 hooks/hooks.json·.mcp.json 을 가진 도구 디렉토리가 자체 origin(local:<경로>)과 함께 실린다 - hooks/mcp-install 에 그 origin 을 그대로 쓴다. **네트워크를 타지 않는다**(오프라인 동작 보장). lib 지정 시 신규 등록 후 스캔",
+        description: "List agents/skills/commands in the libraries (locally registered, env, and remote/marketplace caches), compare them by hash with the live config, and return one of four states (not_installed/installed/modified/conflict). Each row carries source (env|registered|remote|market), origin, pinned sha and fetched_at; each item carries origin, and owner on conflict. Each row's units lists tool directories under the library (depth 2) that have hooks/hooks.json or .mcp.json, each with its own origin (local:<path>); pass that origin as is to hooks/mcp-install. **Does not use the network** (works offline). With lib, registers it first and then scans",
         inputSchema: z.object({
-          lib: z.string().optional().describe("라이브러리 루트 경로(.claude 구조 디렉토리). 최초 1회 등록용"),
-          targetDir: z.string().optional().describe("설치/비교 대상 .claude 루트(기본 ~/.claude). 프로젝트-로컬 스캔 시 지정"),
+          lib: z.string().optional().describe("Library root path (a directory shaped like .claude). For the first-time registration"),
+          targetDir: z.string().optional().describe("The .claude root to install into and compare with (default ~/.claude). Set it for a project-local scan"),
         }),
         annotations: READ,
       },
-      run: async (a: { lib?: string; targetDir?: string }) => {
-        const args: string[] = [];
-        if (a.targetDir) args.push("--target", a.targetDir);
-        args.push("scan");
-        if (a.lib) args.push("--lib", a.lib);
-        return jsonResult(await runPy("library.py", args));
-      },
+      run: async (a: { lib?: string; targetDir?: string }) =>
+        runCore("library_scan", () => library.cmdScan({ target: a.targetDir || undefined, lib: a.lib || null })),
     },
     {
       name: "library_install",
       meta: {
         title: "Install Library Item",
-        description: "라이브러리 항목을 대상 .claude(기본 ~/.claude, targetDir 로 프로젝트-로컬 지정)에 설치/동기화. skills 는 그룹 중첩(가변 깊이) 가능하며 leaf 이름으로 평탄 설치(예: path=2-stack/java-spring/error-handling -> <target>/skills/error-handling). 기존 항목 존재 시 스냅샷+.bak(파일)/.trash(디렉토리) 후 덮어씀. targetDir 의 부모 디렉토리가 없으면 거부(phantom 방지)",
+        description: "Install or sync a library item into the target .claude (default ~/.claude; targetDir for project-local). skills can be nested in groups (any depth) and are installed flat under the leaf name (e.g. path=2-stack/java-spring/error-handling -> <target>/skills/error-handling). If the item already exists, it is snapshotted and kept as .bak (file) or .trash (directory) before being overwritten. Refused if targetDir's parent directory does not exist (prevents phantom folders)",
         inputSchema: z.object({
           category: z.enum(["agents", "skills", "commands"]),
-          path: z.string().describe("카테고리 루트 기준 상대경로. skills 는 그룹 포함 가능, agents/commands 는 이름"),
+          path: z.string().describe("Path relative to the category root. skills may include groups; agents/commands take the name"),
           lib: z.string().optional(),
-          origin: z.string().optional().describe("출처 식별자(local:/remote:/market:). 동일 이름 캐시가 여러 개일 때 모호성 해소용 필수"),
-          targetDir: z.string().optional().describe("설치 대상 .claude 루트(기본 ~/.claude). 프로젝트-로컬 설치 시 지정"),
+          origin: z.string().optional().describe("Source identifier (local:/remote:/market:). Required to disambiguate when several caches have the same name"),
+          targetDir: z.string().optional().describe("The .claude root to install into (default ~/.claude). Set it for a project-local install"),
         }), annotations: EDIT,
       },
-      run: async (a: { category: string; path: string; lib?: string; origin?: string; targetDir?: string }) => {
-        // --target 은 부모 파서 옵션이라 subcommand 앞에 와야 argparse 가 인식(--lib/--origin 은 install 서브파서 옵션).
-        const args: string[] = [];
-        if (a.targetDir) args.push("--target", a.targetDir);
-        args.push("install", a.category, a.path);
-        if (a.lib) args.push("--lib", a.lib);
-        if (a.origin) args.push("--origin", a.origin);
-        return jsonResult(await runPy("library.py", args));
-      },
+      run: async (a: { category: library.Category; path: string; lib?: string; origin?: string; targetDir?: string }) =>
+        runCore("library_install", () => library.cmdInstall({
+          target: a.targetDir || undefined, category: a.category, path: a.path, lib: a.lib || null, origin: a.origin || null,
+        })),
     },
     {
       name: "library_uninstall",
       meta: {
         title: "Uninstall Library Item",
-        description: "대상 .claude(기본 ~/.claude, targetDir 로 프로젝트-로컬 지정)의 해당 항목을 .trash 로 이동(복구 가능). 라이브러리 원본은 건드리지 않음. origin 지정 시 원장의 소유자와 다르면 거부(다른 출처의 설치를 지우지 않음)",
+        description: "Move the item in the target .claude (default ~/.claude; targetDir for project-local) to .trash (recoverable). The library original is not touched. With origin, refused if it differs from the owner in the ledger (an install from another source is not removed)",
         inputSchema: z.object({
           category: z.enum(["agents", "skills", "commands"]),
           name: z.string(),
-          origin: z.string().optional().describe("요청 출처. 원장의 소유자와 다르면 거부"),
-          targetDir: z.string().optional().describe("제거 대상 .claude 루트(기본 ~/.claude)"),
+          origin: z.string().optional().describe("Requesting source. Refused if it differs from the owner in the ledger"),
+          targetDir: z.string().optional().describe("The .claude root to remove from (default ~/.claude)"),
         }), annotations: EDIT,
       },
-      run: async (a: { category: string; name: string; origin?: string; targetDir?: string }) => {
-        const args: string[] = [];
-        if (a.targetDir) args.push("--target", a.targetDir);
-        args.push("uninstall", a.category, a.name);
-        if (a.origin) args.push("--origin", a.origin);
-        return jsonResult(await runPy("library.py", args));
-      },
+      run: async (a: { category: library.Category; name: string; origin?: string; targetDir?: string }) =>
+        runCore("library_uninstall", () => library.cmdUninstall({
+          target: a.targetDir || undefined, category: a.category, name: a.name, origin: a.origin || null,
+        })),
     },
     {
       name: "library_unregister",
       meta: {
         title: "Unregister Library / Remote / Marketplace",
-        description: "등록을 해제한다. lib=로컬 경로(캐시 개념 없음), origin=remote:<id>|market:<id>(캐시도 함께 삭제). 원장이 그 캐시를 참조하는 hooks/MCP 가 있으면 거부하고 무엇이 걸렸는지 알린다. 설치된 항목·로컬 라이브러리 원본은 건드리지 않음. env 지정 경로는 제거 불가",
+        description: "Remove a registration. lib = a local path (no cache involved), origin = remote:<id>|market:<id> (its cache is deleted too). Refused if the ledger has hooks/MCP servers that reference that cache, and the blocking entries are reported. Installed items and local library originals are not touched. A path set by env cannot be removed",
         inputSchema: z.object({
-          lib: z.string().optional().describe("등록 해제할 로컬 라이브러리 루트 경로"),
+          lib: z.string().optional().describe("Local library root path to unregister"),
           origin: z.string().optional().describe("remote:<id> | market:<id>"),
         }),
         annotations: EDIT,
       },
-      run: async (a: { lib?: string; origin?: string }) => {
-        const args = ["unregister"];
-        if (a.lib) args.push("--lib", a.lib);
-        if (a.origin) args.push("--origin", a.origin);
-        return jsonResult(await runPy("library.py", args));
-      },
+      run: async (a: { lib?: string; origin?: string }) =>
+        runCore("library_unregister", () => library.cmdUnregister({ lib: a.lib || null, origin: a.origin || null })),
     },
     {
       name: "library_add",
       meta: {
         title: "Add Remote Library or Marketplace",
-        description: "원격 소스를 config-monitor 스토어에 등록한다. **네트워크를 탄다** — library_scan 은 타지 않으므로 등록 후 scan 은 캐시만 읽는다. " +
-          "kind=remote: 임의 git 레포를 라이브러리로 등록. clone 후 agents/skills/commands 레이아웃을 대소문자 무시로 탐지하고 store/config.json 의 remotes[] 에 영속화한다. 고정 sha 를 기록하며 자동 pull 은 없다. " +
-          "kind=market: .claude-plugin/marketplace.json 을 가진 레포를 카탈로그로 등록. 매니페스트만 sparse checkout 한다(공식 마켓 기준 401K, 전체 체크아웃은 9.7M). 플러그인은 선택 시점에 받는다. 공식/비공식 구분은 없다 — URL 이 전부다",
+        description: "Register a remote source in the config-monitor store. **Uses the network**; library_scan does not, so a scan after registering reads only the cache. " +
+          "kind=remote: register any git repo as a library. After cloning, detects the agents/skills/commands layout case-insensitively and persists it in remotes[] of store/config.json. Records a pinned sha; there is no automatic pull. " +
+          "kind=market: register a repo that has .claude-plugin/marketplace.json as a catalog. Only the manifest is sparse-checked-out (401K for the official marketplace, 9.7M for a full checkout). Plugins are fetched when selected. There is no official/unofficial distinction; the URL is all there is",
         inputSchema: z.object({
-          kind: z.enum(["remote", "market"]).describe("remote=git 레포를 라이브러리로, market=마켓플레이스 카탈로그로"),
-          url: z.string().describe("remote 는 git 레포 URL(https/ssh/file), market 은 마켓 레포 URL. config-monitor 는 이 URL 을 심사하지 않는다"),
-          ref: z.string().optional().describe("브랜치/태그. 생략 시 기본 HEAD"),
-          id: z.string().optional().describe("라이브러리/마켓 id. 생략 시 URL 의 레포명에서 파생"),
-          map: z.string().optional().describe('kind=remote 전용. 레이아웃 매핑 JSON, 예: {"agents":"Agents","skills":"Skills"}. 탐지 실패 시에만 필요. kind=market 에 주면 거부한다(마켓은 매니페스트가 레이아웃을 정한다)'),
+          kind: z.enum(["remote", "market"]).describe("remote = a git repo as a library, market = a marketplace catalog"),
+          url: z.string().describe("For remote, a git repo URL (https/ssh/file); for market, the marketplace repo URL. config-monitor does not vet this URL"),
+          ref: z.string().optional().describe("Branch or tag. Omit for the default HEAD"),
+          id: z.string().optional().describe("Library/marketplace id. Omit to derive it from the repo name in the URL"),
+          map: z.string().optional().describe('kind=remote only. Layout mapping JSON, e.g. {"agents":"Agents","skills":"Skills"}. Needed only when detection fails. Refused with kind=market (a marketplace manifest defines the layout)'),
         }), annotations: EDIT,
       },
       run: async (a: { kind: "remote" | "market"; url: string; ref?: string; id?: string; map?: string }) => {
         if (a.kind === "market" && a.map) {
-          return jsonResult(JSON.stringify({ ok: false, code: "invalid_arg", message: "map 은 kind=remote 에서만 쓸 수 있습니다. 마켓은 marketplace.json 매니페스트가 레이아웃을 정합니다" }));
+          return docResult({ ok: false, code: "invalid_arg", message: "map can be used only with kind=remote. For a marketplace, the marketplace.json manifest defines the layout" });
         }
-        const args = [a.kind === "market" ? "market-add" : "remote-add", "--url", a.url];
-        if (a.ref) args.push("--ref", a.ref);
-        if (a.id) args.push("--id", a.id);
-        if (a.map) args.push("--map", a.map);
-        return jsonResult(await runPy("library.py", args));
+        const common = { url: a.url, ref: a.ref || null, id: a.id || null };
+        return runCore("library_add", () => a.kind === "market"
+          ? library.cmdMarketAdd(common)
+          : library.cmdRemoteAdd({ ...common, map: a.map || null }));
       },
     },
     {
       name: "claude_plugin_install",
       meta: {
         title: "Install Plugin into Claude Code",
-        description: "플러그인을 **통째로** Claude Code 에 설치한다 — `claude plugin install <plugin>@<market> --scope` 위임. library_plugin_fetch(항목 단위로 골라 ~/.claude 에 복사, 설치 전 diff·롤백 O, Desktop 가능)와는 **다른 설치 모델**이다: 이쪽은 플러그인 캐시에 통째로 두고 <ns>:<item> 네임스페이스로 주입되며 config_plugin_toggle 로 껐다 켠다. **네트워크를 탄다.** 적용은 다음 세션부터. scope=project/local 은 cwd 로 프로젝트를 정하므로 cwd 를 넘길 것. dryRun 으로 실행될 명령을 먼저 확인할 수 있다",
+        description: "Install a plugin **as a whole** into Claude Code by delegating to `claude plugin install <plugin>@<market> --scope`. This is a **different install model** from library_plugin_fetch (which picks individual items and copies them into ~/.claude, with a diff before install, rollback, and Desktop support): here the plugin stays whole in the plugin cache, is injected under the <ns>:<item> namespace, and is turned on and off with config_plugin_toggle. **Uses the network.** Takes effect from the next session. scope=project/local picks the project from cwd, so pass cwd. dryRun shows the command that would run first",
         inputSchema: z.object({
           marketplace: z.string(), plugin: z.string(),
           scope: z.enum(["user", "project", "local"]).optional(),
-          cwd: z.string().optional().describe("scope=project/local 기준 디렉토리"),
+          cwd: z.string().optional().describe("Base directory for scope=project/local"),
           dryRun: z.boolean().optional(),
         }), annotations: EDIT,
       },
-      run: async (a: { marketplace: string; plugin: string; scope?: string; cwd?: string; dryRun?: boolean }) => {
-        const args = ["install", "--marketplace", a.marketplace, "--plugin", a.plugin,
-          "--scope", a.scope || "user"];
-        if (a.cwd) args.push("--cwd", a.cwd);
-        if (a.dryRun) args.push("--dry-run");
-        return jsonResult(await runPy("plugin_cli.py", args));
-      },
+      run: async (a: { marketplace: string; plugin: string; scope?: "user" | "project" | "local"; cwd?: string; dryRun?: boolean }) =>
+        runCore("claude_plugin_install", () => pluginCli.cmdInstall({
+          marketplace: a.marketplace, plugin: a.plugin, scope: a.scope || "user", cwd: a.cwd || undefined, dryRun: !!a.dryRun,
+        })),
     },
     {
       name: "claude_plugin_uninstall",
       meta: {
         title: "Uninstall Plugin from Claude Code",
-        description: "`claude plugin uninstall <plugin>@<market> --scope -y` 위임. Library 로 설치한 **항목**은 건드리지 않는다(모델이 다르다 — 그쪽은 library_uninstall). **끄기만 하려면 지우지 말고 config_plugin_toggle 을 쓸 것.** keepData 는 ~/.claude/plugins/data/<id>/ 를 남긴다",
+        description: "Delegates to `claude plugin uninstall <plugin>@<market> --scope -y`. Does not touch **items** installed through the Library (a different model; use library_uninstall for those). **To only turn a plugin off, do not uninstall it; use config_plugin_toggle.** keepData keeps ~/.claude/plugins/data/<id>/",
         inputSchema: z.object({
           marketplace: z.string(), plugin: z.string(),
           scope: z.enum(["user", "project", "local"]).optional(),
@@ -1056,244 +970,206 @@ export function buildTools(scriptDir: string): ToolDef[] {
           cwd: z.string().optional(), dryRun: z.boolean().optional(),
         }), annotations: EDIT,
       },
-      run: async (a: { marketplace: string; plugin: string; scope?: string; keepData?: boolean; cwd?: string; dryRun?: boolean }) => {
-        const args = ["uninstall", "--marketplace", a.marketplace, "--plugin", a.plugin,
-          "--scope", a.scope || "user"];
-        if (a.keepData) args.push("--keep-data");
-        if (a.cwd) args.push("--cwd", a.cwd);
-        if (a.dryRun) args.push("--dry-run");
-        return jsonResult(await runPy("plugin_cli.py", args));
-      },
+      run: async (a: { marketplace: string; plugin: string; scope?: "user" | "project" | "local"; keepData?: boolean; cwd?: string; dryRun?: boolean }) =>
+        runCore("claude_plugin_uninstall", () => pluginCli.cmdUninstall({
+          marketplace: a.marketplace, plugin: a.plugin, scope: a.scope || "user", keepData: !!a.keepData,
+          cwd: a.cwd || undefined, dryRun: !!a.dryRun,
+        })),
     },
     {
       name: "claude_plugin_update",
       meta: {
         title: "Update Claude Code Plugin",
-        description: "`claude plugin update <plugin>@<market> --scope` 위임. **네트워크를 탄다**. 적용은 다음 세션부터. scope 는 update 만 managed 를 추가로 받는다. Library 로 가져온 플러그인의 갱신은 이것과 무관하다 — 그쪽은 library_fetch(고정 sha 갱신 + 설치 전 diff)",
+        description: "Delegates to `claude plugin update <plugin>@<market> --scope`. **Uses the network**. Takes effect from the next session. Only update also accepts managed as a scope. Updating plugins fetched through the Library is unrelated to this; use library_fetch for those (updates the pinned sha, with a diff before install)",
         inputSchema: z.object({
           marketplace: z.string(), plugin: z.string(),
           scope: z.enum(["user", "project", "local", "managed"]).optional(),
           cwd: z.string().optional(), dryRun: z.boolean().optional(),
         }), annotations: EDIT,
       },
-      run: async (a: { marketplace: string; plugin: string; scope?: string; cwd?: string; dryRun?: boolean }) => {
-        const args = ["update", "--marketplace", a.marketplace, "--plugin", a.plugin,
-          "--scope", a.scope || "user"];
-        if (a.cwd) args.push("--cwd", a.cwd);
-        if (a.dryRun) args.push("--dry-run");
-        return jsonResult(await runPy("plugin_cli.py", args));
-      },
+      run: async (a: { marketplace: string; plugin: string; scope?: "user" | "project" | "local" | "managed"; cwd?: string; dryRun?: boolean }) =>
+        runCore("claude_plugin_update", () => pluginCli.cmdUpdate({
+          marketplace: a.marketplace, plugin: a.plugin, scope: a.scope || "user", cwd: a.cwd || undefined, dryRun: !!a.dryRun,
+        })),
     },
     {
       name: "claude_marketplace_add",
       meta: {
         title: "Register Marketplace in Claude Code",
-        description: "`claude plugin marketplace add <source> --scope` 위임 — 대시보드에서 등록한 마켓을 Claude Code 쪽에도 올린다(export). source 는 owner/repo · git URL · marketplace.json URL · 로컬 경로 4형식. **scope=project 는 프로젝트 .claude/settings.json 에 선언이 들어가 팀에 공유된다** — cwd 로 그 프로젝트를 지정할 것. config-monitor 자기 스토어에 등록하는 건 library_add(kind=market) 로, 별개다(캐시를 각자 유지한다)",
+        description: "Delegates to `claude plugin marketplace add <source> --scope`, registering a marketplace added in the dashboard on the Claude Code side as well (export). source takes four forms: owner/repo, a git URL, a marketplace.json URL, or a local path. **scope=project writes the declaration into the project's .claude/settings.json, which is shared with the team**; set that project with cwd. Registering in config-monitor's own store is library_add(kind=market), which is separate (each keeps its own cache)",
         inputSchema: z.object({
           source: z.string(),
           scope: z.enum(["user", "project", "local"]).optional(),
-          sparse: z.array(z.string()).optional().describe("모노레포에서 체크아웃할 디렉토리"),
+          sparse: z.array(z.string()).optional().describe("Directories to check out from a monorepo"),
           cwd: z.string().optional(), dryRun: z.boolean().optional(),
         }), annotations: EDIT,
       },
-      run: async (a: { source: string; scope?: string; sparse?: string[]; cwd?: string; dryRun?: boolean }) => {
-        const args = ["market-add", a.source, "--scope", a.scope || "user"];
-        if (a.sparse && a.sparse.length) args.push("--sparse", ...a.sparse);
-        if (a.cwd) args.push("--cwd", a.cwd);
-        if (a.dryRun) args.push("--dry-run");
-        return jsonResult(await runPy("plugin_cli.py", args));
-      },
+      run: async (a: { source: string; scope?: "user" | "project" | "local"; sparse?: string[]; cwd?: string; dryRun?: boolean }) =>
+        runCore("claude_marketplace_add", () => pluginCli.cmdMarketAdd({
+          source: a.source, scope: a.scope || "user", sparse: a.sparse?.length ? a.sparse : undefined,
+          cwd: a.cwd || undefined, dryRun: !!a.dryRun,
+        })),
     },
     {
       name: "claude_marketplace_update",
       meta: {
         title: "Update Claude Code Marketplace",
-        description: "`claude plugin marketplace update [name]` 위임. name 을 생략하면 **등록된 마켓 전체**를 갱신한다. **네트워크를 탄다**. 매니페스트만 갱신하며 설치된 플러그인 버전은 그대로다(그건 claude_plugin_update)",
+        description: "Delegates to `claude plugin marketplace update [name]`. Without name, updates **all registered marketplaces**. **Uses the network**. Updates only the manifests; installed plugin versions stay as they are (that is claude_plugin_update)",
         inputSchema: z.object({
-          name: z.string().optional().describe("생략하면 전체"),
+          name: z.string().optional().describe("Omit for all"),
           cwd: z.string().optional(), dryRun: z.boolean().optional(),
         }), annotations: EDIT,
       },
-      run: async (a: { name?: string; cwd?: string; dryRun?: boolean }) => {
-        const args = ["market-update"];
-        if (a.name) args.push("--name", a.name);
-        if (a.cwd) args.push("--cwd", a.cwd);
-        if (a.dryRun) args.push("--dry-run");
-        return jsonResult(await runPy("plugin_cli.py", args));
-      },
+      run: async (a: { name?: string; cwd?: string; dryRun?: boolean }) =>
+        runCore("claude_marketplace_update", () => pluginCli.cmdMarketUpdate({ name: a.name || undefined, cwd: a.cwd || undefined, dryRun: !!a.dryRun })),
     },
     {
       name: "claude_marketplace_remove",
       meta: {
         title: "Remove Claude Code Marketplace",
-        description: "`claude plugin marketplace remove <name>` 위임. **scope 를 생략하면 모든 스코프의 선언을 지운다**(claude 기본). 그 마켓에서 설치한 플러그인이 남아 있으면 claude 가 거절하거나 경고할 수 있으니 stderr 를 그대로 보고할 것. config-monitor 스토어의 마켓 해제는 library_unregister 로, 별개다",
+        description: "Delegates to `claude plugin marketplace remove <name>`. **Without scope, removes the declaration from every scope** (claude's default). If plugins installed from that marketplace remain, claude may refuse or warn, so report stderr as is. Unregistering a marketplace from the config-monitor store is library_unregister, which is separate",
         inputSchema: z.object({
           name: z.string(),
-          scope: z.enum(["user", "project", "local"]).optional().describe("생략하면 모든 스코프"),
+          scope: z.enum(["user", "project", "local"]).optional().describe("Omit for all scopes"),
           cwd: z.string().optional(), dryRun: z.boolean().optional(),
         }), annotations: EDIT,
       },
-      run: async (a: { name: string; scope?: string; cwd?: string; dryRun?: boolean }) => {
-        const args = ["market-remove", "--name", a.name];
-        if (a.scope) args.push("--scope", a.scope);
-        if (a.cwd) args.push("--cwd", a.cwd);
-        if (a.dryRun) args.push("--dry-run");
-        return jsonResult(await runPy("plugin_cli.py", args));
-      },
+      run: async (a: { name: string; scope?: "user" | "project" | "local"; cwd?: string; dryRun?: boolean }) =>
+        runCore("claude_marketplace_remove", () => pluginCli.cmdMarketRemove({
+          name: a.name, scope: a.scope || undefined, cwd: a.cwd || undefined, dryRun: !!a.dryRun,
+        })),
     },
     {
       name: "plugin_catalog",
       meta: {
         title: "Plugin Inventory and Token Cost",
-        description: "Claude Code 가 캐시해 둔 ~/.claude/plugins/plugin-catalog-cache.json 을 읽을 뿐이라 **네트워크도 fetch 도 타지 않는다.** 다만 그 캐시는 **공식 마켓 전용**이라 다른 마켓 플러그인은 조회되지 않는다(오류가 아니다 — 그 경우 fetch 해야 개수를 알 수 있다). " +
-          "id 없음: 카탈로그 행을 채우기 위한 경량 맵 — {entries: {id: {installs, components: {kind: 개수}, total}}}. 컴포넌트 **이름은 담지 않는다**(255개 전부는 크다) — 이름이 필요하면 id 를 준다. " +
-          "id 있음: 설치 **전에** 그 플러그인이 무엇을 넣는지와 토큰 비용을 돌려준다 — components(commands/agents/skills/hooks/mcpServers/lspServers 이름), unique_installs, tokens(모델별 always_on / on_invoke), homepage, last_updated",
+        description: "Only reads ~/.claude/plugins/plugin-catalog-cache.json cached by Claude Code, so it **uses neither the network nor a fetch.** That cache covers **only the official marketplace**, so plugins from other marketplaces are not found (this is not an error; in that case the counts are known only after a fetch). " +
+          "Without id: a lightweight map to fill the catalog rows, {entries: {id: {installs, components: {kind: count}, total}}}. Component **names are not included** (all 255 would be large); pass id when names are needed. " +
+          "With id: returns, **before** install, what that plugin adds and its token cost: components (commands/agents/skills/hooks/mcpServers/lspServers names), unique_installs, tokens (always_on / on_invoke per model), homepage, last_updated",
         inputSchema: z.object({
-          id: z.string().optional().describe("<plugin>@<marketplace>. 주면 그 플러그인 하나의 상세(컴포넌트 이름 포함), 생략하면 전체 요약(개수만)"),
+          id: z.string().optional().describe("<plugin>@<marketplace>. When given, details of that one plugin (including component names); omit for the overall summary (counts only)"),
           cache: z.string().optional(),
         }), annotations: READ,
       },
       run: async (a: { id?: string; cache?: string }) => {
-        const args = a.id ? ["details", a.id] : ["summary"];
-        if (a.cache) args.push("--cache", a.cache);
-        return jsonResult(await runPy("plugin_catalog.py", args));
+        const cache = a.cache || undefined;
+        const id = a.id;
+        return runCore("plugin_catalog", () => id ? pluginCatalog.cmdDetails({ id, cache }) : pluginCatalog.cmdSummary({ cache }));
       },
     },
     {
       name: "library_market_discover",
       meta: {
         title: "Discover Marketplaces from Claude Code",
-        description: "Claude Code(`/plugins`)에 등록된 마켓플레이스를 읽어 이 스토어와 대조한다. **네트워크를 타지 않는다** — known_marketplaces.json 하나만 읽고, 실제 등록은 사용자가 후보를 골라 library_add(kind=market) 를 눌렀을 때만 일어난다. new=가져올 수 있는 것 / both=양쪽 등록(두 도구가 같은 레포를 각자 캐시에 다른 시점으로 들고 있으므로 sha·시각을 나란히 돌려준다) / unusable=URL 이 없어 가져올 수 없는 것",
+        description: "Read the marketplaces registered in Claude Code (`/plugins`) and compare them with this store. **Does not use the network**: it reads only known_marketplaces.json, and actual registration happens only when the user picks a candidate and triggers library_add(kind=market). new = can be imported / both = registered on both sides (the two tools hold the same repo in separate caches at different points in time, so sha and timestamps are returned side by side) / unusable = cannot be imported because there is no URL",
         inputSchema: z.object({
-          pluginsDir: z.string().optional().describe("기본 ~/.claude/plugins"),
+          pluginsDir: z.string().optional().describe("Default ~/.claude/plugins"),
         }), annotations: READ,
       },
-      run: async (a: { pluginsDir?: string }) => {
-        const args = ["market-discover"];
-        if (a.pluginsDir) args.push("--plugins-dir", a.pluginsDir);
-        return jsonResult(await runPy("library.py", args));
-      },
+      run: async (a: { pluginsDir?: string }) =>
+        runCore("library_market_discover", () => library.cmdMarketDiscover({ pluginsDir: a.pluginsDir || undefined })),
     },
     {
       name: "library_catalog",
       meta: {
         title: "Browse Marketplace Catalog",
-        description: "등록된 마켓플레이스의 플러그인 목록(name/description/category/author)과 마켓 요약(marketplaces[]: id/name/url/total). **네트워크를 타지 않는다** — 캐시된 매니페스트만 읽는다. '설치 가능 N개' 칼럼은 없다(컴포넌트 선언 엔트리가 4/278 뿐이라 fetch 전에는 알 수 없음)",
+        description: "Plugin list of the registered marketplaces (name/description/category/author) and a marketplace summary (marketplaces[]: id/name/url/total). **Does not use the network**: reads only the cached manifests. There is no 'N installable' column (only 4/278 entries declare their components, so it cannot be known before a fetch)",
         inputSchema: z.object({
-          marketplace: z.string().optional().describe("지정 시 그 마켓만 — 마켓별로 따로 페이징할 때 쓴다"),
+          marketplace: z.string().optional().describe("When given, only that marketplace; used to page each marketplace separately"),
           query: z.string().optional(),
           category: z.string().optional(),
-          limit: z.number().int().optional().describe("음수면 행 없이 요약(marketplaces/categories)만 반환"),
+          limit: z.number().int().optional().describe("A negative value returns only the summary (marketplaces/categories) without rows"),
           offset: z.number().int().optional(),
         }), annotations: READ,
       },
-      run: async (a: { marketplace?: string; query?: string; category?: string; limit?: number; offset?: number }) => {
-        const args = ["catalog"];
-        if (a.marketplace) args.push("--marketplace", a.marketplace);
-        if (a.query) args.push("--query", a.query);
-        if (a.category) args.push("--category", a.category);
-        if (a.limit !== undefined) args.push("--limit", String(a.limit));
-        if (a.offset !== undefined) args.push("--offset", String(a.offset));
-        return jsonResult(await runPy("library.py", args));
-      },
+      run: async (a: { marketplace?: string; query?: string; category?: string; limit?: number; offset?: number }) =>
+        runCore("library_catalog", () => library.cmdCatalog({
+          marketplace: a.marketplace || null, query: a.query || null, category: a.category || null,
+          ...(a.limit !== undefined ? { limit: a.limit } : {}), ...(a.offset !== undefined ? { offset: a.offset } : {}),
+        })),
     },
     {
       name: "library_plugin_fetch",
       meta: {
         title: "Fetch Marketplace Plugin",
-        description: "카탈로그의 플러그인 1개를 물질화해 Library 에 합류시킨다. 번들이면 마켓 레포의 sparse 집합을 확장(+42K), 외부면 그 플러그인만 별도 fetch(~444K). **네트워크를 탄다**. 고정 sha 로 받으며 반환에 실제 컴포넌트 개수와 hooks/MCP 보유 여부가 담긴다",
+        description: "Materialize one plugin from the catalog and add it to the Library. A bundled plugin extends the marketplace repo's sparse set (+42K); an external one is fetched on its own (~444K). **Uses the network**. Fetched at a pinned sha; the result holds the actual component counts and whether it has hooks/MCP servers",
         inputSchema: z.object({ marketplace: z.string(), plugin: z.string() }), annotations: EDIT,
       },
       run: async (a: { marketplace: string; plugin: string }) =>
-        jsonResult(await runPy("library.py",
-          ["plugin-fetch", "--marketplace", a.marketplace, "--plugin", a.plugin])),
+        runCore("library_plugin_fetch", () => library.cmdPluginFetch({ marketplace: a.marketplace, plugin: a.plugin })),
     },
     {
       name: "library_fetch",
       meta: {
         title: "Refresh Remote/Marketplace",
-        description: "등록된 remote/market 을 명시적으로 갱신한다. 자동 pull 은 없다 — hooks 라면 매 세션 실행되는 코드가 조용히 바뀌는 것이므로 사용자가 눌러야 한다. origin 형식: remote:<id> / market:<id> / market:<id>/<plugin>",
+        description: "Explicitly refresh a registered remote/market. There is no automatic pull: for hooks, a pull would silently change code that runs every session, so the user has to trigger it. origin format: remote:<id> / market:<id> / market:<id>/<plugin>",
         inputSchema: z.object({ origin: z.string().describe("remote:<id> | market:<id> | market:<id>/<plugin>") }),
         annotations: EDIT,
       },
       run: async (a: { origin: string }) =>
-        jsonResult(await runPy("library.py", ["fetch", "--origin", a.origin])),
+        runCore("library_fetch", () => library.cmdFetch({ origin: a.origin })),
     },
     {
       name: "library_hooks_install",
       meta: {
         title: "Install Plugin Hooks",
-        description: "플러그인의 hooks/hooks.json 을 settings.json 에 병합한다. ${CLAUDE_PLUGIN_ROOT} 를 절대 캐시 경로로 치환하므로 **캐시는 지우면 안 된다**(load-bearing). matcher·timeout 을 그대로 보존하고 같은 플러그인의 기존 엔트리는 먼저 걷어낸다(멱등). **네트워크를 타지 않는다** — 미물질화 플러그인이면 거부하고 fetch 를 먼저 요구한다. dryRun 으로 치환된 명령 원문과 인터프리터 경고를 먼저 확인할 것",
+        description: "Merge a plugin's hooks/hooks.json into settings.json. ${CLAUDE_PLUGIN_ROOT} is replaced with the absolute cache path, so **the cache must not be deleted** (the hooks run from it). matcher and timeout are kept as is, and existing entries of the same plugin are removed first (idempotent). **Does not use the network**: a plugin that is not materialized is refused and a fetch is required first. Check the substituted command text and interpreter warnings with dryRun first",
         inputSchema: z.object({
           origin: z.string().describe("remote:<id> | market:<id>/<plugin>"),
-          settings: z.string().optional().describe("대상 settings.json(기본 <targetDir>/settings.json)"),
+          settings: z.string().optional().describe("Target settings.json (default <targetDir>/settings.json)"),
           targetDir: z.string().optional(),
-          dryRun: z.boolean().optional().describe("쓰지 않고 치환된 명령·경고만 반환"),
+          dryRun: z.boolean().optional().describe("Writes nothing and returns only the substituted commands and warnings"),
         }), annotations: EDIT,
       },
-      run: async (a: { origin: string; settings?: string; targetDir?: string; dryRun?: boolean }) => {
-        const args: string[] = [];
-        if (a.targetDir) args.push("--target", a.targetDir);
-        args.push("hooks-install", "--origin", a.origin);
-        if (a.settings) args.push("--settings", a.settings);
-        if (a.dryRun) args.push("--dry-run");
-        return jsonResult(await runPy("library.py", args));
-      },
+      run: async (a: { origin: string; settings?: string; targetDir?: string; dryRun?: boolean }) =>
+        runCore("library_hooks_install", () => library.cmdHooksInstall({
+          target: a.targetDir || undefined, origin: a.origin, settings: a.settings || null, dryRun: !!a.dryRun,
+        })),
     },
     {
       name: "library_hooks_uninstall",
       meta: {
         title: "Uninstall Plugin Hooks",
-        description: "settings.json 에서 이 플러그인의 hook 엔트리를 걷어낸다. needle 은 원장에 기록된 root 라 sha 가 바뀐 뒤에도 정확하다. 캐시 디렉토리는 지우지 않는다(다른 항목이 참조할 수 있음)",
+        description: "Remove this plugin's hook entries from settings.json. The match uses the root recorded in the ledger, so it stays exact after the sha changes. The cache directory is not deleted (other items may reference it)",
         inputSchema: z.object({
           origin: z.string(), settings: z.string().optional(), targetDir: z.string().optional(),
         }), annotations: EDIT,
       },
-      run: async (a: { origin: string; settings?: string; targetDir?: string }) => {
-        const args: string[] = [];
-        if (a.targetDir) args.push("--target", a.targetDir);
-        args.push("hooks-uninstall", "--origin", a.origin);
-        if (a.settings) args.push("--settings", a.settings);
-        return jsonResult(await runPy("library.py", args));
-      },
+      run: async (a: { origin: string; settings?: string; targetDir?: string }) =>
+        runCore("library_hooks_uninstall", () => library.cmdHooksUninstall({
+          target: a.targetDir || undefined, origin: a.origin, settings: a.settings || null,
+        })),
     },
     {
       name: "library_mcp_install",
       meta: {
         title: "Install Plugin MCP Servers",
-        description: "플러그인의 .mcp.json 서버를 설치. scope=user 는 ~/.claude.json, scope=desktop 은 claude_desktop_config.json(Desktop 재시작 필요). **Claude Desktop 에는 /plugin 마켓플레이스가 없어서 플러그인의 MCP 서버를 Desktop 에 꽂는 경로는 이것뿐이다.** ${CLAUDE_PLUGIN_ROOT} 치환은 hooks 와 동일. **네트워크를 타지 않는다** — 미물질화면 거부",
+        description: "Install the servers in a plugin's .mcp.json. scope=user writes ~/.claude.json, scope=desktop writes claude_desktop_config.json (Desktop must be restarted). **Claude Desktop has no /plugin marketplace, so this is the only way to add a plugin's MCP servers to Desktop.** ${CLAUDE_PLUGIN_ROOT} is substituted the same way as for hooks. **Does not use the network**: refused if the plugin is not materialized",
         inputSchema: z.object({
-          origin: z.string(), server: z.string().optional().describe("생략 시 전부"),
+          origin: z.string(), server: z.string().optional().describe("Omit for all"),
           scope: z.enum(["user", "desktop"]).optional(), targetDir: z.string().optional(),
           dryRun: z.boolean().optional(),
         }), annotations: EDIT,
       },
-      run: async (a: { origin: string; server?: string; scope?: string; targetDir?: string; dryRun?: boolean }) => {
-        const args: string[] = [];
-        if (a.targetDir) args.push("--target", a.targetDir);
-        args.push("mcp-install", "--origin", a.origin, "--scope", a.scope || "user");
-        if (a.server) args.push("--server", a.server);
-        if (a.dryRun) args.push("--dry-run");
-        return jsonResult(await runPy("library.py", args));
-      },
+      run: async (a: { origin: string; server?: string; scope?: "user" | "desktop"; targetDir?: string; dryRun?: boolean }) =>
+        runCore("library_mcp_install", () => library.cmdMcpInstall({
+          target: a.targetDir || undefined, origin: a.origin, scope: a.scope || "user", server: a.server || null, dryRun: !!a.dryRun,
+        })),
     },
     {
       name: "library_mcp_uninstall",
       meta: {
         title: "Uninstall Plugin MCP Servers",
-        description: "원장에 기록된 서버 이름만 제거한다. 사용자가 직접 넣은 동명 서버는 건드리지 않는다",
+        description: "Remove only the server names recorded in the ledger. A server of the same name that the user added directly is not touched",
         inputSchema: z.object({
           origin: z.string(), server: z.string().optional(),
           scope: z.enum(["user", "desktop"]).optional(), targetDir: z.string().optional(),
         }), annotations: EDIT,
       },
-      run: async (a: { origin: string; server?: string; scope?: string; targetDir?: string }) => {
-        const args: string[] = [];
-        if (a.targetDir) args.push("--target", a.targetDir);
-        args.push("mcp-uninstall", "--origin", a.origin, "--scope", a.scope || "user");
-        if (a.server) args.push("--server", a.server);
-        return jsonResult(await runPy("library.py", args));
-      },
+      run: async (a: { origin: string; server?: string; scope?: "user" | "desktop"; targetDir?: string }) =>
+        runCore("library_mcp_uninstall", () => library.cmdMcpUninstall({
+          target: a.targetDir || undefined, origin: a.origin, scope: a.scope || "user", server: a.server || null,
+        })),
     },
 
     // ----- 브라우저 열기 -----
@@ -1301,7 +1177,7 @@ export function buildTools(scriptDir: string): ToolDef[] {
       name: "open_in_browser",
       meta: {
         title: "Open Live Dashboard in Browser",
-        description: "[UI 전용] 라이브 대시보드 HTTP 서버(기본 3002)를 필요시 기동하고 사용자의 기본 브라우저에서 연다. 대화에서 설정을 읽거나 고칠 때는 쓰지 않는다",
+        description: "[UI only] Start the live dashboard HTTP server (default port 3002) if needed and open it in the user's default browser. Not for reading or editing config in a conversation",
         inputSchema: z.object({ port: z.number().optional() }), annotations: WRITE,
       },
       run: async (a: { port?: number }) => {
@@ -1309,23 +1185,21 @@ export function buildTools(scriptDir: string): ToolDef[] {
         // 서버가 127.0.0.1 에만 바인딩하므로 주소도 맞춘다. 'localhost' 는 Windows 에서 ::1 로
         // 먼저 해석될 수 있어, IPv4 전용 리스너에 프로브/브라우저가 못 붙는 경우가 생긴다.
         const url = `http://127.0.0.1:${port}/`;
-        const log = path.join(STORE, "dashboard-server.log");
+        const log = path.join(STORE(), "dashboard-server.log");
         let up = await fetch(url).then((r) => r.ok).catch(() => false);
         if (!up) {
-          // 이 프로세스를 띄운 node 로 tsx 를 직접 실행한다(npx·cmd·PowerShell 을 거치지 않음).
+          // 이 프로세스를 띄운 node 로 같은 진입 파일을 HTTP 모드로 직접 실행한다(npx·cmd·PowerShell 을 거치지 않음).
           // Claude Desktop 은 MCP 서버에 PATHEXT 없는 최소 환경만 넘기는데, 그 환경에서 PowerShell 은
           // PATHEXT=.CPL 을 채워 넣고 자식 cmd 는 npx.cmd 를 못 찾는다("'npx'은(는) ... 아닙니다").
           // 실행 파일 경로를 직접 주면 확장자 탐색 자체가 없어 환경에 좌우되지 않는다.
           // stderr 는 스토어의 로그로 받는다 - 안 뜨는 이유가 어디에도 남지 않던 것이 진단을 막았다.
-          const tsx = path.join(scriptDir, "..", "node_modules", "tsx", "dist", "cli.mjs");
-          const srv = path.join(scriptDir, "server.ts");
           let fh: fs.FileHandle | null = null;
           try {
-            await fs.mkdir(STORE, { recursive: true });
+            await fs.mkdir(STORE(), { recursive: true });
             fh = await fs.open(log, "a");
           } catch { /* 로그를 못 열어도 기동은 시도한다 */ }
           const out: number | "ignore" = fh ? fh.fd : "ignore";
-          const child = spawn(process.execPath, [tsx, srv], {
+          const child = spawn(process.execPath, entryArgs(scriptDir, HTTP_FLAG), {
             cwd: scriptDir, detached: true, windowsHide: true,
             stdio: ["ignore", out, out], env: { ...process.env, PORT: String(port) },
           });
@@ -1339,29 +1213,24 @@ export function buildTools(scriptDir: string): ToolDef[] {
         }
         // 이 도구는 spawn 도 브라우저 실행도 fire-and-forget 이라, 프로브 결과가 실패를 담을 수 있는
         // 유일한 신호다. 버리면 서버가 안 떠도 ok:true 가 나가 호출부의 어떤 가드로도 잡을 수 없다.
-        if (!up) return jsonResult(JSON.stringify({ ok: false, code: "server_unreachable", target: String(port), message: `대시보드 서버가 ${port} 에서 응답하지 않습니다. 기동 로그: ${log}`, url, log }));
+        if (!up) return docResult({ ok: false, code: "server_unreachable", message: `The dashboard server is not responding on ${port}. Startup log: ${log}`, target: String(port), url, log });
         openInBrowser(url);
-        return jsonResult(JSON.stringify({ ok: true, code: "ok", message: "라이브 대시보드 브라우저 열기", url }));
+        return docResult({ ok: true, code: "ok", message: "Opened the live dashboard in the browser", url });
       },
     },
   ];
   return defs.map(decorate);
 
   // 실행 중인 watcher 프로세스를 모두 종료(좀비/중복 정리).
-  // watcher.py(python) 가 대상. 구버전 watcher.ps1 상주분도 함께 정리한다.
-  // 커맨드라인 매칭만 쓰면 'watcher.py' 를 인자 문자열로 품은 무관한 셸(이 kill 명령 자신을
-  // 감싼 셸 포함)까지 죽는다 - 프로세스 이름(python/py, powershell)을 함께 걸고, python 쪽은
-  // **이 설치본의 watcher.py 전체 경로**로만 매칭한다(다른 프로젝트의 동명 스크립트 오살 방지.
-  // watcher_start 가 같은 forward-slash 경로로 기동하므로 커맨드라인에 그대로 남는다).
+  // Node watcher(이 설치본의 진입 파일 + --watcher)가 대상. 이전 판의 watcher.py(python) 와
+  // 구버전 watcher.ps1 상주분도 함께 정리한다.
+  // 커맨드라인 매칭만 쓰면 경로를 인자 문자열로 품은 무관한 셸(이 kill 명령 자신을
+  // 감싼 셸 포함)까지 죽는다 - 프로세스 이름(node, python/py, powershell)을 함께 걸고, 경로는
+  // **이 설치본의 전체 경로**로만 매칭한다(다른 설치본이나 다른 프로젝트의 동명 스크립트 오살 방지.
+  // 옛 watcher_start 는 watcher.py 를 forward-slash 경로로 기동했으므로 커맨드라인에 그대로 남는다).
   async function killWatchers(): Promise<void> {
     if (process.platform !== "win32") return;
-    const wpy = path.join(scriptDir, "watcher.py").replace(/\\/g, "/").replace(/'/g, "''");
-    const cmd = "Get-CimInstance Win32_Process | Where-Object { " +
-      `((($_.Name -like 'python*') -or ($_.Name -eq 'py.exe')) -and $_.CommandLine -like '*${wpy}*') -or ` +
-      "(($_.Name -eq 'powershell.exe') -and $_.CommandLine -like '*-File*watcher.ps1*') } | " +
-      "Where-Object { $_.ProcessId -ne $PID } | " +
-      "ForEach-Object { Stop-Process -Id $_.ProcessId -Force }";
-    await pexec("powershell.exe", ["-NoProfile", "-Command", cmd]).catch(() => {});
+    await pexec("powershell.exe", ["-NoProfile", "-Command", watcherKillCommand(scriptDir, false, STORE())]).catch(() => {});
   }
 
   // 기본 브라우저로 경로/URL 열기(로컬 서버이므로 사용자 머신에서 열림).
@@ -1397,8 +1266,9 @@ export function registerAll(server: any, scriptDir: string): void {
   // UI 전용 도구 + 리소스 (REST 에는 불필요)
   registerAppTool(server, "show_config_monitor", {
     title: "Show Config Monitor",
-    description: "Claude 설정 모니터 대시보드(설정 카드 + 파일 클릭 시 diff history) 열기",
+    description: "Open the Claude config monitor dashboard (config cards, plus diff history when a file is clicked)",
     inputSchema: {},
+    annotations: READ,
     _meta: { ui: { resourceUri: RESOURCE_URI } },
   }, async () => text("Config monitor dashboard opened."));
 
