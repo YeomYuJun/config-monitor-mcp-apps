@@ -1,0 +1,23 @@
+{
+  "name": "config-monitor",
+  "displayName": "Config Monitor",
+  "version": "0.1.0",
+  "description": "See, edit and roll back the Claude settings on this PC (skills, agents, hooks, MCP servers, permissions, plugins, CLAUDE.md) from one dashboard, with snapshots of every change",
+  "author": {
+    "name": "YeomYuJun",
+    "url": "https://github.com/YeomYuJun"
+  },
+  "homepage": "https://github.com/YeomYuJun/config-monitor-mcp-apps",
+  "repository": "https://github.com/YeomYuJun/config-monitor-mcp-apps",
+  "license": "MIT",
+  "keywords": ["settings", "configuration", "snapshots", "mcp", "dashboard"],
+  "userConfig": {
+    "language": {
+      "type": "string",
+      "title": "Dashboard language",
+      "description": "auto keeps the language chosen in the dashboard (Korean by default), en starts in English, ko starts in Korean",
+      "options": ["auto", "en", "ko"],
+      "default": "auto"
+    }
+  }
+}
