@@ -1,0 +1,958 @@
+{
+  "id": "claude_config.dump-filtered",
+  "module": "claude_config",
+  "steps": [
+    {
+      "argv": [
+        "dump",
+        "--projects",
+        "{PROJECT}/.claude",
+        "--sections",
+        "skills",
+        "hooks",
+        "perm",
+        "--compact"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Config details",
+        "generated": "<TIME>",
+        "sources": {
+          "claude_json": "<ROOT>\\Users\\alex\\.claude.json",
+          "code_settings": "<ROOT>\\Users\\alex\\.claude\\settings.json",
+          "skills_dir": "<ROOT>\\Users\\alex\\.claude\\skills",
+          "agents_dir": "<ROOT>\\Users\\alex\\.claude\\agents",
+          "commands_dir": "<ROOT>\\Users\\alex\\.claude\\commands",
+          "plugins_dir": null,
+          "rules_dir": "<ROOT>\\Users\\alex\\.claude\\rules",
+          "output_styles_dir": "<ROOT>\\Users\\alex\\.claude\\output-styles",
+          "user_claude_md": "<ROOT>\\Users\\alex\\.claude\\CLAUDE.md",
+          "workflows_dir": null,
+          "themes_dir": null,
+          "agent_memory_dir": null,
+          "scheduled_dir": null,
+          "desktop_config": "<ROOT>\\Users\\alex\\AppData\\Roaming\\Claude\\claude_desktop_config.json",
+          "desktop_skill_manifest_glob": []
+        },
+        "sections": [
+          {
+            "id": "perm",
+            "title": "Permissions · 6",
+            "group": "exec",
+            "source": "<ROOT>\\Users\\alex\\.claude\\settings.json",
+            "cards": [
+              {
+                "name": "allow",
+                "badge": "4",
+                "source": "<ROOT>\\Users\\alex\\.claude\\settings.json",
+                "edit": {
+                  "kind": "perm",
+                  "permKind": "allow",
+                  "items": [
+                    "Read",
+                    "Bash(git status)",
+                    "Bash(git diff:*)",
+                    "Bash(npm test)"
+                  ],
+                  "settings": "<ROOT>\\Users\\alex\\.claude\\settings.json"
+                }
+              },
+              {
+                "name": "deny",
+                "badge": "2",
+                "source": "<ROOT>\\Users\\alex\\.claude\\settings.json",
+                "edit": {
+                  "kind": "perm",
+                  "permKind": "deny",
+                  "items": [
+                    "Read(./.env)",
+                    "Read(./secrets/**)"
+                  ],
+                  "settings": "<ROOT>\\Users\\alex\\.claude\\settings.json"
+                }
+              },
+              {
+                "name": "ask",
+                "badge": "0",
+                "source": "<ROOT>\\Users\\alex\\.claude\\settings.json",
+                "edit": {
+                  "kind": "perm",
+                  "permKind": "ask",
+                  "items": [],
+                  "settings": "<ROOT>\\Users\\alex\\.claude\\settings.json"
+                }
+              },
+              {
+                "name": "allow",
+                "badge": "3",
+                "scope": "project",
+                "project": "<ROOT>\\work\\acme-web",
+                "source": "<ROOT>\\work\\acme-web\\.claude\\settings.json",
+                "edit": {
+                  "kind": "perm",
+                  "permKind": "allow",
+                  "items": [
+                    "Bash(npm test)",
+                    "Bash(npm run lint)",
+                    "Bash(npx playwright test)"
+                  ],
+                  "settings": "<ROOT>\\work\\acme-web\\.claude\\settings.json"
+                }
+              },
+              {
+                "name": "deny",
+                "badge": "0",
+                "scope": "project",
+                "project": "<ROOT>\\work\\acme-web",
+                "source": "<ROOT>\\work\\acme-web\\.claude\\settings.json",
+                "edit": {
+                  "kind": "perm",
+                  "permKind": "deny",
+                  "items": [],
+                  "settings": "<ROOT>\\work\\acme-web\\.claude\\settings.json"
+                }
+              },
+              {
+                "name": "ask",
+                "badge": "0",
+                "scope": "project",
+                "project": "<ROOT>\\work\\acme-web",
+                "source": "<ROOT>\\work\\acme-web\\.claude\\settings.json",
+                "edit": {
+                  "kind": "perm",
+                  "permKind": "ask",
+                  "items": [],
+                  "settings": "<ROOT>\\work\\acme-web\\.claude\\settings.json"
+                }
+              }
+            ],
+            "load": "never",
+            "note": "런타임 판정"
+          },
+          {
+            "id": "hooks",
+            "title": "Hooks · 2",
+            "group": "exec",
+            "source": "<ROOT>\\Users\\alex\\.claude\\settings.json",
+            "cards": [
+              {
+                "name": "PostToolUse",
+                "badge": "hook",
+                "source": "<ROOT>\\Users\\alex\\.claude\\settings.json",
+                "edit": {
+                  "kind": "hook",
+                  "event": "PostToolUse",
+                  "items": [
+                    "node \"<ROOT>\\tools\\my-tools\\hooks\\format-on-save\\index.js\""
+                  ],
+                  "settings": "<ROOT>\\Users\\alex\\.claude\\settings.json"
+                }
+              },
+              {
+                "name": "PreToolUse",
+                "badge": "hook",
+                "source": "<ROOT>\\Users\\alex\\.claude\\settings.json",
+                "edit": {
+                  "kind": "hook",
+                  "event": "PreToolUse",
+                  "items": [
+                    "node \"<ROOT>\\tools\\my-tools\\hooks\\guard-secrets\\index.js\""
+                  ],
+                  "settings": "<ROOT>\\Users\\alex\\.claude\\settings.json"
+                }
+              }
+            ],
+            "load": "never",
+            "note": "런타임 실행"
+          },
+          {
+            "id": "skills",
+            "title": "Skills (code) · 5",
+            "group": "extensions",
+            "source": "<ROOT>\\Users\\alex\\.claude\\skills",
+            "cards": [
+              {
+                "name": "changelog",
+                "badge": "SKILL.md",
+                "edit": {
+                  "kind": "skill",
+                  "name": "changelog"
+                },
+                "desc": "Keep CHANGELOG.md in step with releases"
+              },
+              {
+                "name": "code-review",
+                "badge": "SKILL.md",
+                "edit": {
+                  "kind": "skill",
+                  "name": "code-review"
+                },
+                "desc": "Review a diff for correctness and readability"
+              },
+              {
+                "name": "debug-trace",
+                "badge": "SKILL.md",
+                "edit": {
+                  "kind": "skill",
+                  "name": "debug-trace"
+                },
+                "desc": "Trace a failing request through the logs"
+              },
+              {
+                "name": "release-notes",
+                "badge": "SKILL.md",
+                "edit": {
+                  "kind": "skill",
+                  "name": "release-notes"
+                },
+                "desc": "Draft release notes from merged PRs"
+              },
+              {
+                "name": "deploy-preview",
+                "badge": "SKILL.md",
+                "scope": "project",
+                "project": "<ROOT>\\work\\acme-web",
+                "edit": {
+                  "kind": "skill",
+                  "name": "deploy-preview",
+                  "dir": "<ROOT>\\work\\acme-web\\.claude\\skills"
+                },
+                "desc": "Deploy a preview build for this branch"
+              }
+            ],
+            "load": "eager",
+            "note": "name+description 만 · 본문 LAZY"
+          }
+        ]
+      }
+    },
+    {
+      "argv": [
+        "dump",
+        "--projects",
+        "{PROJECT}/.claude",
+        "--scope",
+        "project",
+        "--compact"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Config details",
+        "generated": "<TIME>",
+        "sources": {
+          "claude_json": "<ROOT>\\Users\\alex\\.claude.json",
+          "code_settings": "<ROOT>\\Users\\alex\\.claude\\settings.json",
+          "skills_dir": "<ROOT>\\Users\\alex\\.claude\\skills",
+          "agents_dir": "<ROOT>\\Users\\alex\\.claude\\agents",
+          "commands_dir": "<ROOT>\\Users\\alex\\.claude\\commands",
+          "plugins_dir": null,
+          "rules_dir": "<ROOT>\\Users\\alex\\.claude\\rules",
+          "output_styles_dir": "<ROOT>\\Users\\alex\\.claude\\output-styles",
+          "user_claude_md": "<ROOT>\\Users\\alex\\.claude\\CLAUDE.md",
+          "workflows_dir": null,
+          "themes_dir": null,
+          "agent_memory_dir": null,
+          "scheduled_dir": null,
+          "desktop_config": "<ROOT>\\Users\\alex\\AppData\\Roaming\\Claude\\claude_desktop_config.json",
+          "desktop_skill_manifest_glob": []
+        },
+        "sections": [
+          {
+            "id": "mcp-desktop",
+            "title": "MCP Servers (desktop) · 0",
+            "group": "connect",
+            "source": "<ROOT>\\Users\\alex\\AppData\\Roaming\\Claude\\claude_desktop_config.json",
+            "cards": [],
+            "load": "never"
+          },
+          {
+            "id": "claude-json",
+            "title": "Claude Code (.claude.json) · 0",
+            "group": "connect",
+            "source": "<ROOT>\\Users\\alex\\.claude.json",
+            "cards": [],
+            "load": "never",
+            "note": "앱 상태 · 전역 MCP · trust"
+          },
+          {
+            "id": "mcp-project",
+            "title": "MCP Servers (project) · 1",
+            "group": "connect",
+            "source": null,
+            "cards": [
+              {
+                "name": "postgres",
+                "badge": "stdio",
+                "scope": "project",
+                "project": "<ROOT>\\work\\acme-web",
+                "source": "<ROOT>\\work\\acme-web\\.mcp.json"
+              }
+            ],
+            "load": "lazy",
+            "note": "연결/스키마"
+          },
+          {
+            "id": "perm",
+            "title": "Permissions · 3",
+            "group": "exec",
+            "source": "<ROOT>\\Users\\alex\\.claude\\settings.json",
+            "cards": [
+              {
+                "name": "allow",
+                "badge": "3",
+                "scope": "project",
+                "project": "<ROOT>\\work\\acme-web",
+                "source": "<ROOT>\\work\\acme-web\\.claude\\settings.json",
+                "edit": {
+                  "kind": "perm",
+                  "permKind": "allow",
+                  "items": [
+                    "Bash(npm test)",
+                    "Bash(npm run lint)",
+                    "Bash(npx playwright test)"
+                  ],
+                  "settings": "<ROOT>\\work\\acme-web\\.claude\\settings.json"
+                }
+              },
+              {
+                "name": "deny",
+                "badge": "0",
+                "scope": "project",
+                "project": "<ROOT>\\work\\acme-web",
+                "source": "<ROOT>\\work\\acme-web\\.claude\\settings.json",
+                "edit": {
+                  "kind": "perm",
+                  "permKind": "deny",
+                  "items": [],
+                  "settings": "<ROOT>\\work\\acme-web\\.claude\\settings.json"
+                }
+              },
+              {
+                "name": "ask",
+                "badge": "0",
+                "scope": "project",
+                "project": "<ROOT>\\work\\acme-web",
+                "source": "<ROOT>\\work\\acme-web\\.claude\\settings.json",
+                "edit": {
+                  "kind": "perm",
+                  "permKind": "ask",
+                  "items": [],
+                  "settings": "<ROOT>\\work\\acme-web\\.claude\\settings.json"
+                }
+              }
+            ],
+            "load": "never",
+            "note": "런타임 판정"
+          },
+          {
+            "id": "hooks",
+            "title": "Hooks · 0",
+            "group": "exec",
+            "source": "<ROOT>\\Users\\alex\\.claude\\settings.json",
+            "cards": [],
+            "load": "never",
+            "note": "런타임 실행"
+          },
+          {
+            "id": "claude-md",
+            "title": "CLAUDE.md · 1",
+            "group": "instructions",
+            "source": "<ROOT>\\Users\\alex\\.claude\\CLAUDE.md",
+            "cards": [
+              {
+                "name": "CLAUDE.md",
+                "badge": "CLAUDE.md",
+                "scope": "project",
+                "project": "<ROOT>\\work\\acme-web",
+                "source": "<ROOT>\\work\\acme-web\\CLAUDE.md",
+                "load": "eager"
+              }
+            ],
+            "load": "eager",
+            "note": "세션마다 전문 적재"
+          },
+          {
+            "id": "rules",
+            "title": "Rules · 0",
+            "group": "instructions",
+            "source": "<ROOT>\\Users\\alex\\.claude\\rules",
+            "cards": [],
+            "note": "paths: 있으면 LAZY · 없으면 EAGER"
+          },
+          {
+            "id": "output-styles",
+            "title": "Output Styles · 0",
+            "group": "instructions",
+            "source": "<ROOT>\\Users\\alex\\.claude\\output-styles",
+            "cards": [],
+            "note": "outputStyle 로 선택된 것만 EAGER"
+          },
+          {
+            "id": "workflows",
+            "title": "Workflows · 0",
+            "group": "extensions",
+            "source": null,
+            "cards": [],
+            "load": "lazy",
+            "note": "각 파일이 /<name>"
+          },
+          {
+            "id": "themes",
+            "title": "Themes · 0",
+            "group": "env",
+            "source": null,
+            "cards": [],
+            "load": "never",
+            "note": "/theme 목록 · hot-reload"
+          },
+          {
+            "id": "agent-memory",
+            "title": "Agent Memory · 0",
+            "group": "memory",
+            "source": null,
+            "cards": [],
+            "load": "lazy",
+            "note": "서브에이전트 memory"
+          },
+          {
+            "id": "project-memory",
+            "title": "Project Memory · 0",
+            "group": "memory",
+            "source": "<ROOT>\\Users\\alex\\.claude\\projects",
+            "cards": [],
+            "note": "MEMORY.md EAGER(앞 200줄/25KB) · topic LAZY"
+          },
+          {
+            "id": "worktreeinclude",
+            "title": ".worktreeinclude · 0",
+            "group": "env",
+            "source": null,
+            "cards": [],
+            "load": "lazy",
+            "note": "worktree 생성 시 복사 목록"
+          },
+          {
+            "id": "skills",
+            "title": "Skills (code) · 1",
+            "group": "extensions",
+            "source": "<ROOT>\\Users\\alex\\.claude\\skills",
+            "cards": [
+              {
+                "name": "deploy-preview",
+                "badge": "SKILL.md",
+                "scope": "project",
+                "project": "<ROOT>\\work\\acme-web",
+                "edit": {
+                  "kind": "skill",
+                  "name": "deploy-preview",
+                  "dir": "<ROOT>\\work\\acme-web\\.claude\\skills"
+                },
+                "desc": "Deploy a preview build for this branch"
+              }
+            ],
+            "load": "eager",
+            "note": "name+description 만 · 본문 LAZY"
+          },
+          {
+            "id": "agents",
+            "title": "Agents · 1",
+            "group": "extensions",
+            "source": "<ROOT>\\Users\\alex\\.claude\\agents",
+            "cards": [
+              {
+                "name": "planner",
+                "badge": "agent",
+                "scope": "project",
+                "project": "<ROOT>\\work\\acme-web",
+                "edit": {
+                  "kind": "agent",
+                  "name": "planner",
+                  "dir": "<ROOT>\\work\\acme-web\\.claude\\agents"
+                },
+                "desc": "Plans work against this repo's conventions"
+              }
+            ],
+            "load": "eager",
+            "note": "description 만 · 본문 LAZY"
+          },
+          {
+            "id": "commands",
+            "title": "Commands · 0",
+            "group": "extensions",
+            "source": "<ROOT>\\Users\\alex\\.claude\\commands",
+            "cards": [],
+            "load": "lazy",
+            "note": "본문은 호출 시"
+          },
+          {
+            "id": "plugins",
+            "title": "Plugins · 0",
+            "group": "extensions",
+            "source": "<ROOT>\\Users\\alex\\.claude\\plugins",
+            "cards": [],
+            "load": "never",
+            "note": "관리 단위 · 항목은 각 섹션에 합류"
+          },
+          {
+            "id": "scheduled",
+            "title": "Scheduled Tasks · 0",
+            "group": "env",
+            "source": null,
+            "cards": []
+          },
+          {
+            "id": "desktop-skills",
+            "title": "Desktop Skills · 0",
+            "group": "connect",
+            "source": null,
+            "cards": [],
+            "note": "user 0 / anthropic 0"
+          }
+        ]
+      }
+    },
+    {
+      "argv": [
+        "dump",
+        "--projects",
+        "{PROJECT}/.claude",
+        "--query",
+        "planner",
+        "--compact"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Config details",
+        "generated": "<TIME>",
+        "sources": {
+          "claude_json": "<ROOT>\\Users\\alex\\.claude.json",
+          "code_settings": "<ROOT>\\Users\\alex\\.claude\\settings.json",
+          "skills_dir": "<ROOT>\\Users\\alex\\.claude\\skills",
+          "agents_dir": "<ROOT>\\Users\\alex\\.claude\\agents",
+          "commands_dir": "<ROOT>\\Users\\alex\\.claude\\commands",
+          "plugins_dir": null,
+          "rules_dir": "<ROOT>\\Users\\alex\\.claude\\rules",
+          "output_styles_dir": "<ROOT>\\Users\\alex\\.claude\\output-styles",
+          "user_claude_md": "<ROOT>\\Users\\alex\\.claude\\CLAUDE.md",
+          "workflows_dir": null,
+          "themes_dir": null,
+          "agent_memory_dir": null,
+          "scheduled_dir": null,
+          "desktop_config": "<ROOT>\\Users\\alex\\AppData\\Roaming\\Claude\\claude_desktop_config.json",
+          "desktop_skill_manifest_glob": []
+        },
+        "sections": [
+          {
+            "id": "mcp-desktop",
+            "title": "MCP Servers (desktop) · 0",
+            "group": "connect",
+            "source": "<ROOT>\\Users\\alex\\AppData\\Roaming\\Claude\\claude_desktop_config.json",
+            "cards": [],
+            "load": "never"
+          },
+          {
+            "id": "claude-json",
+            "title": "Claude Code (.claude.json) · 0",
+            "group": "connect",
+            "source": "<ROOT>\\Users\\alex\\.claude.json",
+            "cards": [],
+            "load": "never",
+            "note": "앱 상태 · 전역 MCP · trust"
+          },
+          {
+            "id": "mcp-project",
+            "title": "MCP Servers (project) · 0",
+            "group": "connect",
+            "source": null,
+            "cards": [],
+            "load": "lazy",
+            "note": "연결/스키마"
+          },
+          {
+            "id": "perm",
+            "title": "Permissions · 0",
+            "group": "exec",
+            "source": "<ROOT>\\Users\\alex\\.claude\\settings.json",
+            "cards": [],
+            "load": "never",
+            "note": "런타임 판정"
+          },
+          {
+            "id": "hooks",
+            "title": "Hooks · 0",
+            "group": "exec",
+            "source": "<ROOT>\\Users\\alex\\.claude\\settings.json",
+            "cards": [],
+            "load": "never",
+            "note": "런타임 실행"
+          },
+          {
+            "id": "claude-md",
+            "title": "CLAUDE.md · 0",
+            "group": "instructions",
+            "source": "<ROOT>\\Users\\alex\\.claude\\CLAUDE.md",
+            "cards": [],
+            "load": "eager",
+            "note": "세션마다 전문 적재"
+          },
+          {
+            "id": "rules",
+            "title": "Rules · 0",
+            "group": "instructions",
+            "source": "<ROOT>\\Users\\alex\\.claude\\rules",
+            "cards": [],
+            "note": "paths: 있으면 LAZY · 없으면 EAGER"
+          },
+          {
+            "id": "output-styles",
+            "title": "Output Styles · 0",
+            "group": "instructions",
+            "source": "<ROOT>\\Users\\alex\\.claude\\output-styles",
+            "cards": [],
+            "note": "outputStyle 로 선택된 것만 EAGER"
+          },
+          {
+            "id": "workflows",
+            "title": "Workflows · 0",
+            "group": "extensions",
+            "source": null,
+            "cards": [],
+            "load": "lazy",
+            "note": "각 파일이 /<name>"
+          },
+          {
+            "id": "themes",
+            "title": "Themes · 0",
+            "group": "env",
+            "source": null,
+            "cards": [],
+            "load": "never",
+            "note": "/theme 목록 · hot-reload"
+          },
+          {
+            "id": "agent-memory",
+            "title": "Agent Memory · 0",
+            "group": "memory",
+            "source": null,
+            "cards": [],
+            "load": "lazy",
+            "note": "서브에이전트 memory"
+          },
+          {
+            "id": "project-memory",
+            "title": "Project Memory · 0",
+            "group": "memory",
+            "source": "<ROOT>\\Users\\alex\\.claude\\projects",
+            "cards": [],
+            "note": "MEMORY.md EAGER(앞 200줄/25KB) · topic LAZY"
+          },
+          {
+            "id": "worktreeinclude",
+            "title": ".worktreeinclude · 0",
+            "group": "env",
+            "source": null,
+            "cards": [],
+            "load": "lazy",
+            "note": "worktree 생성 시 복사 목록"
+          },
+          {
+            "id": "skills",
+            "title": "Skills (code) · 0",
+            "group": "extensions",
+            "source": "<ROOT>\\Users\\alex\\.claude\\skills",
+            "cards": [],
+            "load": "eager",
+            "note": "name+description 만 · 본문 LAZY"
+          },
+          {
+            "id": "agents",
+            "title": "Agents · 2",
+            "group": "extensions",
+            "source": "<ROOT>\\Users\\alex\\.claude\\agents",
+            "cards": [
+              {
+                "name": "planner",
+                "badge": "agent",
+                "edit": {
+                  "kind": "agent",
+                  "name": "planner"
+                },
+                "desc": "Breaks a feature into reviewable steps"
+              },
+              {
+                "name": "planner",
+                "badge": "agent",
+                "scope": "project",
+                "project": "<ROOT>\\work\\acme-web",
+                "edit": {
+                  "kind": "agent",
+                  "name": "planner",
+                  "dir": "<ROOT>\\work\\acme-web\\.claude\\agents"
+                },
+                "desc": "Plans work against this repo's conventions"
+              }
+            ],
+            "load": "eager",
+            "note": "description 만 · 본문 LAZY"
+          },
+          {
+            "id": "commands",
+            "title": "Commands · 0",
+            "group": "extensions",
+            "source": "<ROOT>\\Users\\alex\\.claude\\commands",
+            "cards": [],
+            "load": "lazy",
+            "note": "본문은 호출 시"
+          },
+          {
+            "id": "plugins",
+            "title": "Plugins · 0",
+            "group": "extensions",
+            "source": "<ROOT>\\Users\\alex\\.claude\\plugins",
+            "cards": [],
+            "load": "never",
+            "note": "관리 단위 · 항목은 각 섹션에 합류"
+          },
+          {
+            "id": "scheduled",
+            "title": "Scheduled Tasks · 0",
+            "group": "env",
+            "source": null,
+            "cards": []
+          },
+          {
+            "id": "desktop-skills",
+            "title": "Desktop Skills · 0",
+            "group": "connect",
+            "source": null,
+            "cards": [],
+            "note": "user 0 / anthropic 0"
+          }
+        ]
+      }
+    },
+    {
+      "argv": [
+        "dump",
+        "--sections",
+        "mcp-desktop",
+        "claude-json"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Config details",
+        "generated": "<TIME>",
+        "sources": {
+          "claude_json": "<ROOT>\\Users\\alex\\.claude.json",
+          "code_settings": "<ROOT>\\Users\\alex\\.claude\\settings.json",
+          "skills_dir": "<ROOT>\\Users\\alex\\.claude\\skills",
+          "agents_dir": "<ROOT>\\Users\\alex\\.claude\\agents",
+          "commands_dir": "<ROOT>\\Users\\alex\\.claude\\commands",
+          "plugins_dir": null,
+          "rules_dir": "<ROOT>\\Users\\alex\\.claude\\rules",
+          "output_styles_dir": "<ROOT>\\Users\\alex\\.claude\\output-styles",
+          "user_claude_md": "<ROOT>\\Users\\alex\\.claude\\CLAUDE.md",
+          "workflows_dir": null,
+          "themes_dir": null,
+          "agent_memory_dir": null,
+          "scheduled_dir": null,
+          "desktop_config": "<ROOT>\\Users\\alex\\AppData\\Roaming\\Claude\\claude_desktop_config.json",
+          "desktop_skill_manifest_glob": []
+        },
+        "sections": [
+          {
+            "id": "mcp-desktop",
+            "title": "MCP Servers (desktop) · 2",
+            "group": "connect",
+            "source": "<ROOT>\\Users\\alex\\AppData\\Roaming\\Claude\\claude_desktop_config.json",
+            "cards": [
+              {
+                "name": "filesystem",
+                "badge": "stdio",
+                "ok": true,
+                "kv": [
+                  [
+                    "command",
+                    "npx"
+                  ],
+                  [
+                    "args",
+                    "-y @modelcontextprotocol/server-filesystem <ROOT>\\work\\acme-web"
+                  ],
+                  [
+                    "env",
+                    "-"
+                  ]
+                ],
+                "edit": {
+                  "kind": "mcp",
+                  "scope": "desktop",
+                  "name": "filesystem"
+                }
+              },
+              {
+                "name": "notes",
+                "badge": "stdio",
+                "ok": true,
+                "kv": [
+                  [
+                    "command",
+                    "node"
+                  ],
+                  [
+                    "args",
+                    "<ROOT>\\tools\\my-tools\\servers\\notes\\server.js"
+                  ],
+                  [
+                    "env",
+                    "-"
+                  ]
+                ],
+                "edit": {
+                  "kind": "mcp",
+                  "scope": "desktop",
+                  "name": "notes"
+                }
+              },
+              {
+                "name": "＋ 새 MCP 서버",
+                "badge": "add",
+                "ok": false,
+                "kv": [
+                  [
+                    "형식",
+                    "name {\"command\":\"npx\",\"args\":[...]}"
+                  ]
+                ],
+                "edit": {
+                  "kind": "mcp-add",
+                  "scope": "desktop"
+                }
+              }
+            ],
+            "load": "never"
+          },
+          {
+            "id": "claude-json",
+            "title": "Claude Code (.claude.json) · 4",
+            "group": "connect",
+            "source": "<ROOT>\\Users\\alex\\.claude.json",
+            "cards": [
+              {
+                "name": "전역 요약",
+                "badge": "claude.json",
+                "ok": true,
+                "kv": [
+                  [
+                    "global MCP",
+                    "github, notes"
+                  ],
+                  [
+                    "projects",
+                    "1"
+                  ],
+                  [
+                    "account",
+                    "-"
+                  ],
+                  [
+                    "dropped",
+                    "history(노이즈) 제외 · 관심 키만 선별 추출"
+                  ]
+                ]
+              },
+              {
+                "name": "github",
+                "badge": "global mcp",
+                "ok": true,
+                "kv": [
+                  [
+                    "command",
+                    "npx"
+                  ],
+                  [
+                    "args",
+                    "-y @modelcontextprotocol/server-github"
+                  ]
+                ],
+                "edit": {
+                  "kind": "mcp",
+                  "scope": "user",
+                  "name": "github"
+                }
+              },
+              {
+                "name": "notes",
+                "badge": "global mcp",
+                "ok": true,
+                "kv": [
+                  [
+                    "command",
+                    "node"
+                  ],
+                  [
+                    "args",
+                    "<ROOT>\\tools\\my-tools\\servers\\notes\\server.js"
+                  ]
+                ],
+                "edit": {
+                  "kind": "mcp",
+                  "scope": "user",
+                  "name": "notes"
+                }
+              },
+              {
+                "name": "＋ 새 전역 MCP 서버",
+                "badge": "add",
+                "ok": false,
+                "kv": [
+                  [
+                    "형식",
+                    "name {\"command\":\"npx\",\"args\":[...]}"
+                  ]
+                ],
+                "edit": {
+                  "kind": "mcp-add",
+                  "scope": "user"
+                }
+              },
+              {
+                "name": "acme-web",
+                "badge": "project",
+                "ok": false,
+                "kv": [
+                  [
+                    "path",
+                    "<ROOT>/work/acme-web"
+                  ],
+                  [
+                    "allowedTools",
+                    "1"
+                  ],
+                  [
+                    "mcpServers",
+                    "-"
+                  ],
+                  [
+                    "trust",
+                    "True"
+                  ]
+                ]
+              }
+            ],
+            "load": "never",
+            "note": "앱 상태 · 전역 MCP · trust"
+          }
+        ]
+      }
+    }
+  ]
+}

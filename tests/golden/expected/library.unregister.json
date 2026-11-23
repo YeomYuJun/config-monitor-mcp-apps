@@ -1,0 +1,62 @@
+{
+  "id": "library.unregister",
+  "module": "library",
+  "steps": [
+    {
+      "argv": [
+        "unregister",
+        "--lib",
+        "{LIB}"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "refused",
+        "message": "A path set by the CLAUDE_CONFIG_LIBRARIES environment variable cannot be removed",
+        "target": "<ROOT>\\tools\\my-tools"
+      }
+    },
+    {
+      "argv": [
+        "unregister",
+        "--origin",
+        "remote:nope"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "noop",
+        "message": "Already absent (no-op)",
+        "removed": false
+      }
+    },
+    {
+      "argv": [
+        "unregister",
+        "--origin",
+        "market:nope"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "noop",
+        "message": "Already absent (no-op)",
+        "removed": false
+      }
+    },
+    {
+      "argv": [
+        "unregister",
+        "--origin",
+        "bogus:x"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "invalid_arg",
+        "message": "Invalid origin format: bogus:x",
+        "target": "bogus:x"
+      }
+    }
+  ]
+}

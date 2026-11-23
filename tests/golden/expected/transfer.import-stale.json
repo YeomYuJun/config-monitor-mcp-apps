@@ -1,0 +1,65 @@
+{
+  "id": "transfer.import-stale",
+  "module": "transfer",
+  "steps": [
+    {
+      "argv": [
+        "apply",
+        "--bundle",
+        "{BUNDLE}",
+        "--plan-id",
+        "0000000000000000"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "plan_stale",
+        "message": "Targets on this PC or path pairs changed after the comparison. Compare again and check",
+        "target": "<ROOT>\\bundles\\old-laptop",
+        "plan_id": "<HEX>"
+      }
+    },
+    {
+      "argv": [
+        "plan",
+        "--bundle",
+        "{ROOT}/no-bundle"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "bundle_invalid",
+        "message": "Not a bundle (must be a folder or a .cmbundle zip): <ROOT>\\no-bundle",
+        "target": "<ROOT>\\no-bundle"
+      }
+    },
+    {
+      "argv": [
+        "plan"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "invalid_arg",
+        "message": "One of --bundle or --sync-from is required",
+        "target": "--bundle"
+      }
+    },
+    {
+      "argv": [
+        "plan",
+        "--bundle",
+        "{BUNDLE}",
+        "--secrets",
+        "[1]"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "invalid_arg",
+        "message": "--secrets must be a JSON object",
+        "target": "--secrets"
+      }
+    }
+  ]
+}

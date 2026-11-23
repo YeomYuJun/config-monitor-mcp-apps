@@ -1,0 +1,49 @@
+{
+  "id": "config_edit.outputstyle",
+  "module": "config_edit",
+  "steps": [
+    {
+      "argv": [
+        "outputstyle-set",
+        ""
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Output style cleared",
+        "changed": true,
+        "file": "<ROOT>\\Users\\alex\\.claude\\settings.json",
+        "backup": "<ROOT>\\Users\\alex\\.claude\\settings.json.<TS14>.bak"
+      }
+    },
+    {
+      "argv": [
+        "outputstyle-set",
+        ""
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "noop",
+        "message": "Output style cleared (no-op)",
+        "changed": false
+      }
+    },
+    {
+      "argv": [
+        "outputstyle-set",
+        "concise"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Output style set: concise",
+        "changed": true,
+        "file": "<ROOT>\\Users\\alex\\.claude\\settings.json",
+        "backup": "<ROOT>\\Users\\alex\\.claude\\settings.json.<TS14>.bak"
+      }
+    }
+  ]
+}

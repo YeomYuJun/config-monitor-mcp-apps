@@ -1,0 +1,35 @@
+{
+  "id": "config_edit.invalid",
+  "module": "config_edit",
+  "steps": [
+    {
+      "argv": [
+        "--settings",
+        "{ROOT}/x/settings.json",
+        "perm-add",
+        "allow",
+        "Read"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "invalid_arg",
+        "message": "Invalid settings path (only <...>/.claude/settings[.local].json is allowed): '<ROOT>\\x\\settings.json'",
+        "target": "<ROOT>\\x\\settings.json"
+      }
+    },
+    {
+      "argv": [
+        "perm-add",
+        "maybe",
+        "Read"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "invalid_arg",
+        "message": "config_edit perm-add: argument kind: invalid choice: 'maybe' (choose from allow, deny, ask)"
+      }
+    }
+  ]
+}

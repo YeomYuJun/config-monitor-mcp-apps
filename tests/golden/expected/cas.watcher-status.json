@@ -1,0 +1,19 @@
+{
+  "id": "cas.watcher-status",
+  "module": "cas",
+  "steps": [
+    {
+      "argv": [
+        "watcher-status"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Watcher status",
+        "running": false,
+        "reason": "watcher.json not found (watcher is not running)"
+      }
+    }
+  ]
+}

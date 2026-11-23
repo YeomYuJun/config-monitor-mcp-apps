@@ -1,0 +1,35 @@
+{
+  "id": "cas.cat",
+  "module": "cas",
+  "steps": [
+    {
+      "argv": [
+        "cat",
+        "{CLAUDE}/settings.json",
+        "--json"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "settings.json",
+        "path": "<ROOT>\\Users\\alex\\.claude\\settings.json",
+        "content": "{\r\n  \"model\": \"opus\",\r\n  \"outputStyle\": \"concise\",\r\n  \"permissions\": {\r\n    \"allow\": [\r\n      \"Read\",\r\n      \"Bash(git status)\",\r\n      \"Bash(git diff:*)\",\r\n      \"Bash(npm test)\"\r\n    ],\r\n    \"deny\": [\r\n      \"Read(./.env)\",\r\n      \"Read(./secrets/**)\"\r\n    ]\r\n  },\r\n  \"hooks\": {\r\n    \"PostToolUse\": [\r\n      {\r\n        \"matcher\": \"Edit|Write\",\r\n        \"hooks\": [\r\n          {\r\n            \"type\": \"command\",\r\n            \"command\": \"node \\\"<ROOT>\\\\tools\\\\my-tools\\\\hooks\\\\format-on-save\\\\index.js\\\"\"\r\n          }\r\n        ]\r\n      }\r\n    ],\r\n    \"PreToolUse\": [\r\n      {\r\n        \"matcher\": \"Bash\",\r\n        \"hooks\": [\r\n          {\r\n            \"type\": \"command\",\r\n            \"command\": \"node \\\"<ROOT>\\\\tools\\\\my-tools\\\\hooks\\\\guard-secrets\\\\index.js\\\"\"\r\n          }\r\n        ]\r\n      }\r\n    ]\r\n  }\r\n}"
+      }
+    },
+    {
+      "argv": [
+        "cat",
+        "{CLAUDE}/rules/style.md",
+        "--json"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "not_tracked",
+        "message": "Not a tracked file: <ROOT>\\Users\\alex\\.claude\\rules\\style.md",
+        "target": "<ROOT>\\Users\\alex\\.claude\\rules\\style.md"
+      }
+    }
+  ]
+}

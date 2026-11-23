@@ -1,0 +1,49 @@
+{
+  "id": "config_edit.memory",
+  "module": "config_edit",
+  "steps": [
+    {
+      "argv": [
+        "memory-remove",
+        "x"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "invalid_arg",
+        "message": "memory-remove requires --memory-dir",
+        "target": "--memory-dir"
+      }
+    },
+    {
+      "argv": [
+        "--memory-dir",
+        "{ROOT}/not-memory",
+        "memory-remove",
+        "x"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "invalid_arg",
+        "message": "Invalid memory directory (only <...>/projects/<name>/memory is allowed): '<ROOT>\\not-memory'",
+        "target": "<ROOT>\\not-memory"
+      }
+    },
+    {
+      "argv": [
+        "--memory-dir",
+        "{CLAUDE}/projects/demo/memory",
+        "memory-remove",
+        "x"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "not_found",
+        "message": "Memory not found: <ROOT>\\Users\\alex\\.claude\\projects\\demo\\memory\\x.md",
+        "target": "<ROOT>\\Users\\alex\\.claude\\projects\\demo\\memory\\x.md"
+      }
+    }
+  ]
+}

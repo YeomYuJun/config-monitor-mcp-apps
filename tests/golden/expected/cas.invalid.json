@@ -1,0 +1,28 @@
+{
+  "id": "cas.invalid",
+  "module": "cas",
+  "steps": [
+    {
+      "argv": [
+        "history"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "invalid_arg",
+        "message": "cas history: the following arguments are required: path"
+      }
+    },
+    {
+      "argv": [
+        "nope"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "invalid_arg",
+        "message": "cas: argument cmd: invalid choice: 'nope' (choose from init, track, untrack, status, snapshot, log, history, diff, show, cat, watcher-status, gc, restore)"
+      }
+    }
+  ]
+}

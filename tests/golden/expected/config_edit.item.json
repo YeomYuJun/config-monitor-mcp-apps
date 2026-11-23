@@ -1,0 +1,110 @@
+{
+  "id": "config_edit.item",
+  "module": "config_edit",
+  "steps": [
+    {
+      "argv": [
+        "item-scaffold",
+        "rule",
+        "api",
+        "--desc",
+        "API rules",
+        "--paths",
+        "src/api/**"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "rule scaffolded: <ROOT>\\Users\\alex\\.claude\\rules\\api.md",
+        "path": "<ROOT>\\Users\\alex\\.claude\\rules\\api.md"
+      }
+    },
+    {
+      "argv": [
+        "item-scaffold",
+        "workflow",
+        "release"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "workflow scaffolded: <ROOT>\\Users\\alex\\.claude\\workflows\\release.js",
+        "path": "<ROOT>\\Users\\alex\\.claude\\workflows\\release.js"
+      }
+    },
+    {
+      "argv": [
+        "item-scaffold",
+        "output-style",
+        "concise"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "exists",
+        "message": "Already exists: <ROOT>\\Users\\alex\\.claude\\output-styles\\concise.md",
+        "target": "<ROOT>\\Users\\alex\\.claude\\output-styles\\concise.md"
+      }
+    },
+    {
+      "argv": [
+        "item-remove",
+        "rule",
+        "style"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "rule removed (moved to .trash): style",
+        "trashed": "<ROOT>\\Users\\alex\\.claude\\rules\\.trash\\style.md.<TS14>"
+      }
+    },
+    {
+      "argv": [
+        "item-remove",
+        "rule",
+        "style"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "not_found",
+        "message": "rule not found: <ROOT>\\Users\\alex\\.claude\\rules\\style.md",
+        "target": "<ROOT>\\Users\\alex\\.claude\\rules\\style.md"
+      }
+    },
+    {
+      "argv": [
+        "--items-dir",
+        "{PROJECT}/.claude/rules",
+        "item-scaffold",
+        "rule",
+        "local"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "rule scaffolded: <ROOT>\\work\\acme-web\\.claude\\rules\\local.md",
+        "path": "<ROOT>\\work\\acme-web\\.claude\\rules\\local.md"
+      }
+    },
+    {
+      "argv": [
+        "item-scaffold",
+        "rule",
+        "a/b"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "invalid_arg",
+        "message": "Invalid name: 'a/b'",
+        "target": "a/b"
+      }
+    }
+  ]
+}

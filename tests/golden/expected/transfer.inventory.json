@@ -1,0 +1,622 @@
+{
+  "id": "transfer.inventory",
+  "module": "transfer",
+  "steps": [
+    {
+      "argv": [
+        "inventory"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "19 items to carry, 4 external paths",
+        "items": [
+          {
+            "id": "cc.skills/changelog",
+            "category": "cc.skills",
+            "strategy": "tree",
+            "rel": "${CLAUDE_HOME}/skills/changelog",
+            "hash": "sha256:<HASH>",
+            "size": 68,
+            "files": 1
+          },
+          {
+            "id": "cc.skills/code-review",
+            "category": "cc.skills",
+            "strategy": "tree",
+            "rel": "${CLAUDE_HOME}/skills/code-review",
+            "hash": "sha256:<HASH>",
+            "size": 74,
+            "files": 1
+          },
+          {
+            "id": "cc.skills/debug-trace",
+            "category": "cc.skills",
+            "strategy": "tree",
+            "rel": "${CLAUDE_HOME}/skills/debug-trace",
+            "hash": "sha256:<HASH>",
+            "size": 69,
+            "files": 1
+          },
+          {
+            "id": "cc.skills/release-notes",
+            "category": "cc.skills",
+            "strategy": "tree",
+            "rel": "${CLAUDE_HOME}/skills/release-notes",
+            "hash": "sha256:<HASH>",
+            "size": 64,
+            "files": 1
+          },
+          {
+            "id": "cc.agents/doc-editor.md",
+            "category": "cc.agents",
+            "strategy": "file",
+            "rel": "${CLAUDE_HOME}/agents/doc-editor.md",
+            "hash": "sha256:<HASH>",
+            "size": 102,
+            "files": 1
+          },
+          {
+            "id": "cc.agents/planner.md",
+            "category": "cc.agents",
+            "strategy": "file",
+            "rel": "${CLAUDE_HOME}/agents/planner.md",
+            "hash": "sha256:<HASH>",
+            "size": 107,
+            "files": 1
+          },
+          {
+            "id": "cc.agents/test-writer.md",
+            "category": "cc.agents",
+            "strategy": "file",
+            "rel": "${CLAUDE_HOME}/agents/test-writer.md",
+            "hash": "sha256:<HASH>",
+            "size": 117,
+            "files": 1
+          },
+          {
+            "id": "cc.commands/standup.md",
+            "category": "cc.commands",
+            "strategy": "file",
+            "rel": "${CLAUDE_HOME}/commands/standup.md",
+            "hash": "sha256:<HASH>",
+            "size": 70,
+            "files": 1
+          },
+          {
+            "id": "cc.commands/triage.md",
+            "category": "cc.commands",
+            "strategy": "file",
+            "rel": "${CLAUDE_HOME}/commands/triage.md",
+            "hash": "sha256:<HASH>",
+            "size": 55,
+            "files": 1
+          },
+          {
+            "id": "cc.rules/sql.md",
+            "category": "cc.rules",
+            "strategy": "file",
+            "rel": "${CLAUDE_HOME}/rules/sql.md",
+            "hash": "sha256:<HASH>",
+            "size": 66,
+            "files": 1
+          },
+          {
+            "id": "cc.rules/style.md",
+            "category": "cc.rules",
+            "strategy": "file",
+            "rel": "${CLAUDE_HOME}/rules/style.md",
+            "hash": "sha256:<HASH>",
+            "size": 55,
+            "files": 1
+          },
+          {
+            "id": "cc.output-styles/concise.md",
+            "category": "cc.output-styles",
+            "strategy": "file",
+            "rel": "${CLAUDE_HOME}/output-styles/concise.md",
+            "hash": "sha256:<HASH>",
+            "size": 54,
+            "files": 1
+          },
+          {
+            "id": "cc.claude-md",
+            "category": "cc.claude-md",
+            "strategy": "file",
+            "rel": "${CLAUDE_HOME}/CLAUDE.md",
+            "hash": "sha256:<HASH>",
+            "size": 54,
+            "files": 1
+          },
+          {
+            "id": "cc.settings",
+            "category": "cc.settings",
+            "strategy": "json-keys",
+            "key": "settings.json",
+            "hash": "sha256:<HASH>",
+            "size": 491,
+            "files": 0,
+            "secrets": []
+          },
+          {
+            "id": "cc.mcp-user/github",
+            "category": "cc.mcp-user",
+            "strategy": "json-keys",
+            "key": "mcpServers.github",
+            "hash": "sha256:<HASH>",
+            "size": 69,
+            "files": 0,
+            "secrets": []
+          },
+          {
+            "id": "cc.mcp-user/notes",
+            "category": "cc.mcp-user",
+            "strategy": "json-keys",
+            "key": "mcpServers.notes",
+            "hash": "sha256:<HASH>",
+            "size": 90,
+            "files": 0,
+            "secrets": []
+          },
+          {
+            "id": "desk.mcp/filesystem",
+            "category": "desk.mcp",
+            "strategy": "json-keys",
+            "key": "mcpServers.filesystem",
+            "hash": "sha256:<HASH>",
+            "size": 108,
+            "files": 0,
+            "secrets": []
+          },
+          {
+            "id": "desk.mcp/notes",
+            "category": "desk.mcp",
+            "strategy": "json-keys",
+            "key": "mcpServers.notes",
+            "hash": "sha256:<HASH>",
+            "size": 90,
+            "files": 0,
+            "secrets": []
+          },
+          {
+            "id": "cm.store",
+            "category": "cm.store",
+            "strategy": "json-keys",
+            "key": "config.json",
+            "hash": "sha256:<HASH>",
+            "size": 55,
+            "files": 0,
+            "secrets": []
+          }
+        ],
+        "counts": {
+          "cc.skills": 4,
+          "cc.agents": 3,
+          "cc.commands": 2,
+          "cc.rules": 2,
+          "cc.output-styles": 1,
+          "cc.claude-md": 1,
+          "cc.settings": 1,
+          "cc.mcp-user": 2,
+          "desk.mcp": 2,
+          "cm.store": 1
+        },
+        "plugins": {
+          "declared": 0,
+          "market": [],
+          "builtin": [],
+          "inline": [],
+          "added_explicit": [],
+          "dropped": [],
+          "markets_added": []
+        },
+        "external": [
+          {
+            "kind": "mcp",
+            "path": "<ROOT>\\tools\\my-tools\\servers\\notes\\server.js",
+            "token": "<ROOT>\\tools\\my-tools\\servers\\notes\\server.js",
+            "exists": true,
+            "owners": [
+              "notes"
+            ],
+            "scopes": [
+              "cc.mcp-user",
+              "desk.mcp"
+            ],
+            "fields": [
+              "cc.mcp-user:args[0]",
+              "desk.mcp:args[0]"
+            ]
+          },
+          {
+            "kind": "mcp",
+            "path": "<ROOT>\\work\\acme-web",
+            "token": "<ROOT>\\work\\acme-web",
+            "exists": true,
+            "owners": [
+              "filesystem"
+            ],
+            "scopes": [
+              "desk.mcp"
+            ],
+            "fields": [
+              "desk.mcp:args[2]"
+            ]
+          },
+          {
+            "kind": "hook",
+            "path": "<ROOT>\\tools\\my-tools\\hooks\\format-on-save\\index.js",
+            "token": "<ROOT>\\tools\\my-tools\\hooks\\format-on-save\\index.js",
+            "exists": true,
+            "owners": [
+              "PostToolUse"
+            ],
+            "scopes": [
+              "cc.settings"
+            ],
+            "fields": [
+              "cc.settings:hooks.PostToolUse[0].hooks[0].command"
+            ]
+          },
+          {
+            "kind": "hook",
+            "path": "<ROOT>\\tools\\my-tools\\hooks\\guard-secrets\\index.js",
+            "token": "<ROOT>\\tools\\my-tools\\hooks\\guard-secrets\\index.js",
+            "exists": true,
+            "owners": [
+              "PreToolUse"
+            ],
+            "scopes": [
+              "cc.settings"
+            ],
+            "fields": [
+              "cc.settings:hooks.PreToolUse[0].hooks[0].command"
+            ]
+          }
+        ],
+        "skipped": [],
+        "warnings": [],
+        "secrets": [],
+        "include_secrets": false,
+        "report": [
+          "Items to carry",
+          "- Skill: 4",
+          "- Agent: 3",
+          "- Command: 2",
+          "- Rule: 2",
+          "- Output style: 1",
+          "- CLAUDE.md",
+          "- settings.json (permissions, hooks, env, plugin declarations)",
+          "- MCP server (Claude Code): 2",
+          "- MCP server (Desktop): 2",
+          "- config-monitor store settings",
+          "- Plugin declarations 0 (marketplace 0, built-in 0, inline 0); Claude Code on the new PC downloads them on its next start",
+          "- Not bundled (prepare these at the same paths on the new PC)",
+          "  - MCP servers",
+          "    - filesystem (Desktop): <ROOT>\\work\\acme-web",
+          "    - notes (Claude Code, Desktop): <ROOT>\\tools\\my-tools\\servers\\notes\\server.js",
+          "  - Hooks",
+          "    - <ROOT>\\tools\\my-tools\\hooks\\format-on-save\\index.js (PostToolUse)",
+          "    - <ROOT>\\tools\\my-tools\\hooks\\guard-secrets\\index.js (PreToolUse)"
+        ]
+      }
+    },
+    {
+      "argv": [
+        "inventory",
+        "--with-optional",
+        "local,memory"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "19 items to carry, 4 external paths",
+        "items": [
+          {
+            "id": "cc.skills/changelog",
+            "category": "cc.skills",
+            "strategy": "tree",
+            "rel": "${CLAUDE_HOME}/skills/changelog",
+            "hash": "sha256:<HASH>",
+            "size": 68,
+            "files": 1
+          },
+          {
+            "id": "cc.skills/code-review",
+            "category": "cc.skills",
+            "strategy": "tree",
+            "rel": "${CLAUDE_HOME}/skills/code-review",
+            "hash": "sha256:<HASH>",
+            "size": 74,
+            "files": 1
+          },
+          {
+            "id": "cc.skills/debug-trace",
+            "category": "cc.skills",
+            "strategy": "tree",
+            "rel": "${CLAUDE_HOME}/skills/debug-trace",
+            "hash": "sha256:<HASH>",
+            "size": 69,
+            "files": 1
+          },
+          {
+            "id": "cc.skills/release-notes",
+            "category": "cc.skills",
+            "strategy": "tree",
+            "rel": "${CLAUDE_HOME}/skills/release-notes",
+            "hash": "sha256:<HASH>",
+            "size": 64,
+            "files": 1
+          },
+          {
+            "id": "cc.agents/doc-editor.md",
+            "category": "cc.agents",
+            "strategy": "file",
+            "rel": "${CLAUDE_HOME}/agents/doc-editor.md",
+            "hash": "sha256:<HASH>",
+            "size": 102,
+            "files": 1
+          },
+          {
+            "id": "cc.agents/planner.md",
+            "category": "cc.agents",
+            "strategy": "file",
+            "rel": "${CLAUDE_HOME}/agents/planner.md",
+            "hash": "sha256:<HASH>",
+            "size": 107,
+            "files": 1
+          },
+          {
+            "id": "cc.agents/test-writer.md",
+            "category": "cc.agents",
+            "strategy": "file",
+            "rel": "${CLAUDE_HOME}/agents/test-writer.md",
+            "hash": "sha256:<HASH>",
+            "size": 117,
+            "files": 1
+          },
+          {
+            "id": "cc.commands/standup.md",
+            "category": "cc.commands",
+            "strategy": "file",
+            "rel": "${CLAUDE_HOME}/commands/standup.md",
+            "hash": "sha256:<HASH>",
+            "size": 70,
+            "files": 1
+          },
+          {
+            "id": "cc.commands/triage.md",
+            "category": "cc.commands",
+            "strategy": "file",
+            "rel": "${CLAUDE_HOME}/commands/triage.md",
+            "hash": "sha256:<HASH>",
+            "size": 55,
+            "files": 1
+          },
+          {
+            "id": "cc.rules/sql.md",
+            "category": "cc.rules",
+            "strategy": "file",
+            "rel": "${CLAUDE_HOME}/rules/sql.md",
+            "hash": "sha256:<HASH>",
+            "size": 66,
+            "files": 1
+          },
+          {
+            "id": "cc.rules/style.md",
+            "category": "cc.rules",
+            "strategy": "file",
+            "rel": "${CLAUDE_HOME}/rules/style.md",
+            "hash": "sha256:<HASH>",
+            "size": 55,
+            "files": 1
+          },
+          {
+            "id": "cc.output-styles/concise.md",
+            "category": "cc.output-styles",
+            "strategy": "file",
+            "rel": "${CLAUDE_HOME}/output-styles/concise.md",
+            "hash": "sha256:<HASH>",
+            "size": 54,
+            "files": 1
+          },
+          {
+            "id": "cc.claude-md",
+            "category": "cc.claude-md",
+            "strategy": "file",
+            "rel": "${CLAUDE_HOME}/CLAUDE.md",
+            "hash": "sha256:<HASH>",
+            "size": 54,
+            "files": 1
+          },
+          {
+            "id": "cc.settings",
+            "category": "cc.settings",
+            "strategy": "json-keys",
+            "key": "settings.json",
+            "hash": "sha256:<HASH>",
+            "size": 491,
+            "files": 0,
+            "secrets": []
+          },
+          {
+            "id": "cc.mcp-user/github",
+            "category": "cc.mcp-user",
+            "strategy": "json-keys",
+            "key": "mcpServers.github",
+            "hash": "sha256:<HASH>",
+            "size": 69,
+            "files": 0,
+            "secrets": []
+          },
+          {
+            "id": "cc.mcp-user/notes",
+            "category": "cc.mcp-user",
+            "strategy": "json-keys",
+            "key": "mcpServers.notes",
+            "hash": "sha256:<HASH>",
+            "size": 90,
+            "files": 0,
+            "secrets": []
+          },
+          {
+            "id": "desk.mcp/filesystem",
+            "category": "desk.mcp",
+            "strategy": "json-keys",
+            "key": "mcpServers.filesystem",
+            "hash": "sha256:<HASH>",
+            "size": 108,
+            "files": 0,
+            "secrets": []
+          },
+          {
+            "id": "desk.mcp/notes",
+            "category": "desk.mcp",
+            "strategy": "json-keys",
+            "key": "mcpServers.notes",
+            "hash": "sha256:<HASH>",
+            "size": 90,
+            "files": 0,
+            "secrets": []
+          },
+          {
+            "id": "cm.store",
+            "category": "cm.store",
+            "strategy": "json-keys",
+            "key": "config.json",
+            "hash": "sha256:<HASH>",
+            "size": 55,
+            "files": 0,
+            "secrets": []
+          }
+        ],
+        "counts": {
+          "cc.skills": 4,
+          "cc.agents": 3,
+          "cc.commands": 2,
+          "cc.rules": 2,
+          "cc.output-styles": 1,
+          "cc.claude-md": 1,
+          "cc.settings": 1,
+          "cc.mcp-user": 2,
+          "desk.mcp": 2,
+          "cm.store": 1
+        },
+        "plugins": {
+          "declared": 0,
+          "market": [],
+          "builtin": [],
+          "inline": [],
+          "added_explicit": [],
+          "dropped": [],
+          "markets_added": []
+        },
+        "external": [
+          {
+            "kind": "mcp",
+            "path": "<ROOT>\\tools\\my-tools\\servers\\notes\\server.js",
+            "token": "<ROOT>\\tools\\my-tools\\servers\\notes\\server.js",
+            "exists": true,
+            "owners": [
+              "notes"
+            ],
+            "scopes": [
+              "cc.mcp-user",
+              "desk.mcp"
+            ],
+            "fields": [
+              "cc.mcp-user:args[0]",
+              "desk.mcp:args[0]"
+            ]
+          },
+          {
+            "kind": "mcp",
+            "path": "<ROOT>\\work\\acme-web",
+            "token": "<ROOT>\\work\\acme-web",
+            "exists": true,
+            "owners": [
+              "filesystem"
+            ],
+            "scopes": [
+              "desk.mcp"
+            ],
+            "fields": [
+              "desk.mcp:args[2]"
+            ]
+          },
+          {
+            "kind": "hook",
+            "path": "<ROOT>\\tools\\my-tools\\hooks\\format-on-save\\index.js",
+            "token": "<ROOT>\\tools\\my-tools\\hooks\\format-on-save\\index.js",
+            "exists": true,
+            "owners": [
+              "PostToolUse"
+            ],
+            "scopes": [
+              "cc.settings"
+            ],
+            "fields": [
+              "cc.settings:hooks.PostToolUse[0].hooks[0].command"
+            ]
+          },
+          {
+            "kind": "hook",
+            "path": "<ROOT>\\tools\\my-tools\\hooks\\guard-secrets\\index.js",
+            "token": "<ROOT>\\tools\\my-tools\\hooks\\guard-secrets\\index.js",
+            "exists": true,
+            "owners": [
+              "PreToolUse"
+            ],
+            "scopes": [
+              "cc.settings"
+            ],
+            "fields": [
+              "cc.settings:hooks.PreToolUse[0].hooks[0].command"
+            ]
+          }
+        ],
+        "skipped": [],
+        "warnings": [],
+        "secrets": [],
+        "include_secrets": false,
+        "report": [
+          "Items to carry",
+          "- Skill: 4",
+          "- Agent: 3",
+          "- Command: 2",
+          "- Rule: 2",
+          "- Output style: 1",
+          "- CLAUDE.md",
+          "- settings.json (permissions, hooks, env, plugin declarations)",
+          "- MCP server (Claude Code): 2",
+          "- MCP server (Desktop): 2",
+          "- config-monitor store settings",
+          "- Plugin declarations 0 (marketplace 0, built-in 0, inline 0); Claude Code on the new PC downloads them on its next start",
+          "- Not bundled (prepare these at the same paths on the new PC)",
+          "  - MCP servers",
+          "    - filesystem (Desktop): <ROOT>\\work\\acme-web",
+          "    - notes (Claude Code, Desktop): <ROOT>\\tools\\my-tools\\servers\\notes\\server.js",
+          "  - Hooks",
+          "    - <ROOT>\\tools\\my-tools\\hooks\\format-on-save\\index.js (PostToolUse)",
+          "    - <ROOT>\\tools\\my-tools\\hooks\\guard-secrets\\index.js (PreToolUse)"
+        ]
+      }
+    },
+    {
+      "argv": [
+        "inventory",
+        "--with-optional",
+        "bogus"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "invalid_arg",
+        "message": "Unknown optional items: bogus",
+        "target": "--with-optional"
+      }
+    }
+  ]
+}

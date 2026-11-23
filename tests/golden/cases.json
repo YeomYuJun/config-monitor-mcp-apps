@@ -1,0 +1,246 @@
+[
+  {"id": "cas.status", "module": "cas", "steps": [{"argv": ["status", "--json"]}]},
+  {"id": "cas.watcher-status", "module": "cas", "steps": [{"argv": ["watcher-status"]}]},
+  {"id": "cas.track", "module": "cas", "note": "새 파일 추가 후 같은 경로 재추가(noop), 프로젝트 폴더(이미 추적)", "steps": [
+    {"argv": ["track", "--json", "{CLAUDE}/CLAUDE.md"]},
+    {"argv": ["track", "--json", "{CLAUDE}/CLAUDE.md"]},
+    {"argv": ["track", "--json", "{PROJECT}"]},
+    {"argv": ["status", "--json"]}
+  ]},
+  {"id": "cas.untrack", "module": "cas", "steps": [
+    {"argv": ["untrack", "--json", "{PROJECT}/.claude/settings.json"]},
+    {"argv": ["untrack", "--json", "{PROJECT}/.claude/settings.json"]},
+    {"argv": ["status", "--json"]}
+  ]},
+  {"id": "cas.history", "module": "cas", "steps": [
+    {"argv": ["history", "{CLAUDE}/settings.json", "--json"]},
+    {"argv": ["history", "{PROJECT}/.claude/settings.json", "--json"]}
+  ]},
+  {"id": "cas.cat", "module": "cas", "steps": [
+    {"argv": ["cat", "{CLAUDE}/settings.json", "--json"]},
+    {"argv": ["cat", "{CLAUDE}/rules/style.md", "--json"]}
+  ]},
+  {"id": "cas.diff", "module": "cas", "note": "스냅샷 밖 변경, 스냅샷 사이, raw, 추적 밖 경로", "steps": [
+    {"argv": ["diff", "{PROJECT}/.claude/settings.json", "--json"]},
+    {"argv": ["diff", "{CLAUDE}/settings.json", "--json", "--from", "{SNAP:0}", "--to", "{SNAP:-1}"]},
+    {"argv": ["diff", "{CLAUDE}/settings.json", "--json", "--from", "{SNAP:0}", "--raw"]},
+    {"argv": ["diff", "{CLAUDE}/settings.json", "--json"]},
+    {"argv": ["diff", "{CLAUDE}/rules/style.md", "--json"]}
+  ]},
+  {"id": "cas.snapshot", "module": "cas", "steps": [
+    {"argv": ["snapshot", "-m", "golden", "--json"]},
+    {"argv": ["snapshot", "-m", "golden again", "--json"]},
+    {"argv": ["snapshot", "-m", "forced", "--force", "--json"]}
+  ]},
+  {"id": "cas.gc", "module": "cas", "steps": [
+    {"argv": ["gc", "--json", "--keep-days", "90", "--dry-run"]},
+    {"argv": ["gc", "--json", "--keep-days", "0", "--dry-run"]},
+    {"argv": ["gc", "--json", "--keep-days", "0"]}
+  ]},
+  {"id": "cas.restore", "module": "cas", "steps": [
+    {"argv": ["restore", "{CLAUDE}/settings.json", "--from", "{SNAP:0}"]},
+    {"argv": ["cat", "{CLAUDE}/settings.json", "--json"]},
+    {"argv": ["restore", "{CLAUDE}/settings.json", "--from", "19990101T000000_000000"]}
+  ]},
+  {"id": "cas.invalid", "module": "cas", "steps": [
+    {"argv": ["history"]},
+    {"argv": ["nope"]}
+  ]},
+
+  {"id": "prefs.get", "module": "prefs", "steps": [{"argv": ["get", "--store", "{STORE}"]}]},
+  {"id": "prefs.set", "module": "prefs", "steps": [
+    {"argv": ["set", "--store", "{STORE}", "--json", "{\"sections\":{\"preset\":\"present\",\"hidden\":[\"themes\"],\"unknown\":1},\"view\":{\"scope\":\"global\"}}"]},
+    {"argv": ["get", "--store", "{STORE}"]},
+    {"argv": ["set", "--store", "{STORE}", "--json", "{not json"]},
+    {"argv": ["set", "--store", "{ROOT}/no-store", "--json", "{}"]}
+  ]},
+
+  {"id": "claude_config.dump", "module": "claude_config", "steps": [
+    {"argv": ["dump", "--projects", "{PROJECT}/.claude"]}
+  ]},
+  {"id": "claude_config.dump-filtered", "module": "claude_config", "steps": [
+    {"argv": ["dump", "--projects", "{PROJECT}/.claude", "--sections", "skills", "hooks", "perm", "--compact"]},
+    {"argv": ["dump", "--projects", "{PROJECT}/.claude", "--scope", "project", "--compact"]},
+    {"argv": ["dump", "--projects", "{PROJECT}/.claude", "--query", "planner", "--compact"]},
+    {"argv": ["dump", "--sections", "mcp-desktop", "claude-json"]}
+  ]},
+  {"id": "claude_config.summary", "module": "claude_config", "steps": [
+    {"argv": ["summary", "--projects", "{PROJECT}/.claude"]},
+    {"argv": ["summary"]}
+  ]},
+  {"id": "claude_config.projects", "module": "claude_config", "steps": [
+    {"argv": ["projects"]},
+    {"argv": ["projects", "--include-missing"]}
+  ]},
+
+  {"id": "config_edit.perm", "module": "config_edit", "steps": [
+    {"argv": ["perm-add", "allow", "Bash(ls:*)"]},
+    {"argv": ["perm-add", "allow", "Bash(ls:*)"]},
+    {"argv": ["perm-remove", "deny", "Read(./.env)"]},
+    {"argv": ["perm-remove", "ask", "Nothing"]},
+    {"argv": ["--settings", "{PROJECT}/.claude/settings.json", "perm-add", "deny", "Bash(rm:*)"]}
+  ]},
+  {"id": "config_edit.hook", "module": "config_edit", "steps": [
+    {"argv": ["hook-add", "Stop", "node notify.js", "--matcher", "*"]},
+    {"argv": ["hook-remove", "Stop", "node notify.js"]},
+    {"argv": ["hook-remove", "Stop", "node notify.js"]}
+  ]},
+  {"id": "config_edit.plugin-toggle", "module": "config_edit", "steps": [
+    {"argv": ["plugin-toggle", "demo@market", "off"]},
+    {"argv": ["plugin-toggle", "demo@market", "off"]},
+    {"argv": ["plugin-toggle", "demo@market", "on"]}
+  ]},
+  {"id": "config_edit.outputstyle", "module": "config_edit", "steps": [
+    {"argv": ["outputstyle-set", ""]},
+    {"argv": ["outputstyle-set", ""]},
+    {"argv": ["outputstyle-set", "concise"]}
+  ]},
+  {"id": "config_edit.skill", "module": "config_edit", "steps": [
+    {"argv": ["skill-scaffold", "new-skill", "--desc", "Demo skill"]},
+    {"argv": ["skill-scaffold", "new-skill"]},
+    {"argv": ["--skills-dir", "{PROJECT}/.claude/skills", "skill-scaffold", "proj-skill", "--content", "---\ndescription: x\n---\n\nbody\n"]},
+    {"argv": ["skill-remove", "changelog"]},
+    {"argv": ["skill-remove", "changelog"]},
+    {"argv": ["skill-scaffold", "synced"]}
+  ]},
+  {"id": "config_edit.agent", "module": "config_edit", "steps": [
+    {"argv": ["agent-scaffold", "reviewer", "--desc", "Reviews", "--tools", "Read, Grep", "--model", "sonnet"]},
+    {"argv": ["agent-scaffold", "reviewer"]},
+    {"argv": ["agent-remove", "doc-editor"]},
+    {"argv": ["agent-remove", "doc-editor"]}
+  ]},
+  {"id": "config_edit.item", "module": "config_edit", "steps": [
+    {"argv": ["item-scaffold", "rule", "api", "--desc", "API rules", "--paths", "src/api/**"]},
+    {"argv": ["item-scaffold", "workflow", "release"]},
+    {"argv": ["item-scaffold", "output-style", "concise"]},
+    {"argv": ["item-remove", "rule", "style"]},
+    {"argv": ["item-remove", "rule", "style"]},
+    {"argv": ["--items-dir", "{PROJECT}/.claude/rules", "item-scaffold", "rule", "local"]},
+    {"argv": ["item-scaffold", "rule", "a/b"]}
+  ]},
+  {"id": "config_edit.memory", "module": "config_edit", "steps": [
+    {"argv": ["memory-remove", "x"]},
+    {"argv": ["--memory-dir", "{ROOT}/not-memory", "memory-remove", "x"]},
+    {"argv": ["--memory-dir", "{CLAUDE}/projects/demo/memory", "memory-remove", "x"]}
+  ]},
+  {"id": "config_edit.mcp", "module": "config_edit", "steps": [
+    {"argv": ["mcp-add", "demo", "--json", "{\"command\":\"npx\",\"args\":[\"-y\",\"demo-mcp\"]}", "--scope", "user"]},
+    {"argv": ["mcp-add", "demo", "--json", "{\"command\":\"npx\"}", "--scope", "desktop"]},
+    {"argv": ["mcp-remove", "github", "--scope", "user"]},
+    {"argv": ["mcp-remove", "github", "--scope", "user"]},
+    {"argv": ["mcp-remove", "notes", "--scope", "desktop"]},
+    {"argv": ["mcp-add", "bad", "--json", "[1]"]}
+  ]},
+  {"id": "config_edit.invalid", "module": "config_edit", "steps": [
+    {"argv": ["--settings", "{ROOT}/x/settings.json", "perm-add", "allow", "Read"]},
+    {"argv": ["perm-add", "maybe", "Read"]}
+  ]},
+
+  {"id": "library.scan", "module": "library", "steps": [
+    {"argv": ["scan"]},
+    {"argv": ["--target", "{PROJECT}/.claude", "scan"]}
+  ]},
+  {"id": "library.install", "module": "library", "steps": [
+    {"argv": ["install", "skills", "sql-review"]},
+    {"argv": ["install", "skills", "release-notes"]},
+    {"argv": ["install", "agents", "security-auditor"]},
+    {"argv": ["--target", "{PROJECT}/.claude", "install", "commands", "standup"]},
+    {"argv": ["install", "skills", "missing-skill"]},
+    {"argv": ["install", "skills", "sql-review", "--origin", "remote:nope"]},
+    {"argv": ["scan"]}
+  ]},
+  {"id": "library.uninstall", "module": "library", "steps": [
+    {"argv": ["install", "skills", "sql-review"]},
+    {"argv": ["uninstall", "skills", "sql-review", "--origin", "remote:other"]},
+    {"argv": ["uninstall", "skills", "sql-review"]},
+    {"argv": ["uninstall", "skills", "sql-review"]}
+  ]},
+  {"id": "library.unregister", "module": "library", "steps": [
+    {"argv": ["unregister", "--lib", "{LIB}"]},
+    {"argv": ["unregister", "--origin", "remote:nope"]},
+    {"argv": ["unregister", "--origin", "market:nope"]},
+    {"argv": ["unregister", "--origin", "bogus:x"]}
+  ]},
+  {"id": "library.market", "module": "library", "note": "네트워크 없는 마켓 조회. remote-add/market-add/plugin-fetch/fetch 는 기준 출력 없음(docs/port-contract-2026-11-20.md 6.4절)", "steps": [
+    {"argv": ["market-discover"]},
+    {"argv": ["catalog"]},
+    {"argv": ["catalog", "--limit", "-1"]},
+    {"argv": ["plugin-fetch", "--marketplace", "nope", "--plugin", "x"]},
+    {"argv": ["fetch", "--origin", "remote:nope"]},
+    {"argv": ["remote-add", "--url", "https://example.invalid/x.git", "--map", "[1]"]}
+  ]},
+  {"id": "library.hooks", "module": "library", "steps": [
+    {"argv": ["hooks-install", "--origin", "local:{LIB}/hooks/lint", "--dry-run"]},
+    {"argv": ["hooks-install", "--origin", "local:{LIB}/hooks/lint"]},
+    {"argv": ["hooks-install", "--origin", "local:{LIB}/hooks/lint"]},
+    {"argv": ["hooks-uninstall", "--origin", "local:{LIB}/hooks/lint"]},
+    {"argv": ["hooks-uninstall", "--origin", "local:{LIB}/hooks/lint"]},
+    {"argv": ["hooks-install", "--origin", "remote:nope"]}
+  ]},
+  {"id": "library.mcp", "module": "library", "steps": [
+    {"argv": ["mcp-install", "--origin", "local:{LIB}/servers/notes", "--dry-run"]},
+    {"argv": ["mcp-install", "--origin", "local:{LIB}/servers/notes", "--scope", "desktop"]},
+    {"argv": ["mcp-install", "--origin", "local:{LIB}/servers/notes", "--server", "nope"]},
+    {"argv": ["mcp-uninstall", "--origin", "local:{LIB}/servers/notes", "--scope", "desktop"]},
+    {"argv": ["mcp-uninstall", "--origin", "local:{LIB}/servers/notes", "--scope", "desktop"]}
+  ]},
+
+  {"id": "plugin_cli.dry-run", "module": "plugin_cli", "note": "claude CLI 를 실행하지 않는 경로만", "steps": [
+    {"argv": ["install", "--marketplace", "demo-market", "--plugin", "demo", "--dry-run"]},
+    {"argv": ["update", "--marketplace", "demo-market", "--plugin", "demo", "--scope", "managed", "--dry-run"]},
+    {"argv": ["uninstall", "--marketplace", "demo-market", "--plugin", "demo", "--keep-data", "--dry-run"]},
+    {"argv": ["market-add", "owner/repo", "--sparse", "plugins", ".claude-plugin", "--dry-run"]},
+    {"argv": ["market-update", "--dry-run"]},
+    {"argv": ["market-remove", "--name", "demo-market", "--scope", "user", "--dry-run"]},
+    {"argv": ["install", "--marketplace", "demo-market", "--plugin", "a/b", "--dry-run"]},
+    {"argv": ["install", "--marketplace", "-x", "--plugin", "demo", "--dry-run"]},
+    {"argv": ["install", "--marketplace", "m", "--plugin", "demo", "--cwd", "{ROOT}/missing", "--dry-run"]}
+  ]},
+
+  {"id": "plugin_catalog.no-cache", "module": "plugin_catalog", "steps": [
+    {"argv": ["summary"]},
+    {"argv": ["details", "demo@market"]},
+    {"argv": ["--cache", "{ROOT}/missing.json", "summary"]}
+  ]},
+
+  {"id": "transfer.inventory", "module": "transfer", "steps": [
+    {"argv": ["inventory"]},
+    {"argv": ["inventory", "--with-optional", "local,memory"]},
+    {"argv": ["inventory", "--with-optional", "bogus"]}
+  ]},
+  {"id": "transfer.export", "module": "transfer", "steps": [
+    {"argv": ["export", "--out", "{ROOT}/out/folder-bundle"]},
+    {"argv": ["export", "--out", "{ROOT}/out/folder-bundle"]},
+    {"argv": ["export", "--out", "{ROOT}/out/zip.cmbundle"]},
+    {"argv": ["inspect", "--bundle", "{ROOT}/out/zip.cmbundle"]},
+    {"argv": ["history"]}
+  ]},
+  {"id": "transfer.import", "module": "transfer", "note": "plan -> apply -> undo -> history", "steps": [
+    {"argv": ["plan", "--bundle", "{BUNDLE}"]},
+    {"argv": ["apply", "--bundle", "{BUNDLE}", "--plan-id", "{S0.plan_id}"]},
+    {"argv": ["undo", "--import-id", "{S1.import_id}"]},
+    {"argv": ["undo", "--import-id", "{S1.import_id}"]},
+    {"argv": ["history"]}
+  ]},
+  {"id": "transfer.import-stale", "module": "transfer", "steps": [
+    {"argv": ["apply", "--bundle", "{BUNDLE}", "--plan-id", "0000000000000000"]},
+    {"argv": ["plan", "--bundle", "{ROOT}/no-bundle"]},
+    {"argv": ["plan"]},
+    {"argv": ["plan", "--bundle", "{BUNDLE}", "--secrets", "[1]"]}
+  ]},
+  {"id": "transfer.roots", "module": "transfer", "steps": [
+    {"argv": ["roots", "--bundle", "{BUNDLE}", "--roots", "{\"{J:ROOT}\\\\old-pc\\\\old-drive\": \"{J:ROOT}\\\\tools\"}"]},
+    {"argv": ["plan", "--bundle", "{BUNDLE}"]},
+    {"argv": ["roots", "--bundle", "{BUNDLE}", "--roots", "{\"{J:ROOT}\\\\nowhere\": \"{J:ROOT}\\\\missing\"}"]}
+  ]},
+  {"id": "transfer.sync", "module": "transfer", "steps": [
+    {"argv": ["sync-status"]},
+    {"argv": ["sync-setup", "--dir", "{ROOT}/sync", "--profile", "pc1"], "mkdir": ["{ROOT}/sync"]},
+    {"argv": ["sync-push"]},
+    {"argv": ["sync-status"]},
+    {"argv": ["sync-status", "--from", "pc1"]},
+    {"argv": ["plan", "--sync-from", "pc1"]},
+    {"argv": ["sync-pull", "--from", "pc1", "--plan-id", "{S5.plan_id}"]},
+    {"argv": ["sync-status", "--from", "nope"]}
+  ]}
+]

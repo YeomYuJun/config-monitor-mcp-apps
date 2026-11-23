@@ -1,0 +1,97 @@
+{
+  "id": "cas.track",
+  "module": "cas",
+  "note": "새 파일 추가 후 같은 경로 재추가(noop), 프로젝트 폴더(이미 추적)",
+  "steps": [
+    {
+      "argv": [
+        "track",
+        "--json",
+        "{CLAUDE}/CLAUDE.md"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Added: 1",
+        "added": [
+          "<ROOT>\\Users\\alex\\.claude\\CLAUDE.md"
+        ],
+        "already": [],
+        "not_found": []
+      }
+    },
+    {
+      "argv": [
+        "track",
+        "--json",
+        "{CLAUDE}/CLAUDE.md"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "noop",
+        "message": "Added: 0",
+        "added": [],
+        "already": [
+          "<ROOT>\\Users\\alex\\.claude\\CLAUDE.md"
+        ],
+        "not_found": []
+      }
+    },
+    {
+      "argv": [
+        "track",
+        "--json",
+        "{PROJECT}"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "noop",
+        "message": "Added: 0",
+        "added": [],
+        "already": [
+          "<ROOT>\\work\\acme-web\\.claude\\settings.json",
+          "<ROOT>\\work\\acme-web\\CLAUDE.md"
+        ],
+        "not_found": []
+      }
+    },
+    {
+      "argv": [
+        "status",
+        "--json"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Tracking status",
+        "new": [
+          "<ROOT>\\Users\\alex\\.claude\\CLAUDE.md"
+        ],
+        "modified": [
+          "<ROOT>\\work\\acme-web\\.claude\\settings.json"
+        ],
+        "deleted": [],
+        "unchanged": [
+          "<ROOT>\\Users\\alex\\.claude.json",
+          "<ROOT>\\Users\\alex\\.claude\\settings.json",
+          "<ROOT>\\Users\\alex\\AppData\\Roaming\\Claude\\claude_desktop_config.json",
+          "<ROOT>\\work\\acme-web\\CLAUDE.md"
+        ],
+        "defaults": [
+          "<ROOT>\\Users\\alex\\.claude.json",
+          "<ROOT>\\Users\\alex\\.claude\\settings.json",
+          "<ROOT>\\Users\\alex\\AppData\\Roaming\\Claude\\claude_desktop_config.json"
+        ],
+        "watcher": {
+          "running": false,
+          "reason": "watcher.json not found (watcher is not running)"
+        },
+        "last_snapshot": "<SNAP>"
+      }
+    }
+  ]
+}

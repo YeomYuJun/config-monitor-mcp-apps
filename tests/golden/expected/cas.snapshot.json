@@ -1,0 +1,62 @@
+{
+  "id": "cas.snapshot",
+  "module": "cas",
+  "steps": [
+    {
+      "argv": [
+        "snapshot",
+        "-m",
+        "golden",
+        "--json"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Snapshot <SNAP>  (+0 ~1 -0)",
+        "snapshot": "<SNAP>",
+        "counts": {
+          "new": 0,
+          "modified": 1,
+          "deleted": 0
+        }
+      }
+    },
+    {
+      "argv": [
+        "snapshot",
+        "-m",
+        "golden again",
+        "--json"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "noop",
+        "message": "No changes, snapshot skipped (use --force to take one anyway)",
+        "snapshot": null
+      }
+    },
+    {
+      "argv": [
+        "snapshot",
+        "-m",
+        "forced",
+        "--force",
+        "--json"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Snapshot <SNAP>  (+0 ~0 -0)",
+        "snapshot": "<SNAP>",
+        "counts": {
+          "new": 0,
+          "modified": 0,
+          "deleted": 0
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,70 @@
+{
+  "id": "library.uninstall",
+  "module": "library",
+  "steps": [
+    {
+      "argv": [
+        "install",
+        "skills",
+        "sql-review"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Installed: skills/sql-review",
+        "target": "<ROOT>\\Users\\alex\\.claude\\skills\\sql-review",
+        "backup": null,
+        "synced": false,
+        "origin": "local:<ROOT>\\tools\\my-tools",
+        "warning": null
+      }
+    },
+    {
+      "argv": [
+        "uninstall",
+        "skills",
+        "sql-review",
+        "--origin",
+        "remote:other"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "owner_mismatch",
+        "message": "Origin mismatch - this item is owned by 'local:<ROOT>\\tools\\my-tools'",
+        "target": "local:<ROOT>\\tools\\my-tools",
+        "owner": "local:<ROOT>\\tools\\my-tools"
+      }
+    },
+    {
+      "argv": [
+        "uninstall",
+        "skills",
+        "sql-review"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Removed (moved to .trash): skills/sql-review",
+        "trashed": "<ROOT>\\Users\\alex\\.claude\\skills\\.trash\\sql-review.<TS14>",
+        "owner": "local:<ROOT>\\tools\\my-tools"
+      }
+    },
+    {
+      "argv": [
+        "uninstall",
+        "skills",
+        "sql-review"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "noop",
+        "message": "Already absent: skills/sql-review (no-op)",
+        "changed": false
+      }
+    }
+  ]
+}

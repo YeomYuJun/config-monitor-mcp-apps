@@ -1,0 +1,108 @@
+{
+  "id": "cas.diff",
+  "module": "cas",
+  "note": "스냅샷 밖 변경, 스냅샷 사이, raw, 추적 밖 경로",
+  "steps": [
+    {
+      "argv": [
+        "diff",
+        "{PROJECT}/.claude/settings.json",
+        "--json"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "diff",
+        "path": "<ROOT>\\work\\acme-web\\.claude\\settings.json",
+        "to": "work",
+        "kind": "diff",
+        "diff": "--- <SNAP>\n+++ work\n@@ -2,7 +2,8 @@\n   \"permissions\": {\n     \"allow\": [\n       \"Bash(npm test)\",\n-      \"Bash(npm run lint)\"\n+      \"Bash(npm run lint)\",\n+      \"Bash(npx playwright test)\"\n     ]\n   }\n }",
+        "filtered": true,
+        "ignored": "",
+        "from": "<SNAP>"
+      }
+    },
+    {
+      "argv": [
+        "diff",
+        "{CLAUDE}/settings.json",
+        "--json",
+        "--from",
+        "{SNAP:0}",
+        "--to",
+        "{SNAP:-1}"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "diff",
+        "path": "<ROOT>\\Users\\alex\\.claude\\settings.json",
+        "to": "<SNAP>",
+        "kind": "diff",
+        "diff": "--- <SNAP>\n+++ <SNAP>\n@@ -1,14 +1,16 @@\n {\n-  \"model\": \"sonnet\",\n+  \"model\": \"opus\",\n   \"outputStyle\": \"concise\",\n   \"permissions\": {\n     \"allow\": [\n       \"Read\",\n       \"Bash(git status)\",\n-      \"Bash(git diff:*)\"\n+      \"Bash(git diff:*)\",\n+      \"Bash(npm test)\"\n     ],\n     \"deny\": [\n-      \"Read(./.env)\"\n+      \"Read(./.env)\",\n+      \"Read(./secrets/**)\"\n     ]\n   },\n   \"hooks\": {",
+        "filtered": true,
+        "ignored": "",
+        "from": "<SNAP>"
+      }
+    },
+    {
+      "argv": [
+        "diff",
+        "{CLAUDE}/settings.json",
+        "--json",
+        "--from",
+        "{SNAP:0}",
+        "--raw"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "diff",
+        "path": "<ROOT>\\Users\\alex\\.claude\\settings.json",
+        "to": "work",
+        "kind": "diff",
+        "diff": "--- <SNAP>\n+++ work\n@@ -1,14 +1,16 @@\n {\n-  \"model\": \"sonnet\",\n+  \"model\": \"opus\",\n   \"outputStyle\": \"concise\",\n   \"permissions\": {\n     \"allow\": [\n       \"Read\",\n       \"Bash(git status)\",\n-      \"Bash(git diff:*)\"\n+      \"Bash(git diff:*)\",\n+      \"Bash(npm test)\"\n     ],\n     \"deny\": [\n-      \"Read(./.env)\"\n+      \"Read(./.env)\",\n+      \"Read(./secrets/**)\"\n     ]\n   },\n   \"hooks\": {",
+        "filtered": false,
+        "ignored": "",
+        "from": "<SNAP>"
+      }
+    },
+    {
+      "argv": [
+        "diff",
+        "{CLAUDE}/settings.json",
+        "--json"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "No text changes",
+        "path": "<ROOT>\\Users\\alex\\.claude\\settings.json",
+        "to": "work",
+        "kind": "no_change",
+        "diff": "",
+        "filtered": true,
+        "ignored": "",
+        "from": "<SNAP>"
+      }
+    },
+    {
+      "argv": [
+        "diff",
+        "{CLAUDE}/rules/style.md",
+        "--json"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "not_tracked",
+        "message": "Not a tracked file: <ROOT>\\Users\\alex\\.claude\\rules\\style.md",
+        "target": "<ROOT>\\Users\\alex\\.claude\\rules\\style.md"
+      }
+    }
+  ]
+}

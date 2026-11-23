@@ -1,0 +1,64 @@
+{
+  "id": "config_edit.agent",
+  "module": "config_edit",
+  "steps": [
+    {
+      "argv": [
+        "agent-scaffold",
+        "reviewer",
+        "--desc",
+        "Reviews",
+        "--tools",
+        "Read, Grep",
+        "--model",
+        "sonnet"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Agent scaffolded: <ROOT>\\Users\\alex\\.claude\\agents\\reviewer.md",
+        "path": "<ROOT>\\Users\\alex\\.claude\\agents\\reviewer.md"
+      }
+    },
+    {
+      "argv": [
+        "agent-scaffold",
+        "reviewer"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "exists",
+        "message": "Already exists: <ROOT>\\Users\\alex\\.claude\\agents\\reviewer.md",
+        "target": "<ROOT>\\Users\\alex\\.claude\\agents\\reviewer.md"
+      }
+    },
+    {
+      "argv": [
+        "agent-remove",
+        "doc-editor"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Agent removed (moved to .trash): doc-editor",
+        "trashed": "<ROOT>\\Users\\alex\\.claude\\agents\\.trash\\doc-editor.md.<TS14>"
+      }
+    },
+    {
+      "argv": [
+        "agent-remove",
+        "doc-editor"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "not_found",
+        "message": "Agent not found: doc-editor (<ROOT>\\Users\\alex\\.claude\\agents)",
+        "target": "doc-editor"
+      }
+    }
+  ]
+}

@@ -1,0 +1,108 @@
+{
+  "id": "config_edit.mcp",
+  "module": "config_edit",
+  "steps": [
+    {
+      "argv": [
+        "mcp-add",
+        "demo",
+        "--json",
+        "{\"command\":\"npx\",\"args\":[\"-y\",\"demo-mcp\"]}",
+        "--scope",
+        "user"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Added: mcpServers.demo",
+        "changed": true,
+        "file": "<ROOT>\\Users\\alex\\.claude.json",
+        "backup": "<ROOT>\\Users\\alex\\.claude.json.<TS14>.bak"
+      }
+    },
+    {
+      "argv": [
+        "mcp-add",
+        "demo",
+        "--json",
+        "{\"command\":\"npx\"}",
+        "--scope",
+        "desktop"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Added: mcpServers.demo",
+        "changed": true,
+        "file": "<ROOT>\\Users\\alex\\AppData\\Roaming\\Claude\\claude_desktop_config.json",
+        "backup": "<ROOT>\\Users\\alex\\AppData\\Roaming\\Claude\\claude_desktop_config.json.<TS14>.bak"
+      }
+    },
+    {
+      "argv": [
+        "mcp-remove",
+        "github",
+        "--scope",
+        "user"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Removed: mcpServers.github",
+        "changed": true,
+        "file": "<ROOT>\\Users\\alex\\.claude.json",
+        "backup": "<ROOT>\\Users\\alex\\.claude.json.<TS14>.bak"
+      }
+    },
+    {
+      "argv": [
+        "mcp-remove",
+        "github",
+        "--scope",
+        "user"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "noop",
+        "message": "Not found (unchanged): mcpServers.github (no-op)",
+        "changed": false
+      }
+    },
+    {
+      "argv": [
+        "mcp-remove",
+        "notes",
+        "--scope",
+        "desktop"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Removed: mcpServers.notes",
+        "changed": true,
+        "file": "<ROOT>\\Users\\alex\\AppData\\Roaming\\Claude\\claude_desktop_config.json",
+        "backup": "<ROOT>\\Users\\alex\\AppData\\Roaming\\Claude\\claude_desktop_config.json.<TS14>.bak"
+      }
+    },
+    {
+      "argv": [
+        "mcp-add",
+        "bad",
+        "--json",
+        "[1]"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "invalid_arg",
+        "message": "--json must be a server config object (e.g. {\"command\":\"npx\",\"args\":[...]})",
+        "target": "--json"
+      }
+    }
+  ]
+}

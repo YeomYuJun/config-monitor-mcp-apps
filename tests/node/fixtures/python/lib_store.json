@@ -1,0 +1,266 @@
+{
+ "import lib_store\ntry:\n    with lib_store.file_lock(\"<TMP:J>\\\\store\\\\config.lock\", 0.2, 60, \"busy\"):\n        print(json.dumps(\"acquired\"))\nexcept TimeoutError as e:\n    print(json.dumps(str(e))) {}": "busy(0s 대기): <TMP>\\store\\config.lock",
+ "import lib_store; print(json.dumps(lib_store.load_cfg(\"<TMP:J>\\\\store\"), ensure_ascii=False)) {}": {
+  "version": 1,
+  "store": "<TMP>\\store",
+  "tracked": [
+   "C:\\x\\한글.json"
+  ],
+  "ui": {
+   "sections": {
+    "hidden": []
+   }
+  },
+  "installed": {},
+  "n": null,
+  "b": true
+ },
+ "import os\nps = json.loads(sys.argv[1]) if len(sys.argv) > 1 else [\"C:\\\\a\\\\b\\\\\",\"C:/a/b/\",\"C:/A/B/../c/\",\"\",\".\",\"a/../..\",\"/x/../..\",\"C:..\\\\a\",\"C:\",\"C:x\",\"\\\\\\\\srv\\\\sh\\\\..\\\\x\",\"\\\\\\\\srv\\\\sh\",\"\\\\\\\\?\\\\UNC\\\\srv\\\\sh\\\\x\",\"D:\\\\.claude-snapshot\",\"rel\\\\x\\\\.\\\\y\",\"C:\\\\a\\\\\\\\b\",\"/\",\"//x\",\"a\\\\\",\"C:\\\\\"]\nout = {}\nfor p in ps:\n    out[p] = [os.path.normpath(p), os.path.normcase(os.path.normpath(p)), os.path.basename(p), os.path.dirname(p),\n              os.path.join(p, \"config.json\"), os.path.join(\"D:\\\\base\", p), os.path.join(p, \"x\", \"/abs\")]\nprint(json.dumps(out)) {}": {
+  "C:\\a\\b\\": [
+   "C:\\a\\b",
+   "c:\\a\\b",
+   "",
+   "C:\\a\\b",
+   "C:\\a\\b\\config.json",
+   "C:\\a\\b\\",
+   "C:/abs"
+  ],
+  "C:/a/b/": [
+   "C:\\a\\b",
+   "c:\\a\\b",
+   "",
+   "C:/a/b",
+   "C:/a/b/config.json",
+   "C:/a/b/",
+   "C:/abs"
+  ],
+  "C:/A/B/../c/": [
+   "C:\\A\\c",
+   "c:\\a\\c",
+   "",
+   "C:/A/B/../c",
+   "C:/A/B/../c/config.json",
+   "C:/A/B/../c/",
+   "C:/abs"
+  ],
+  "": [
+   ".",
+   ".",
+   "",
+   "",
+   "config.json",
+   "D:\\base\\",
+   "/abs"
+  ],
+  ".": [
+   ".",
+   ".",
+   ".",
+   "",
+   ".\\config.json",
+   "D:\\base\\.",
+   "/abs"
+  ],
+  "a/../..": [
+   "..",
+   "..",
+   "..",
+   "a/..",
+   "a/../..\\config.json",
+   "D:\\base\\a/../..",
+   "/abs"
+  ],
+  "/x/../..": [
+   "\\",
+   "\\",
+   "..",
+   "/x/..",
+   "/x/../..\\config.json",
+   "D:/x/../..",
+   "/abs"
+  ],
+  "C:..\\a": [
+   "C:..\\a",
+   "c:..\\a",
+   "a",
+   "C:..",
+   "C:..\\a\\config.json",
+   "C:..\\a",
+   "C:/abs"
+  ],
+  "C:": [
+   "C:",
+   "c:",
+   "",
+   "C:",
+   "C:config.json",
+   "C:",
+   "C:/abs"
+  ],
+  "C:x": [
+   "C:x",
+   "c:x",
+   "x",
+   "C:",
+   "C:x\\config.json",
+   "C:x",
+   "C:/abs"
+  ],
+  "\\\\srv\\sh\\..\\x": [
+   "\\\\srv\\sh\\x",
+   "\\\\srv\\sh\\x",
+   "x",
+   "\\\\srv\\sh\\..",
+   "\\\\srv\\sh\\..\\x\\config.json",
+   "\\\\srv\\sh\\..\\x",
+   "\\\\srv\\sh/abs"
+  ],
+  "\\\\srv\\sh": [
+   "\\\\srv\\sh",
+   "\\\\srv\\sh",
+   "",
+   "\\\\srv\\sh",
+   "\\\\srv\\sh\\config.json",
+   "\\\\srv\\sh",
+   "\\\\srv\\sh/abs"
+  ],
+  "\\\\?\\UNC\\srv\\sh\\x": [
+   "\\\\?\\UNC\\srv\\sh\\x",
+   "\\\\?\\unc\\srv\\sh\\x",
+   "x",
+   "\\\\?\\UNC\\srv\\sh\\",
+   "\\\\?\\UNC\\srv\\sh\\x\\config.json",
+   "\\\\?\\UNC\\srv\\sh\\x",
+   "\\\\?\\UNC\\srv\\sh/abs"
+  ],
+  "D:\\.claude-snapshot": [
+   "D:\\.claude-snapshot",
+   "d:\\.claude-snapshot",
+   ".claude-snapshot",
+   "D:\\",
+   "D:\\.claude-snapshot\\config.json",
+   "D:\\.claude-snapshot",
+   "D:/abs"
+  ],
+  "rel\\x\\.\\y": [
+   "rel\\x\\y",
+   "rel\\x\\y",
+   "y",
+   "rel\\x\\.",
+   "rel\\x\\.\\y\\config.json",
+   "D:\\base\\rel\\x\\.\\y",
+   "/abs"
+  ],
+  "C:\\a\\\\b": [
+   "C:\\a\\b",
+   "c:\\a\\b",
+   "b",
+   "C:\\a",
+   "C:\\a\\\\b\\config.json",
+   "C:\\a\\\\b",
+   "C:/abs"
+  ],
+  "/": [
+   "\\",
+   "\\",
+   "",
+   "/",
+   "/config.json",
+   "D:/",
+   "/abs"
+  ],
+  "//x": [
+   "\\\\x",
+   "\\\\x",
+   "",
+   "//x",
+   "//x\\config.json",
+   "//x",
+   "//x/abs"
+  ],
+  "a\\": [
+   "a",
+   "a",
+   "",
+   "a",
+   "a\\config.json",
+   "D:\\base\\a\\",
+   "/abs"
+  ],
+  "C:\\": [
+   "C:\\",
+   "c:\\",
+   "",
+   "C:\\",
+   "C:\\config.json",
+   "C:\\",
+   "C:/abs"
+  ]
+ },
+ "import os; print(json.dumps([os.path.abspath(p) for p in [\"C:\\\\a\\\\b\\\\\",\"C:/a/b/\",\"C:\\\\a\\\\b. \",\"C:\\\\a\\\\..\\\\b\",\"rel\\\\x\",\"\\\\\\\\srv\\\\sh\\\\x\\\\\",\"C:\\\\a\\\\b\\\\.\",\"C:\\\\a\\\\\\\\b\",\"C:\\\\x\\\\y.json\"]])) {}": [
+  "C:\\a\\b",
+  "C:\\a\\b",
+  "C:\\a\\b",
+  "C:\\b",
+  "<CWD>\\rel\\x",
+  "\\\\srv\\sh\\x",
+  "C:\\a\\b",
+  "C:\\a\\b",
+  "C:\\x\\y.json"
+ ],
+ "save_cfg bytes": "txt:{\r\n  \"version\": 1,\r\n  \"store\": \"<TMP:J>\\\\store\",\r\n  \"tracked\": [\r\n    \"C:\\\\x\\\\한글.json\"\r\n  ],\r\n  \"ui\": {\r\n    \"sections\": {\r\n      \"hidden\": []\r\n    }\r\n  },\r\n  \"installed\": {},\r\n  \"n\": null,\r\n  \"b\": true\r\n}",
+ "xs = [0,0.05,0.25,0.35,2.5,3.5,0.125,1,0.25,0.75,12.3456,8,0.3]; print(json.dumps([[f\"{x:.1f}\", f\"{x:.0f}\"] for x in xs])) {}": [
+  [
+   "0.0",
+   "0"
+  ],
+  [
+   "0.1",
+   "0"
+  ],
+  [
+   "0.2",
+   "0"
+  ],
+  [
+   "0.3",
+   "0"
+  ],
+  [
+   "2.5",
+   "2"
+  ],
+  [
+   "3.5",
+   "4"
+  ],
+  [
+   "0.1",
+   "0"
+  ],
+  [
+   "1.0",
+   "1"
+  ],
+  [
+   "0.2",
+   "0"
+  ],
+  [
+   "0.8",
+   "1"
+  ],
+  [
+   "12.3",
+   "12"
+  ],
+  [
+   "8.0",
+   "8"
+  ],
+  [
+   "0.3",
+   "0"
+  ]
+ ]
+}

@@ -1,0 +1,55 @@
+{
+  "id": "cas.restore",
+  "module": "cas",
+  "steps": [
+    {
+      "argv": [
+        "restore",
+        "{CLAUDE}/settings.json",
+        "--from",
+        "{SNAP:0}"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Restored: settings.json <- <SNAP>",
+        "path": "<ROOT>\\Users\\alex\\.claude\\settings.json",
+        "backup": "<ROOT>\\Users\\alex\\.claude\\settings.json.<TS14>.bak",
+        "pre_snapshot": "<SNAP>",
+        "post_snapshot": "<SNAP>",
+        "from": "<SNAP>"
+      }
+    },
+    {
+      "argv": [
+        "cat",
+        "{CLAUDE}/settings.json",
+        "--json"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "settings.json",
+        "path": "<ROOT>\\Users\\alex\\.claude\\settings.json",
+        "content": "{\r\n  \"model\": \"sonnet\",\r\n  \"outputStyle\": \"concise\",\r\n  \"permissions\": {\r\n    \"allow\": [\r\n      \"Read\",\r\n      \"Bash(git status)\",\r\n      \"Bash(git diff:*)\"\r\n    ],\r\n    \"deny\": [\r\n      \"Read(./.env)\"\r\n    ]\r\n  },\r\n  \"hooks\": {\r\n    \"PostToolUse\": [\r\n      {\r\n        \"matcher\": \"Edit|Write\",\r\n        \"hooks\": [\r\n          {\r\n            \"type\": \"command\",\r\n            \"command\": \"node \\\"<ROOT>\\\\tools\\\\my-tools\\\\hooks\\\\format-on-save\\\\index.js\\\"\"\r\n          }\r\n        ]\r\n      }\r\n    ],\r\n    \"PreToolUse\": [\r\n      {\r\n        \"matcher\": \"Bash\",\r\n        \"hooks\": [\r\n          {\r\n            \"type\": \"command\",\r\n            \"command\": \"node \\\"<ROOT>\\\\tools\\\\my-tools\\\\hooks\\\\guard-secrets\\\\index.js\\\"\"\r\n          }\r\n        ]\r\n      }\r\n    ]\r\n  }\r\n}"
+      }
+    },
+    {
+      "argv": [
+        "restore",
+        "{CLAUDE}/settings.json",
+        "--from",
+        "19990101T000000_000000"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "not_found",
+        "message": "Snapshot <SNAP> has no content for '<ROOT>\\Users\\alex\\.claude\\settings.json' (not tracked or deleted)",
+        "target": "<ROOT>\\Users\\alex\\.claude\\settings.json"
+      }
+    }
+  ]
+}

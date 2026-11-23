@@ -1,0 +1,3653 @@
+{
+  "capture_src": "D:\\cmg-ce9c6511",
+  "difflib": [
+    [],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -1 +0,0 @@",
+      "-a"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -0,0 +1 @@",
+      "+a"
+    ],
+    [],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -3,3 +3,2 @@",
+      " l5",
+      "-l4",
+      " l3",
+      "@@ -8,8 +7,6 @@",
+      " l0",
+      "-l5",
+      " l1",
+      "-l1",
+      "-l5",
+      " l0",
+      " l2",
+      "+n2",
+      " l0"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -2,8 +2,6 @@",
+      " l5",
+      " l3",
+      "-l2",
+      " l4",
+      " l3",
+      "-l2",
+      " l3",
+      " l1"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -1,5 +1,6 @@",
+      " l2",
+      " l2",
+      "+n3",
+      " l3",
+      " l1",
+      " l1",
+      "@@ -14,6 +15,7 @@",
+      " l4",
+      " l1",
+      " l1",
+      "+n3",
+      " l2",
+      " l4",
+      " l2"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -3,11 +3,9 @@",
+      " l2",
+      "-l1",
+      " l3",
+      " l2",
+      "-l3",
+      "+n0",
+      " l5",
+      "-l2",
+      "+n0",
+      " l5",
+      " l0",
+      "-l3",
+      " l3",
+      "@@ -16,5 +14,3 @@",
+      " l4",
+      "-l3",
+      " l0",
+      "-l5",
+      " l2"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -1,3 +1,2 @@",
+      " l2",
+      "-l0",
+      " l5"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -1,15 +1,19 @@",
+      " l5",
+      "+n1",
+      " l4",
+      "+n1",
+      " l3",
+      "+n3",
+      " l0",
+      "+n3",
+      " l1",
+      " l4",
+      " l4",
+      "-l2",
+      " l0",
+      " l4",
+      " l4",
+      " l0",
+      "+n0",
+      " l0",
+      " l1",
+      " l1"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -1,8 +1,6 @@",
+      "+l3",
+      "+n3",
+      " l0",
+      "-l3",
+      "-l0",
+      "-l2",
+      "+n2",
+      " l1",
+      "-l2",
+      "-l4",
+      " l4",
+      "@@ -11,2 +9,3 @@",
+      " l4",
+      "+n2",
+      " l3"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -1,3 +1,2 @@",
+      "-l4",
+      " l4",
+      " l4",
+      "@@ -5,6 +4,8 @@",
+      " l0",
+      " l1",
+      "+n2",
+      " l4",
+      " l4",
+      "+n2",
+      " l2",
+      " l3",
+      "@@ -16,5 +17,4 @@",
+      " l0",
+      " l2",
+      "-l2",
+      " l4",
+      " l5"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -1,11 +1,7 @@",
+      " l0",
+      "-l3",
+      " l1",
+      " l0",
+      " l0",
+      " l5",
+      "-l3",
+      "-l5",
+      "-l5",
+      " l5",
+      " l1"
+    ],
+    [],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -1,7 +1,5 @@",
+      "-l0",
+      " l1",
+      " l0",
+      "-l0",
+      "-l0",
+      "+n3",
+      " l0",
+      " l3",
+      "@@ -12,5 +10,6 @@",
+      " l0",
+      " l2",
+      "+n2",
+      " l0",
+      "+n2",
+      " l5",
+      "-l4"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -2,3 +2,4 @@",
+      " l2",
+      " l1",
+      " l0",
+      "+n2"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -1,7 +1,3 @@",
+      "-l0",
+      " l1",
+      "-l3",
+      "-l2",
+      " l4",
+      "-l5",
+      " l1"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -2,6 +2,8 @@",
+      " l1",
+      " l5",
+      "+n0",
+      " l5",
+      " l2",
+      " l3",
+      " l1",
+      "+n2"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -1,12 +1,9 @@",
+      "-l2",
+      "-l0",
+      "-l3",
+      " l2",
+      " l0",
+      " l2",
+      " l0",
+      "+l0",
+      " l1",
+      "-l5",
+      " l5",
+      " l1",
+      " l0",
+      "@@ -14,8 +11,8 @@",
+      " l0",
+      " l4",
+      " l3",
+      "+n3",
+      " l4",
+      " l2",
+      "-l3",
+      "-l0",
+      "+n1",
+      " l2"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -1,2 +1 @@",
+      "-l0",
+      " l0",
+      "@@ -7,4 +6,2 @@",
+      " l1",
+      "-l5",
+      "-l4",
+      " l4",
+      "@@ -12,2 +9 @@",
+      " l2",
+      "-l3"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -1,7 +1,3 @@",
+      " l4",
+      " l5",
+      "-l4",
+      "-l1",
+      "-l3",
+      "-l2",
+      " l5"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -1,6 +1,5 @@",
+      " l3",
+      " l2",
+      "-l3",
+      " l0",
+      " l1",
+      " l0"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -3,5 +3,3 @@",
+      " l0",
+      "-l3",
+      " l1",
+      "-l3",
+      " l5",
+      "@@ -10,2 +8,4 @@",
+      " l3",
+      "+n3",
+      " l3",
+      "+n2"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -2,19 +2,15 @@",
+      " l5",
+      " l0",
+      "-l4",
+      "-l4",
+      "-l3",
+      " l5",
+      " l4",
+      "+n3",
+      " l1",
+      "+n3",
+      " l2",
+      "+n0",
+      " l4",
+      " l3",
+      " l2",
+      "-l5",
+      "-l3",
+      "-l0",
+      " l1",
+      "-l3",
+      " l2",
+      " l1",
+      "@@ -25,4 +21,3 @@",
+      " l4",
+      " l0",
+      "-l2",
+      " l1"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -1,2 +1,3 @@",
+      " l1",
+      " l4",
+      "+n1"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -1,4 +1,2 @@",
+      " l3",
+      "-l3",
+      "-l4",
+      " l1"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -3,7 +3,5 @@",
+      " l4",
+      " l1",
+      "-l5",
+      " l1",
+      "-l4",
+      " l2",
+      " l2"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -1,12 +1,15 @@",
+      " l1",
+      " l0",
+      " l2",
+      "+n1",
+      " l4",
+      " l2",
+      " l0",
+      " l4",
+      " l4",
+      "+n1",
+      " l3",
+      " l5",
+      " l5",
+      " l4",
+      "+n0"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -1,3 +1,3 @@",
+      "-l5",
+      " l4",
+      "+n1",
+      " l1",
+      "@@ -7 +7,2 @@",
+      " l5",
+      "+n2"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -1,4 +1,2 @@",
+      "-l0",
+      "-l2",
+      " l4",
+      " l5",
+      "@@ -10,4 +8,3 @@",
+      " l5",
+      " l2",
+      "-l3",
+      "-l4",
+      "+n0"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -3,23 +3,27 @@",
+      " l0",
+      " l0",
+      " l1",
+      "+n1",
+      " l4",
+      "-l5",
+      "+n1",
+      " l3",
+      "-l0",
+      " l4",
+      "+n0",
+      " l3",
+      " l4",
+      " l5",
+      "+n1",
+      " l2",
+      " l2",
+      " l4",
+      " l5",
+      " l4",
+      "+n0",
+      " l0",
+      " l3",
+      " l4",
+      " l4",
+      "+n2",
+      " l4",
+      " l4",
+      " l2"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -1,4 +1,2 @@",
+      " l2",
+      "-l3",
+      "-l0",
+      " l0"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -2,5 +2,4 @@",
+      " l5",
+      " l0",
+      "-l3",
+      " l3",
+      " l1",
+      "@@ -13,8 +12,8 @@",
+      " l2",
+      " l4",
+      "-l4",
+      " l2",
+      " l5",
+      " l4",
+      "+n1",
+      " l3",
+      " l2",
+      "@@ -22,7 +21,7 @@",
+      " l1",
+      " l5",
+      "+n0",
+      " l1",
+      " l5",
+      "-l0",
+      " l1",
+      " l2"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -1,4 +1,3 @@",
+      " l1",
+      " l0",
+      " l1",
+      "-l4"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -4,4 +4,4 @@",
+      " l1",
+      "+n0",
+      " l5",
+      "-l1",
+      " l2",
+      "@@ -10,3 +10,2 @@",
+      " l4",
+      "-l4",
+      " l0"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -5,7 +5,8 @@",
+      " l2",
+      " l5",
+      "-l0",
+      "+n3",
+      " l3",
+      " l4",
+      "+n2",
+      " l5",
+      " l1",
+      "@@ -13,9 +14,10 @@",
+      " l2",
+      " l4",
+      "+n3",
+      " l2",
+      "+n1",
+      "+l4",
+      " l4",
+      " l0",
+      " l4",
+      "-l0",
+      "-l4",
+      "-l3",
+      "+n1"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -1,15 +1,15 @@",
+      " l5",
+      " l3",
+      " l1",
+      "+n2",
+      " l2",
+      " l1",
+      " l4",
+      "-l3",
+      " l2",
+      " l1",
+      " l1",
+      " l4",
+      "-l0",
+      " l4",
+      " l0",
+      " l2",
+      "+n2"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -1,4 +1,5 @@",
+      " l0",
+      "-l1",
+      "+n3",
+      " l0",
+      "+n2",
+      " l3",
+      "@@ -6,3 +7,2 @@",
+      " l1",
+      "-l4",
+      " l3",
+      "@@ -11,4 +11,2 @@",
+      " l2",
+      "-l3",
+      "-l0",
+      " l2",
+      "@@ -16,2 +14,3 @@",
+      " l4",
+      "+n1",
+      " l0"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -1,3 +1,2 @@",
+      "-l4",
+      " l4",
+      " l4",
+      "@@ -5,7 +4,7 @@",
+      " l2",
+      " l1",
+      "+n0",
+      " l3",
+      " l1",
+      "-l4",
+      " l5",
+      " l4"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -6,10 +6,7 @@",
+      " l1",
+      " l3",
+      " l4",
+      "-l3",
+      "-l4",
+      " l0",
+      "-l2",
+      " l1",
+      " l3",
+      " l2",
+      "@@ -17,8 +14,9 @@",
+      " l2",
+      " l4",
+      " l3",
+      "+n0",
+      " l0",
+      "-l0",
+      "-l2",
+      "+n2",
+      " l3",
+      "+n0",
+      " l5"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -8,8 +8,9 @@",
+      " l4",
+      "-l5",
+      " l3",
+      " l3",
+      "-l3",
+      "+n1",
+      " l2",
+      " l2",
+      "+n3",
+      " l0",
+      "+n2"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -1,15 +1,9 @@",
+      " l0",
+      "+n1",
+      " l0",
+      "-l3",
+      " l0",
+      " l4",
+      " l2",
+      "-l5",
+      "-l4",
+      "-l2",
+      "-l0",
+      "-l1",
+      " l4",
+      " l4",
+      " l4",
+      "-l4"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -1,13 +1,16 @@",
+      " l1",
+      " l1",
+      "+n3",
+      " l4",
+      " l3",
+      " l5",
+      " l2",
+      "+n0",
+      " l3",
+      " l1",
+      " l3",
+      " l0",
+      "+n1",
+      " l5",
+      " l5",
+      " l4",
+      "@@ -17,11 +20,8 @@",
+      " l1",
+      " l3",
+      " l3",
+      "-l4",
+      " l2",
+      " l2",
+      "-l1",
+      "-l0",
+      " l1",
+      " l5",
+      " l4"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -2,9 +2,10 @@",
+      " l2",
+      "-l4",
+      " l2",
+      "+n1",
+      " l1",
+      "-l0",
+      " l3",
+      " l1",
+      "+n0",
+      " l2",
+      "+n3",
+      " l5",
+      "@@ -16,3 +17,2 @@",
+      " l4",
+      "-l4",
+      " l5"
+    ],
+    [
+      "--- 현재",
+      "+++ 번들",
+      "@@ -1,260 +1,241 @@",
+      " l1",
+      " l2",
+      "-l2",
+      "-l1",
+      "-l1",
+      "-l0",
+      "-l1",
+      "-l0",
+      "-l1",
+      "-l2",
+      "-l0",
+      "-l0",
+      "-l2",
+      "-l1",
+      "-l0",
+      "-l2",
+      "-l2",
+      "-l2",
+      "-l0",
+      "-l0",
+      "-l1",
+      "-l2",
+      "-l1",
+      "-l0",
+      "-l1",
+      "-l0",
+      "-l1",
+      "-l1",
+      "-l2",
+      "-l2",
+      "-l1",
+      "-l2",
+      "-l0",
+      "-l1",
+      "-l0",
+      "-l2",
+      "-l1",
+      "-l0",
+      "-l0",
+      "-l2",
+      "-l0",
+      "-l2",
+      "-l2",
+      "-l2",
+      "-l0",
+      "-l0",
+      "-l1",
+      "-l0",
+      "-l1",
+      "-l2",
+      "-l2",
+      "-l1",
+      "-l1",
+      "-l0",
+      "-l2",
+      "-l1",
+      "-l0",
+      "-l1",
+      "-l1",
+      "-l2",
+      "-l0",
+      "-l0",
+      "-l0",
+      "-l1",
+      "-l2",
+      "-l2",
+      "-l0",
+      "-l1",
+      "-l0",
+      "-l0",
+      "-l1",
+      "-l1",
+      "-l1",
+      "-l0",
+      "-l2",
+      "-l2",
+      "-l0",
+      "-l1",
+      "-l2",
+      "-l1",
+      "-l1",
+      "-l0",
+      "-l0",
+      "-l0",
+      "-l1",
+      "-l2",
+      "-l1",
+      "-l2",
+      "-l2",
+      "-l2",
+      "-l2",
+      "-l2",
+      "-l2",
+      "-l0",
+      "-l0",
+      "-l2",
+      "-l2",
+      "-l1",
+      "-l0",
+      "-l2",
+      "-l0",
+      "-l2",
+      "-l0",
+      "-l1",
+      "-l0",
+      "-l1",
+      "-l1",
+      "-l0",
+      "-l2",
+      "-l2",
+      "-l2",
+      "-l1",
+      "-l0",
+      "-l1",
+      "-l0",
+      "-l2",
+      "-l1",
+      "-l1",
+      "-l1",
+      "-l1",
+      "-l2",
+      "-l2",
+      "-l2",
+      "-l2",
+      "-l1",
+      "-l2",
+      "-l1",
+      "-l2",
+      "-l2",
+      "-l1",
+      "-l1",
+      "-l2",
+      "-l2",
+      "-l1",
+      "-l2",
+      "-l1",
+      "-l1",
+      "-l2",
+      "-l2",
+      "-l2",
+      "-l0",
+      "-l1",
+      "-l1",
+      "-l2",
+      "-l1",
+      "-l0",
+      "-l1",
+      "-l1",
+      "-l1",
+      "-l2",
+      "-l1",
+      "-l1",
+      "-l0",
+      "-l0",
+      "-l1",
+      "-l2",
+      "-l2",
+      "-l2",
+      "-l0",
+      "-l0",
+      "-l0",
+      "-l1",
+      "-l0",
+      "-l0",
+      "-l0",
+      "-l1",
+      "-l0",
+      "-l2",
+      "-l1",
+      "-l2",
+      "-l0",
+      "-l1",
+      "-l2",
+      "-l0",
+      "-l2",
+      "-l2",
+      "-l2",
+      "-l2",
+      "-l0",
+      "-l1",
+      "-l1",
+      "-l1",
+      "-l0",
+      "-l1",
+      "-l1",
+      "-l2",
+      "-l2",
+      "-l0",
+      "-l2",
+      "-l1",
+      "-l1",
+      "-l2",
+      "-l2",
+      "-l2",
+      "-l0",
+      "-l2",
+      "-l0",
+      "-l0",
+      "-l0",
+      "-l0",
+      "-l2",
+      "-l1",
+      "-l2",
+      "-l2",
+      "-l1",
+      "-l1",
+      "-l2",
+      "-l2",
+      "-l1",
+      "-l1",
+      "-l1",
+      "-l2",
+      "-l0",
+      "-l1",
+      "-l0",
+      "-l0",
+      "-l2",
+      "-l2",
+      "-l2",
+      "-l2",
+      "-l0",
+      "-l1",
+      "-l0",
+      "-l2",
+      "-l0",
+      "-l1",
+      "-l0",
+      "-l1",
+      "-l2",
+      "-l2",
+      "-l0",
+      "-l1",
+      "-l0",
+      "-l1",
+      "-l1",
+      "-l0",
+      "-l0",
+      "-l2",
+      "-l1",
+      "-l2",
+      "-l1",
+      "-l0",
+      "-l0",
+      "-l2",
+      "-l2",
+      "-l0",
+      "-l0",
+      "-l1",
+      "-l1",
+      "-l2",
+      "-l0",
+      "-l0",
+      "-l2",
+      "-l2",
+      "-l2",
+      "-l0",
+      "-l2",
+      "-l1",
+      "-l0",
+      "-l0",
+      "+l1",
+      "+l0",
+      "+l1",
+      "+l0",
+      "+l1",
+      "+l2",
+      "+l0",
+      "+l0",
+      "+l2",
+      "+l1",
+      "+l0",
+      "+l2",
+      "+l2",
+      "+l2",
+      "+l0",
+      "+l0",
+      "+l1",
+      "+l2",
+      "+l1",
+      "+l0",
+      "+l1",
+      "+l0",
+      "+l1",
+      "+l1",
+      "+l2",
+      "+l2",
+      "+l1",
+      "+l2",
+      "+l0",
+      "+l1",
+      "+l2",
+      "+l1",
+      "+l0",
+      "+l0",
+      "+l2",
+      "+l0",
+      "+l2",
+      "+l2",
+      "+l0",
+      "+l0",
+      "+l1",
+      "+l0",
+      "+l1",
+      "+l2",
+      "+l2",
+      "+l1",
+      "+l0",
+      "+l2",
+      "+l1",
+      "+l0",
+      "+l1",
+      "+l1",
+      "+l2",
+      "+l0",
+      "+l0",
+      "+l1",
+      "+l2",
+      "+l2",
+      "+l0",
+      "+l1",
+      "+l0",
+      "+l1",
+      "+l1",
+      "+l1",
+      "+l0",
+      "+l2",
+      "+l2",
+      "+l0",
+      "+l1",
+      "+l2",
+      "+l1",
+      "+l0",
+      "+l0",
+      "+l0",
+      "+l1",
+      "+l2",
+      "+l1",
+      "+l2",
+      "+l2",
+      "+l2",
+      "+l2",
+      "+l2",
+      "+l2",
+      "+l0",
+      "+l0",
+      "+l2",
+      "+l2",
+      "+l1",
+      "+l0",
+      "+l2",
+      "+l0",
+      "+l2",
+      "+l0",
+      "+l1",
+      "+l0",
+      "+l1",
+      "+l1",
+      "+l0",
+      "+l2",
+      "+l2",
+      "+l2",
+      "+l1",
+      "+l0",
+      "+l1",
+      "+l0",
+      "+l2",
+      "+l1",
+      "+l1",
+      "+l1",
+      "+l1",
+      "+l2",
+      "+l2",
+      "+l2",
+      "+l2",
+      "+l1",
+      "+l2",
+      "+l2",
+      "+l1",
+      "+l1",
+      "+l2",
+      "+l2",
+      "+l1",
+      "+l2",
+      "+l1",
+      "+l1",
+      "+l2",
+      "+l2",
+      "+l2",
+      "+l0",
+      "+l1",
+      "+l1",
+      "+l2",
+      "+l0",
+      "+l1",
+      "+l1",
+      "+l2",
+      "+l1",
+      "+l1",
+      "+l0",
+      "+l0",
+      "+l1",
+      "+l2",
+      "+l2",
+      "+l0",
+      "+l0",
+      "+l0",
+      "+l0",
+      "+l0",
+      "+l1",
+      "+l2",
+      "+l1",
+      "+l2",
+      "+l0",
+      "+l1",
+      "+l2",
+      "+l0",
+      "+l2",
+      "+l2",
+      "+l2",
+      "+l2",
+      "+l0",
+      "+l1",
+      "+l1",
+      "+l1",
+      "+l0",
+      "+l1",
+      "+l2",
+      "+l2",
+      "+l0",
+      "+l2",
+      "+l1",
+      "+l1",
+      "+l2",
+      "+l2",
+      "+l0",
+      "+l2",
+      "+l0",
+      "+l0",
+      "+l0",
+      "+l0",
+      "+l2",
+      "+l1",
+      "+l2",
+      "+l2",
+      "+l1",
+      "+l1",
+      "+l2",
+      "+l2",
+      "+l1",
+      "+l1",
+      "+l1",
+      "+l2",
+      "+l0",
+      "+l1",
+      "+l0",
+      "+l0",
+      "+l2",
+      "+l2",
+      "+l2",
+      "+l2",
+      "+l0",
+      "+l1",
+      "+l0",
+      "+l2",
+      "+l0",
+      "+l1",
+      "+l0",
+      "+l1",
+      "+l2",
+      "+l2",
+      "+l0",
+      "+l1",
+      "+l0",
+      "+l1",
+      "+l1",
+      "+l0",
+      "+l2",
+      "+l1",
+      "+l2",
+      "+l1",
+      "+l0",
+      "+l0",
+      "+l2",
+      "+l2",
+      "+l0",
+      "+l0",
+      "+l1",
+      "+l1",
+      "+l2",
+      "+l0",
+      "+l0",
+      "+l2",
+      "+l2",
+      "+l2",
+      "+l0",
+      "+l2",
+      "+l1",
+      "+l0",
+      "+l0"
+    ]
+  ],
+  "tree": {
+    "rows": [
+      [
+        "A.txt",
+        "sha256:48266a699a8ebb7a3d40bd531606f37d6865e3b64ec3654fce10069ea5fa3533"
+      ],
+      [
+        "b.txt",
+        "sha256:ffa0da5d885fba09d903c782713b6b098c8cf21f56a3a35d9aa920613220d2e1"
+      ],
+      [
+        "Sub2/y",
+        "sha256:c8bf2f29daad7e18942e34215dc7e11d41c282d8ab05e1ff8660248201cfe6a9"
+      ],
+      [
+        "sub/z.md",
+        "sha256:c4434f7f83ec2bb32371c881ed9994cb7ca5996ea2626b01051310a444aef7b7"
+      ],
+      [
+        "sub/deep/x",
+        "sha256:8a09eab6e4ffd409acf3a64d1d299838b9dd21a338f40ff8e2301eb43886132f"
+      ],
+      [
+        "한글/파일.md",
+        "sha256:aa86c7e02f502f548fed7c0064ac95ce14d8ca7dce56765216aa60f32e37c33e"
+      ]
+    ],
+    "size": 50,
+    "digest": "sha256:02629a1c97deeef077a5bd0fb4b70e6968cfe11f754ab2dc2433116ae276737b"
+  },
+  "bundles": {
+    "py-zip": {
+      "zip": "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"
+    },
+    "py-folder": {
+      "files": {
+        "files/${CLAUDE_HOME}/agents/rev.md": "LS0tCmRlc2NyaXB0aW9uOiByCi0tLQo=",
+        "files/${CLAUDE_HOME}/hooks/guard.py": "cHJpbnQoMSkK",
+        "files/${CLAUDE_HOME}/skills/qa/SKILL.md": "LS0tCmRlc2NyaXB0aW9uOiBxCi0tLQo=",
+        "files/${CLAUDE_HOME}/skills/한글/설명.md": "7ZWc6riAIOuCtOyaqQo=",
+        "json/cc.mcp-user/srv.json": "ewogICJjb21tYW5kIjogIm5vZGUiLAogICJhcmdzIjogWwogICAgIkQ6XFxjbWctY2U5YzY1MTFcXHRvb2xzXFxzcnZcXGluZGV4LmpzIgogIF0sCiAgImVudiI6IHsKICAgICJHSVRIVUJfVE9LRU4iOiAiJHtDTV9TRUNSRVQ6Y2MubWNwLXVzZXIvc3J2OmVudi5HSVRIVUJfVE9LRU59IgogIH0KfQ==",
+        "json/cc.settings.json": "ewogICJzdGF0dXNMaW5lIjogewogICAgInR5cGUiOiAiY29tbWFuZCIsCiAgICAiY29tbWFuZCI6ICJub2RlIFwiJHtDTEFVREVfSE9NRX1cXGhvb2tzXFxndWFyZC5weVwiIgogIH0sCiAgImhvb2tzIjogewogICAgIlN0b3AiOiBbCiAgICAgIHsKICAgICAgICAiaG9va3MiOiBbCiAgICAgICAgICB7CiAgICAgICAgICAgICJ0eXBlIjogImNvbW1hbmQiLAogICAgICAgICAgICAiY29tbWFuZCI6ICJub2RlIFwiRDpcXGNtZy1jZTljNjUxMVxcdG9vbHNcXGhvb2suanNcIiIKICAgICAgICAgIH0KICAgICAgICBdCiAgICAgIH0KICAgIF0KICB9LAogICJlbnYiOiB7CiAgICAiQVBJX1RPS0VOIjogIiR7Q01fU0VDUkVUOmNjLnNldHRpbmdzOmVudi5BUElfVE9LRU59IgogIH0sCiAgIm1vZGVsIjogInNvbm5ldCIsCiAgInJhdGlvIjogMS4wLAogICJwZXJtaXNzaW9ucyI6IHsKICAgICJhbGxvdyI6IFsKICAgICAgIkJhc2gobHMpIgogICAgXQogIH0KfQ==",
+        "json/desk.mcp/dsk.json": "ewogICJjb21tYW5kIjogIm5vZGUiLAogICJhcmdzIjogWwogICAgIiR7REVTS1RPUF9ESVJ9XFxkc2suanMiCiAgXQp9",
+        "manifest.json": "ewogICJmb3JtYXQiOiAiY21idW5kbGUiLAogICJ2ZXJzaW9uIjogMSwKICAiY3JlYXRlZCI6ICIyMDI2LTExLTIzVDA5OjIzOjM4KzA5OjAwIiwKICAic291cmNlIjogewogICAgImhvc3QiOiAiZGVtby1wYyIsCiAgICAib3MiOiAid2luMzIiLAogICAgImhvbWUiOiAiRDpcXGNtZy1jZTljNjUxMVxcaG9tZSIsCiAgICAiY2xhdWRlX2hvbWUiOiAiRDpcXGNtZy1jZTljNjUxMVxcaG9tZVxcLmNsYXVkZSIsCiAgICAiZGVza3RvcF9kaXIiOiAiRDpcXGNtZy1jZTljNjUxMVxcaG9tZVxcQXBwRGF0YVxcUm9hbWluZ1xcQ2xhdWRlIgogIH0sCiAgInRva2VucyI6IHsKICAgICIke0RFU0tUT1BfRElSfSI6ICJEOlxcY21nLWNlOWM2NTExXFxob21lXFxBcHBEYXRhXFxSb2FtaW5nXFxDbGF1ZGUiLAogICAgIiR7Q0xBVURFX0hPTUV9IjogIkQ6XFxjbWctY2U5YzY1MTFcXGhvbWVcXC5jbGF1ZGUiLAogICAgIiR7SE9NRX0iOiAiRDpcXGNtZy1jZTljNjUxMVxcaG9tZSIKICB9LAogICJpdGVtcyI6IFsKICAgIHsKICAgICAgImlkIjogImNjLnNraWxscy9xYSIsCiAgICAgICJjYXRlZ29yeSI6ICJjYy5za2lsbHMiLAogICAgICAic3RyYXRlZ3kiOiAidHJlZSIsCiAgICAgICJyZWwiOiAiJHtDTEFVREVfSE9NRX0vc2tpbGxzL3FhIiwKICAgICAgImhhc2giOiAic2hhMjU2OjFlNjNjZDUxMjQ4MTZlYWI0MmM2ZDQ0OWE0NDZmMDUyZGQyNGM1YTM1OWUyOTY4MmM1N2UyMjg3N2MxYzZkYTEiLAogICAgICAic2l6ZSI6IDIzLAogICAgICAiZmlsZXMiOiAxCiAgICB9LAogICAgewogICAgICAiaWQiOiAiY2Muc2tpbGxzL+2VnOq4gCIsCiAgICAgICJjYXRlZ29yeSI6ICJjYy5za2lsbHMiLAogICAgICAic3RyYXRlZ3kiOiAidHJlZSIsCiAgICAgICJyZWwiOiAiJHtDTEFVREVfSE9NRX0vc2tpbGxzL+2VnOq4gCIsCiAgICAgICJoYXNoIjogInNoYTI1NjoyNjA1NzY3MTg2YzZmYTZmNjEyNDVlMjNiMDQ1MTgxZjhmNjViOTZhMzI0ZWI0MjgzMDM4YWYzZjBmM2FjZjRmIiwKICAgICAgInNpemUiOiAxNCwKICAgICAgImZpbGVzIjogMQogICAgfSwKICAgIHsKICAgICAgImlkIjogImNjLmFnZW50cy9yZXYubWQiLAogICAgICAiY2F0ZWdvcnkiOiAiY2MuYWdlbnRzIiwKICAgICAgInN0cmF0ZWd5IjogImZpbGUiLAogICAgICAicmVsIjogIiR7Q0xBVURFX0hPTUV9L2FnZW50cy9yZXYubWQiLAogICAgICAiaGFzaCI6ICJzaGEyNTY6MDM0MDk5Njk2YTVjYmQ2ODAwMjlmYjc4YjgwM2E2ZmExNDNjOGViMTlkZGY5YzJiYjY3NzYxNDJhNTA2N2Q5ZiIsCiAgICAgICJzaXplIjogMjMsCiAgICAgICJmaWxlcyI6IDEKICAgIH0sCiAgICB7CiAgICAgICJpZCI6ICJjYy5zZXR0aW5ncyIsCiAgICAgICJjYXRlZ29yeSI6ICJjYy5zZXR0aW5ncyIsCiAgICAgICJzdHJhdGVneSI6ICJqc29uLWtleXMiLAogICAgICAia2V5IjogInNldHRpbmdzLmpzb24iLAogICAgICAiaGFzaCI6ICJzaGEyNTY6OWZlNWZhNDFhOWNlODc3MWUwMGQwM2Q4ZWYwNTg4ZjZlNDc0MjdmYWIyZGQ5MGExZjU0OGJhN2Q2NGE4Zjg4ZCIsCiAgICAgICJzaXplIjogMzE3LAogICAgICAiZmlsZXMiOiAwLAogICAgICAic2VjcmV0cyI6IFsKICAgICAgICAiZW52LkFQSV9UT0tFTiIKICAgICAgXQogICAgfSwKICAgIHsKICAgICAgImlkIjogImNjLm1jcC11c2VyL3NydiIsCiAgICAgICJjYXRlZ29yeSI6ICJjYy5tY3AtdXNlciIsCiAgICAgICJzdHJhdGVneSI6ICJqc29uLWtleXMiLAogICAgICAia2V5IjogIm1jcFNlcnZlcnMuc3J2IiwKICAgICAgImhhc2giOiAic2hhMjU2OmI5ZGEwNTg1MmM3ZTUxNzE4ZDE0MzM3NzZlNjQxZmNjZDUzMzdlOTQwYmNmNmViZWMyMjNkNjhkZDdmN2FlZjgiLAogICAgICAic2l6ZSI6IDEzOSwKICAgICAgImZpbGVzIjogMCwKICAgICAgInNlY3JldHMiOiBbCiAgICAgICAgImVudi5HSVRIVUJfVE9LRU4iCiAgICAgIF0KICAgIH0sCiAgICB7CiAgICAgICJpZCI6ICJkZXNrLm1jcC9kc2siLAogICAgICAiY2F0ZWdvcnkiOiAiZGVzay5tY3AiLAogICAgICAic3RyYXRlZ3kiOiAianNvbi1rZXlzIiwKICAgICAgImtleSI6ICJtY3BTZXJ2ZXJzLmRzayIsCiAgICAgICJoYXNoIjogInNoYTI1Njo0ZDIxYzk2M2Y1Njk4MTU3N2ZiM2NmNzE0MGVkNmMzOGY5YTFlYWM1ZmIxMzNiNmEwZTgzNTFiZGY3MTU1MWI4IiwKICAgICAgInNpemUiOiA1MiwKICAgICAgImZpbGVzIjogMCwKICAgICAgInNlY3JldHMiOiBbXQogICAgfSwKICAgIHsKICAgICAgImlkIjogImNjLnJlZnMvaG9va3MvZ3VhcmQucHkiLAogICAgICAiY2F0ZWdvcnkiOiAiY2MucmVmcyIsCiAgICAgICJzdHJhdGVneSI6ICJmaWxlIiwKICAgICAgInJlbCI6ICIke0NMQVVERV9IT01FfS9ob29rcy9ndWFyZC5weSIsCiAgICAgICJoYXNoIjogInNoYTI1NjpjYzQyMTU1MDg4ZmNhNTczMDc1OGRiNzJiMmE1YmNhMzMxMTJhOTQxZGZhYTJkNDMwOThlYzQyMmNlNGVhMjEzIiwKICAgICAgInNpemUiOiA5LAogICAgICAiZmlsZXMiOiAxCiAgICB9CiAgXSwKICAic2tpcHBlZCI6IFsKICAgIHsKICAgICAgImlkIjogImNjLnNraWxscy9zeW5jZWQiLAogICAgICAicmVhc29uIjogImNsYXVkZS5haSDqs4TsoJUg64+Z6riw7ZmUIO2PtOuNlCIKICAgIH0sCiAgICB7CiAgICAgICJpZCI6ICJjbS5zdG9yZSIsCiAgICAgICJyZWFzb24iOiAi7Iqk7Yag7Ja0IOyEpOyglSDsl4bsnYw6IEQ6XFxjbWctY2U5YzY1MTFcXGhvbWVcXHN0b3JlIgogICAgfQogIF0sCiAgInBsdWdpbnMiOiB7CiAgICAiZGVjbGFyZWQiOiAwLAogICAgIm1hcmtldCI6IFtdLAogICAgImJ1aWx0aW4iOiBbXSwKICAgICJpbmxpbmUiOiBbXSwKICAgICJhZGRlZF9leHBsaWNpdCI6IFtdLAogICAgImRyb3BwZWQiOiBbXSwKICAgICJtYXJrZXRzX2FkZGVkIjogW10KICB9LAogICJleHRlcm5hbCI6IFsKICAgIHsKICAgICAgImtpbmQiOiAibWNwIiwKICAgICAgInBhdGgiOiAiRDpcXGNtZy1jZTljNjUxMVxcaG9tZVxcQXBwRGF0YVxcUm9hbWluZ1xcQ2xhdWRlXFxkc2suanMiLAogICAgICAidG9rZW4iOiAiJHtERVNLVE9QX0RJUn1cXGRzay5qcyIsCiAgICAgICJleGlzdHMiOiBmYWxzZSwKICAgICAgIm93bmVycyI6IFsKICAgICAgICAiZHNrIgogICAgICBdLAogICAgICAic2NvcGVzIjogWwogICAgICAgICJkZXNrLm1jcCIKICAgICAgXSwKICAgICAgImZpZWxkcyI6IFsKICAgICAgICAiZGVzay5tY3A6YXJnc1swXSIKICAgICAgXQogICAgfSwKICAgIHsKICAgICAgImtpbmQiOiAibWNwIiwKICAgICAgInBhdGgiOiAiRDpcXGNtZy1jZTljNjUxMVxcdG9vbHNcXHNydlxcaW5kZXguanMiLAogICAgICAidG9rZW4iOiAiRDpcXGNtZy1jZTljNjUxMVxcdG9vbHNcXHNydlxcaW5kZXguanMiLAogICAgICAiZXhpc3RzIjogdHJ1ZSwKICAgICAgIm93bmVycyI6IFsKICAgICAgICAic3J2IgogICAgICBdLAogICAgICAic2NvcGVzIjogWwogICAgICAgICJjYy5tY3AtdXNlciIKICAgICAgXSwKICAgICAgImZpZWxkcyI6IFsKICAgICAgICAiY2MubWNwLXVzZXI6YXJnc1swXSIKICAgICAgXQogICAgfSwKICAgIHsKICAgICAgImtpbmQiOiAiaG9vayIsCiAgICAgICJwYXRoIjogIkQ6XFxjbWctY2U5YzY1MTFcXHRvb2xzXFxob29rLmpzIiwKICAgICAgInRva2VuIjogIkQ6XFxjbWctY2U5YzY1MTFcXHRvb2xzXFxob29rLmpzIiwKICAgICAgImV4aXN0cyI6IHRydWUsCiAgICAgICJvd25lcnMiOiBbCiAgICAgICAgIlN0b3AiCiAgICAgIF0sCiAgICAgICJzY29wZXMiOiBbCiAgICAgICAgImNjLnNldHRpbmdzIgogICAgICBdLAogICAgICAiZmllbGRzIjogWwogICAgICAgICJjYy5zZXR0aW5nczpob29rcy5TdG9wWzBdLmhvb2tzWzBdLmNvbW1hbmQiCiAgICAgIF0KICAgIH0KICBdCn0=",
+        "report.json": "ewogICJsaW5lcyI6IFsKICAgICLsnbTqtIAg64yA7IOBIiwKICAgICItIOyKpO2CrCAy6rG0IiwKICAgICItIOyXkOydtOyghO2KuCAx6rG0IiwKICAgICItIH4vLmNsYXVkZSDslYjsnZgg7LC47KGwIO2MjOydvCjtm4XCt3N0YXR1c0xpbmUg7Iqk7YGs66a97Yq4KSAx6rG0IiwKICAgICItIHNldHRpbmdzLmpzb24gKOq2jO2VnMK37ZuFwrdlbnbCt+2UjOufrOq3uOyduCDshKDslrgpIiwKICAgICItIE1DUCDshJzrsoQgKENsYXVkZSBDb2RlKSAx6rG0IiwKICAgICItIE1DUCDshJzrsoQgKERlc2t0b3ApIDHqsbQiLAogICAgIi0g7ZSM65+s6re47J24IOyEoOyWuCAw6rG0ICjrp4jsvJMgMCwg64K07J6lIDAsIGlubGluZSAwKSAtIOyDiCBQQyDsl5DshJwgQ2xhdWRlIENvZGUg6rCAIOuLpOydjCDsi6Ttlokg65WMIOuCtOugpOuwm+ydjCIsCiAgICAiLSDsi5ztgazrpr8gMuqxtOydhCBzZWNyZXRzLmpzb24g7JeQIO2PieusuOycvOuhnCDrhKPsnYwgKOuyiOuTpOydhCDqs7XsnKAg7Y+0642U7JeQIOuRmCDrlYwg7KO87J2YKSIsCiAgICAiICAtIHNldHRpbmdzLmpzb24gKOq2jO2VnMK37ZuFwrdlbnbCt+2UjOufrOq3uOyduCDshKDslrgpOiBlbnYuQVBJX1RPS0VOIiwKICAgICIgIC0gTUNQIOyEnOuyhCAoQ2xhdWRlIENvZGUpIHNydjogZW52LkdJVEhVQl9UT0tFTiIsCiAgICAiLSDrsojrk6Trp4Eg67aI6rCA64qlIOyZuOu2gCDshKTsoJUgKOyDiCBQQyDsnZgg6rCZ7J2AIOqyveuhnOyXkCDrlLDroZwg7KSA67mE7ZW07JW8IO2VqCkiLAogICAgIiAgLSBNQ1Ag7ISc67KEIiwKICAgICIgICAgLSBkc2sgKERlc2t0b3ApOiBEOlxcY21nLWNlOWM2NTExXFxob21lXFxBcHBEYXRhXFxSb2FtaW5nXFxDbGF1ZGVcXGRzay5qcyBb7J20IFBDIOyXkOuPhCDsl4bsnYxdIiwKICAgICIgICAgLSBzcnYgKENsYXVkZSBDb2RlKTogRDpcXGNtZy1jZTljNjUxMVxcdG9vbHNcXHNydlxcaW5kZXguanMiLAogICAgIiAgLSDtm4UiLAogICAgIiAgICAtIEQ6XFxjbWctY2U5YzY1MTFcXHRvb2xzXFxob29rLmpzIChTdG9wKSIsCiAgICAiLSDsoJzsmbggMuqxtCIsCiAgICAiICAtIOyKpO2CrCBzeW5jZWQ6IGNsYXVkZS5haSDqs4TsoJUg64+Z6riw7ZmUIO2PtOuNlCIsCiAgICAiICAtIGNvbmZpZy1tb25pdG9yIOyKpO2GoOyWtCDshKTsoJU6IOyKpO2GoOyWtCDshKTsoJUg7JeG7J2MOiBEOlxcY21nLWNlOWM2NTExXFxob21lXFxzdG9yZSIsCiAgICAiLSDqsr3qs6AiLAogICAgIiAgLSDsi5ztgazrpr8g6rCS7J20IHNlY3JldHMuanNvbiDsl5Ag7Y+J66y47Jy866GcIOuTpOyWtOqwkeuLiOuLpCIKICBdLAogICJleHRlcm5hbCI6IFsKICAgIHsKICAgICAgImtpbmQiOiAibWNwIiwKICAgICAgInBhdGgiOiAiRDpcXGNtZy1jZTljNjUxMVxcaG9tZVxcQXBwRGF0YVxcUm9hbWluZ1xcQ2xhdWRlXFxkc2suanMiLAogICAgICAidG9rZW4iOiAiJHtERVNLVE9QX0RJUn1cXGRzay5qcyIsCiAgICAgICJleGlzdHMiOiBmYWxzZSwKICAgICAgIm93bmVycyI6IFsKICAgICAgICAiZHNrIgogICAgICBdLAogICAgICAic2NvcGVzIjogWwogICAgICAgICJkZXNrLm1jcCIKICAgICAgXSwKICAgICAgImZpZWxkcyI6IFsKICAgICAgICAiZGVzay5tY3A6YXJnc1swXSIKICAgICAgXQogICAgfSwKICAgIHsKICAgICAgImtpbmQiOiAibWNwIiwKICAgICAgInBhdGgiOiAiRDpcXGNtZy1jZTljNjUxMVxcdG9vbHNcXHNydlxcaW5kZXguanMiLAogICAgICAidG9rZW4iOiAiRDpcXGNtZy1jZTljNjUxMVxcdG9vbHNcXHNydlxcaW5kZXguanMiLAogICAgICAiZXhpc3RzIjogdHJ1ZSwKICAgICAgIm93bmVycyI6IFsKICAgICAgICAic3J2IgogICAgICBdLAogICAgICAic2NvcGVzIjogWwogICAgICAgICJjYy5tY3AtdXNlciIKICAgICAgXSwKICAgICAgImZpZWxkcyI6IFsKICAgICAgICAiY2MubWNwLXVzZXI6YXJnc1swXSIKICAgICAgXQogICAgfSwKICAgIHsKICAgICAgImtpbmQiOiAiaG9vayIsCiAgICAgICJwYXRoIjogIkQ6XFxjbWctY2U5YzY1MTFcXHRvb2xzXFxob29rLmpzIiwKICAgICAgInRva2VuIjogIkQ6XFxjbWctY2U5YzY1MTFcXHRvb2xzXFxob29rLmpzIiwKICAgICAgImV4aXN0cyI6IHRydWUsCiAgICAgICJvd25lcnMiOiBbCiAgICAgICAgIlN0b3AiCiAgICAgIF0sCiAgICAgICJzY29wZXMiOiBbCiAgICAgICAgImNjLnNldHRpbmdzIgogICAgICBdLAogICAgICAiZmllbGRzIjogWwogICAgICAgICJjYy5zZXR0aW5nczpob29rcy5TdG9wWzBdLmhvb2tzWzBdLmNvbW1hbmQiCiAgICAgIF0KICAgIH0KICBdLAogICJza2lwcGVkIjogWwogICAgewogICAgICAiaWQiOiAiY2Muc2tpbGxzL3N5bmNlZCIsCiAgICAgICJyZWFzb24iOiAiY2xhdWRlLmFpIOqzhOyglSDrj5nquLDtmZQg7Y+0642UIgogICAgfSwKICAgIHsKICAgICAgImlkIjogImNtLnN0b3JlIiwKICAgICAgInJlYXNvbiI6ICLsiqTthqDslrQg7ISk7KCVIOyXhuydjDogRDpcXGNtZy1jZTljNjUxMVxcaG9tZVxcc3RvcmUiCiAgICB9CiAgXQp9",
+        "secrets.json": "ewogICJjYy5zZXR0aW5ncyI6IHsKICAgICJlbnYuQVBJX1RPS0VOIjogImZpeHR1cmUtc2VjcmV0LXZhbHVlIgogIH0sCiAgImNjLm1jcC11c2VyL3NydiI6IHsKICAgICJlbnYuR0lUSFVCX1RPS0VOIjogImZpeHR1cmUtc2VjcmV0LXZhbHVlIgogIH0KfQ=="
+      }
+    },
+    "ts-zip": {
+      "zip": "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"
+    },
+    "ts-folder": {
+      "files": {
+        "files/${CLAUDE_HOME}/agents/rev.md": "LS0tCmRlc2NyaXB0aW9uOiByCi0tLQo=",
+        "files/${CLAUDE_HOME}/hooks/guard.py": "cHJpbnQoMSkK",
+        "files/${CLAUDE_HOME}/skills/qa/SKILL.md": "LS0tCmRlc2NyaXB0aW9uOiBxCi0tLQo=",
+        "files/${CLAUDE_HOME}/skills/한글/설명.md": "7ZWc6riAIOuCtOyaqQo=",
+        "json/cc.mcp-user/srv.json": "ewogICJjb21tYW5kIjogIm5vZGUiLAogICJhcmdzIjogWwogICAgIkQ6XFxjbWctY2U5YzY1MTFcXHRvb2xzXFxzcnZcXGluZGV4LmpzIgogIF0sCiAgImVudiI6IHsKICAgICJHSVRIVUJfVE9LRU4iOiAiJHtDTV9TRUNSRVQ6Y2MubWNwLXVzZXIvc3J2OmVudi5HSVRIVUJfVE9LRU59IgogIH0KfQ==",
+        "json/cc.settings.json": "ewogICJzdGF0dXNMaW5lIjogewogICAgInR5cGUiOiAiY29tbWFuZCIsCiAgICAiY29tbWFuZCI6ICJub2RlIFwiJHtDTEFVREVfSE9NRX1cXGhvb2tzXFxndWFyZC5weVwiIgogIH0sCiAgImhvb2tzIjogewogICAgIlN0b3AiOiBbCiAgICAgIHsKICAgICAgICAiaG9va3MiOiBbCiAgICAgICAgICB7CiAgICAgICAgICAgICJ0eXBlIjogImNvbW1hbmQiLAogICAgICAgICAgICAiY29tbWFuZCI6ICJub2RlIFwiRDpcXGNtZy1jZTljNjUxMVxcdG9vbHNcXGhvb2suanNcIiIKICAgICAgICAgIH0KICAgICAgICBdCiAgICAgIH0KICAgIF0KICB9LAogICJlbnYiOiB7CiAgICAiQVBJX1RPS0VOIjogIiR7Q01fU0VDUkVUOmNjLnNldHRpbmdzOmVudi5BUElfVE9LRU59IgogIH0sCiAgIm1vZGVsIjogInNvbm5ldCIsCiAgInJhdGlvIjogMS4wLAogICJwZXJtaXNzaW9ucyI6IHsKICAgICJhbGxvdyI6IFsKICAgICAgIkJhc2gobHMpIgogICAgXQogIH0KfQ==",
+        "json/desk.mcp/dsk.json": "ewogICJjb21tYW5kIjogIm5vZGUiLAogICJhcmdzIjogWwogICAgIiR7REVTS1RPUF9ESVJ9XFxkc2suanMiCiAgXQp9",
+        "manifest.json": "ewogICJmb3JtYXQiOiAiY21idW5kbGUiLAogICJ2ZXJzaW9uIjogMSwKICAiY3JlYXRlZCI6ICIyMDI2LTExLTIzVDA5OjIzOjM4KzA5OjAwIiwKICAic291cmNlIjogewogICAgImhvc3QiOiAiZGVtby1wYyIsCiAgICAib3MiOiAid2luMzIiLAogICAgImhvbWUiOiAiRDpcXGNtZy1jZTljNjUxMVxcaG9tZSIsCiAgICAiY2xhdWRlX2hvbWUiOiAiRDpcXGNtZy1jZTljNjUxMVxcaG9tZVxcLmNsYXVkZSIsCiAgICAiZGVza3RvcF9kaXIiOiAiRDpcXGNtZy1jZTljNjUxMVxcaG9tZVxcQXBwRGF0YVxcUm9hbWluZ1xcQ2xhdWRlIgogIH0sCiAgInRva2VucyI6IHsKICAgICIke0RFU0tUT1BfRElSfSI6ICJEOlxcY21nLWNlOWM2NTExXFxob21lXFxBcHBEYXRhXFxSb2FtaW5nXFxDbGF1ZGUiLAogICAgIiR7Q0xBVURFX0hPTUV9IjogIkQ6XFxjbWctY2U5YzY1MTFcXGhvbWVcXC5jbGF1ZGUiLAogICAgIiR7SE9NRX0iOiAiRDpcXGNtZy1jZTljNjUxMVxcaG9tZSIKICB9LAogICJpdGVtcyI6IFsKICAgIHsKICAgICAgImlkIjogImNjLnNraWxscy9xYSIsCiAgICAgICJjYXRlZ29yeSI6ICJjYy5za2lsbHMiLAogICAgICAic3RyYXRlZ3kiOiAidHJlZSIsCiAgICAgICJyZWwiOiAiJHtDTEFVREVfSE9NRX0vc2tpbGxzL3FhIiwKICAgICAgImhhc2giOiAic2hhMjU2OjFlNjNjZDUxMjQ4MTZlYWI0MmM2ZDQ0OWE0NDZmMDUyZGQyNGM1YTM1OWUyOTY4MmM1N2UyMjg3N2MxYzZkYTEiLAogICAgICAic2l6ZSI6IDIzLAogICAgICAiZmlsZXMiOiAxCiAgICB9LAogICAgewogICAgICAiaWQiOiAiY2Muc2tpbGxzL+2VnOq4gCIsCiAgICAgICJjYXRlZ29yeSI6ICJjYy5za2lsbHMiLAogICAgICAic3RyYXRlZ3kiOiAidHJlZSIsCiAgICAgICJyZWwiOiAiJHtDTEFVREVfSE9NRX0vc2tpbGxzL+2VnOq4gCIsCiAgICAgICJoYXNoIjogInNoYTI1NjoyNjA1NzY3MTg2YzZmYTZmNjEyNDVlMjNiMDQ1MTgxZjhmNjViOTZhMzI0ZWI0MjgzMDM4YWYzZjBmM2FjZjRmIiwKICAgICAgInNpemUiOiAxNCwKICAgICAgImZpbGVzIjogMQogICAgfSwKICAgIHsKICAgICAgImlkIjogImNjLmFnZW50cy9yZXYubWQiLAogICAgICAiY2F0ZWdvcnkiOiAiY2MuYWdlbnRzIiwKICAgICAgInN0cmF0ZWd5IjogImZpbGUiLAogICAgICAicmVsIjogIiR7Q0xBVURFX0hPTUV9L2FnZW50cy9yZXYubWQiLAogICAgICAiaGFzaCI6ICJzaGEyNTY6MDM0MDk5Njk2YTVjYmQ2ODAwMjlmYjc4YjgwM2E2ZmExNDNjOGViMTlkZGY5YzJiYjY3NzYxNDJhNTA2N2Q5ZiIsCiAgICAgICJzaXplIjogMjMsCiAgICAgICJmaWxlcyI6IDEKICAgIH0sCiAgICB7CiAgICAgICJpZCI6ICJjYy5zZXR0aW5ncyIsCiAgICAgICJjYXRlZ29yeSI6ICJjYy5zZXR0aW5ncyIsCiAgICAgICJzdHJhdGVneSI6ICJqc29uLWtleXMiLAogICAgICAia2V5IjogInNldHRpbmdzLmpzb24iLAogICAgICAiaGFzaCI6ICJzaGEyNTY6OWZlNWZhNDFhOWNlODc3MWUwMGQwM2Q4ZWYwNTg4ZjZlNDc0MjdmYWIyZGQ5MGExZjU0OGJhN2Q2NGE4Zjg4ZCIsCiAgICAgICJzaXplIjogMzE3LAogICAgICAiZmlsZXMiOiAwLAogICAgICAic2VjcmV0cyI6IFsKICAgICAgICAiZW52LkFQSV9UT0tFTiIKICAgICAgXQogICAgfSwKICAgIHsKICAgICAgImlkIjogImNjLm1jcC11c2VyL3NydiIsCiAgICAgICJjYXRlZ29yeSI6ICJjYy5tY3AtdXNlciIsCiAgICAgICJzdHJhdGVneSI6ICJqc29uLWtleXMiLAogICAgICAia2V5IjogIm1jcFNlcnZlcnMuc3J2IiwKICAgICAgImhhc2giOiAic2hhMjU2OmI5ZGEwNTg1MmM3ZTUxNzE4ZDE0MzM3NzZlNjQxZmNjZDUzMzdlOTQwYmNmNmViZWMyMjNkNjhkZDdmN2FlZjgiLAogICAgICAic2l6ZSI6IDEzOSwKICAgICAgImZpbGVzIjogMCwKICAgICAgInNlY3JldHMiOiBbCiAgICAgICAgImVudi5HSVRIVUJfVE9LRU4iCiAgICAgIF0KICAgIH0sCiAgICB7CiAgICAgICJpZCI6ICJkZXNrLm1jcC9kc2siLAogICAgICAiY2F0ZWdvcnkiOiAiZGVzay5tY3AiLAogICAgICAic3RyYXRlZ3kiOiAianNvbi1rZXlzIiwKICAgICAgImtleSI6ICJtY3BTZXJ2ZXJzLmRzayIsCiAgICAgICJoYXNoIjogInNoYTI1Njo0ZDIxYzk2M2Y1Njk4MTU3N2ZiM2NmNzE0MGVkNmMzOGY5YTFlYWM1ZmIxMzNiNmEwZTgzNTFiZGY3MTU1MWI4IiwKICAgICAgInNpemUiOiA1MiwKICAgICAgImZpbGVzIjogMCwKICAgICAgInNlY3JldHMiOiBbXQogICAgfSwKICAgIHsKICAgICAgImlkIjogImNjLnJlZnMvaG9va3MvZ3VhcmQucHkiLAogICAgICAiY2F0ZWdvcnkiOiAiY2MucmVmcyIsCiAgICAgICJzdHJhdGVneSI6ICJmaWxlIiwKICAgICAgInJlbCI6ICIke0NMQVVERV9IT01FfS9ob29rcy9ndWFyZC5weSIsCiAgICAgICJoYXNoIjogInNoYTI1NjpjYzQyMTU1MDg4ZmNhNTczMDc1OGRiNzJiMmE1YmNhMzMxMTJhOTQxZGZhYTJkNDMwOThlYzQyMmNlNGVhMjEzIiwKICAgICAgInNpemUiOiA5LAogICAgICAiZmlsZXMiOiAxCiAgICB9CiAgXSwKICAic2tpcHBlZCI6IFsKICAgIHsKICAgICAgImlkIjogImNjLnNraWxscy9zeW5jZWQiLAogICAgICAicmVhc29uIjogImNsYXVkZS5haSDqs4TsoJUg64+Z6riw7ZmUIO2PtOuNlCIKICAgIH0sCiAgICB7CiAgICAgICJpZCI6ICJjbS5zdG9yZSIsCiAgICAgICJyZWFzb24iOiAi7Iqk7Yag7Ja0IOyEpOyglSDsl4bsnYw6IEQ6XFxjbWctY2U5YzY1MTFcXGhvbWVcXHN0b3JlIgogICAgfQogIF0sCiAgInBsdWdpbnMiOiB7CiAgICAiZGVjbGFyZWQiOiAwLAogICAgIm1hcmtldCI6IFtdLAogICAgImJ1aWx0aW4iOiBbXSwKICAgICJpbmxpbmUiOiBbXSwKICAgICJhZGRlZF9leHBsaWNpdCI6IFtdLAogICAgImRyb3BwZWQiOiBbXSwKICAgICJtYXJrZXRzX2FkZGVkIjogW10KICB9LAogICJleHRlcm5hbCI6IFsKICAgIHsKICAgICAgImtpbmQiOiAibWNwIiwKICAgICAgInBhdGgiOiAiRDpcXGNtZy1jZTljNjUxMVxcaG9tZVxcQXBwRGF0YVxcUm9hbWluZ1xcQ2xhdWRlXFxkc2suanMiLAogICAgICAidG9rZW4iOiAiJHtERVNLVE9QX0RJUn1cXGRzay5qcyIsCiAgICAgICJleGlzdHMiOiBmYWxzZSwKICAgICAgIm93bmVycyI6IFsKICAgICAgICAiZHNrIgogICAgICBdLAogICAgICAic2NvcGVzIjogWwogICAgICAgICJkZXNrLm1jcCIKICAgICAgXSwKICAgICAgImZpZWxkcyI6IFsKICAgICAgICAiZGVzay5tY3A6YXJnc1swXSIKICAgICAgXQogICAgfSwKICAgIHsKICAgICAgImtpbmQiOiAibWNwIiwKICAgICAgInBhdGgiOiAiRDpcXGNtZy1jZTljNjUxMVxcdG9vbHNcXHNydlxcaW5kZXguanMiLAogICAgICAidG9rZW4iOiAiRDpcXGNtZy1jZTljNjUxMVxcdG9vbHNcXHNydlxcaW5kZXguanMiLAogICAgICAiZXhpc3RzIjogdHJ1ZSwKICAgICAgIm93bmVycyI6IFsKICAgICAgICAic3J2IgogICAgICBdLAogICAgICAic2NvcGVzIjogWwogICAgICAgICJjYy5tY3AtdXNlciIKICAgICAgXSwKICAgICAgImZpZWxkcyI6IFsKICAgICAgICAiY2MubWNwLXVzZXI6YXJnc1swXSIKICAgICAgXQogICAgfSwKICAgIHsKICAgICAgImtpbmQiOiAiaG9vayIsCiAgICAgICJwYXRoIjogIkQ6XFxjbWctY2U5YzY1MTFcXHRvb2xzXFxob29rLmpzIiwKICAgICAgInRva2VuIjogIkQ6XFxjbWctY2U5YzY1MTFcXHRvb2xzXFxob29rLmpzIiwKICAgICAgImV4aXN0cyI6IHRydWUsCiAgICAgICJvd25lcnMiOiBbCiAgICAgICAgIlN0b3AiCiAgICAgIF0sCiAgICAgICJzY29wZXMiOiBbCiAgICAgICAgImNjLnNldHRpbmdzIgogICAgICBdLAogICAgICAiZmllbGRzIjogWwogICAgICAgICJjYy5zZXR0aW5nczpob29rcy5TdG9wWzBdLmhvb2tzWzBdLmNvbW1hbmQiCiAgICAgIF0KICAgIH0KICBdCn0=",
+        "report.json": "ewogICJsaW5lcyI6IFsKICAgICLsnbTqtIAg64yA7IOBIiwKICAgICItIOyKpO2CrCAy6rG0IiwKICAgICItIOyXkOydtOyghO2KuCAx6rG0IiwKICAgICItIH4vLmNsYXVkZSDslYjsnZgg7LC47KGwIO2MjOydvCjtm4XCt3N0YXR1c0xpbmUg7Iqk7YGs66a97Yq4KSAx6rG0IiwKICAgICItIHNldHRpbmdzLmpzb24gKOq2jO2VnMK37ZuFwrdlbnbCt+2UjOufrOq3uOyduCDshKDslrgpIiwKICAgICItIE1DUCDshJzrsoQgKENsYXVkZSBDb2RlKSAx6rG0IiwKICAgICItIE1DUCDshJzrsoQgKERlc2t0b3ApIDHqsbQiLAogICAgIi0g7ZSM65+s6re47J24IOyEoOyWuCAw6rG0ICjrp4jsvJMgMCwg64K07J6lIDAsIGlubGluZSAwKSAtIOyDiCBQQyDsl5DshJwgQ2xhdWRlIENvZGUg6rCAIOuLpOydjCDsi6Ttlokg65WMIOuCtOugpOuwm+ydjCIsCiAgICAiLSDsi5ztgazrpr8gMuqxtOydhCBzZWNyZXRzLmpzb24g7JeQIO2PieusuOycvOuhnCDrhKPsnYwgKOuyiOuTpOydhCDqs7XsnKAg7Y+0642U7JeQIOuRmCDrlYwg7KO87J2YKSIsCiAgICAiICAtIHNldHRpbmdzLmpzb24gKOq2jO2VnMK37ZuFwrdlbnbCt+2UjOufrOq3uOyduCDshKDslrgpOiBlbnYuQVBJX1RPS0VOIiwKICAgICIgIC0gTUNQIOyEnOuyhCAoQ2xhdWRlIENvZGUpIHNydjogZW52LkdJVEhVQl9UT0tFTiIsCiAgICAiLSDrsojrk6Trp4Eg67aI6rCA64qlIOyZuOu2gCDshKTsoJUgKOyDiCBQQyDsnZgg6rCZ7J2AIOqyveuhnOyXkCDrlLDroZwg7KSA67mE7ZW07JW8IO2VqCkiLAogICAgIiAgLSBNQ1Ag7ISc67KEIiwKICAgICIgICAgLSBkc2sgKERlc2t0b3ApOiBEOlxcY21nLWNlOWM2NTExXFxob21lXFxBcHBEYXRhXFxSb2FtaW5nXFxDbGF1ZGVcXGRzay5qcyBb7J20IFBDIOyXkOuPhCDsl4bsnYxdIiwKICAgICIgICAgLSBzcnYgKENsYXVkZSBDb2RlKTogRDpcXGNtZy1jZTljNjUxMVxcdG9vbHNcXHNydlxcaW5kZXguanMiLAogICAgIiAgLSDtm4UiLAogICAgIiAgICAtIEQ6XFxjbWctY2U5YzY1MTFcXHRvb2xzXFxob29rLmpzIChTdG9wKSIsCiAgICAiLSDsoJzsmbggMuqxtCIsCiAgICAiICAtIOyKpO2CrCBzeW5jZWQ6IGNsYXVkZS5haSDqs4TsoJUg64+Z6riw7ZmUIO2PtOuNlCIsCiAgICAiICAtIGNvbmZpZy1tb25pdG9yIOyKpO2GoOyWtCDshKTsoJU6IOyKpO2GoOyWtCDshKTsoJUg7JeG7J2MOiBEOlxcY21nLWNlOWM2NTExXFxob21lXFxzdG9yZSIsCiAgICAiLSDqsr3qs6AiLAogICAgIiAgLSDsi5ztgazrpr8g6rCS7J20IHNlY3JldHMuanNvbiDsl5Ag7Y+J66y47Jy866GcIOuTpOyWtOqwkeuLiOuLpCIKICBdLAogICJleHRlcm5hbCI6IFsKICAgIHsKICAgICAgImtpbmQiOiAibWNwIiwKICAgICAgInBhdGgiOiAiRDpcXGNtZy1jZTljNjUxMVxcaG9tZVxcQXBwRGF0YVxcUm9hbWluZ1xcQ2xhdWRlXFxkc2suanMiLAogICAgICAidG9rZW4iOiAiJHtERVNLVE9QX0RJUn1cXGRzay5qcyIsCiAgICAgICJleGlzdHMiOiBmYWxzZSwKICAgICAgIm93bmVycyI6IFsKICAgICAgICAiZHNrIgogICAgICBdLAogICAgICAic2NvcGVzIjogWwogICAgICAgICJkZXNrLm1jcCIKICAgICAgXSwKICAgICAgImZpZWxkcyI6IFsKICAgICAgICAiZGVzay5tY3A6YXJnc1swXSIKICAgICAgXQogICAgfSwKICAgIHsKICAgICAgImtpbmQiOiAibWNwIiwKICAgICAgInBhdGgiOiAiRDpcXGNtZy1jZTljNjUxMVxcdG9vbHNcXHNydlxcaW5kZXguanMiLAogICAgICAidG9rZW4iOiAiRDpcXGNtZy1jZTljNjUxMVxcdG9vbHNcXHNydlxcaW5kZXguanMiLAogICAgICAiZXhpc3RzIjogdHJ1ZSwKICAgICAgIm93bmVycyI6IFsKICAgICAgICAic3J2IgogICAgICBdLAogICAgICAic2NvcGVzIjogWwogICAgICAgICJjYy5tY3AtdXNlciIKICAgICAgXSwKICAgICAgImZpZWxkcyI6IFsKICAgICAgICAiY2MubWNwLXVzZXI6YXJnc1swXSIKICAgICAgXQogICAgfSwKICAgIHsKICAgICAgImtpbmQiOiAiaG9vayIsCiAgICAgICJwYXRoIjogIkQ6XFxjbWctY2U5YzY1MTFcXHRvb2xzXFxob29rLmpzIiwKICAgICAgInRva2VuIjogIkQ6XFxjbWctY2U5YzY1MTFcXHRvb2xzXFxob29rLmpzIiwKICAgICAgImV4aXN0cyI6IHRydWUsCiAgICAgICJvd25lcnMiOiBbCiAgICAgICAgIlN0b3AiCiAgICAgIF0sCiAgICAgICJzY29wZXMiOiBbCiAgICAgICAgImNjLnNldHRpbmdzIgogICAgICBdLAogICAgICAiZmllbGRzIjogWwogICAgICAgICJjYy5zZXR0aW5nczpob29rcy5TdG9wWzBdLmhvb2tzWzBdLmNvbW1hbmQiCiAgICAgIF0KICAgIH0KICBdLAogICJza2lwcGVkIjogWwogICAgewogICAgICAiaWQiOiAiY2Muc2tpbGxzL3N5bmNlZCIsCiAgICAgICJyZWFzb24iOiAiY2xhdWRlLmFpIOqzhOyglSDrj5nquLDtmZQg7Y+0642UIgogICAgfSwKICAgIHsKICAgICAgImlkIjogImNtLnN0b3JlIiwKICAgICAgInJlYXNvbiI6ICLsiqTthqDslrQg7ISk7KCVIOyXhuydjDogRDpcXGNtZy1jZTljNjUxMVxcaG9tZVxcc3RvcmUiCiAgICB9CiAgXQp9",
+        "secrets.json": "ewogICJjYy5zZXR0aW5ncyI6IHsKICAgICJlbnYuQVBJX1RPS0VOIjogImZpeHR1cmUtc2VjcmV0LXZhbHVlIgogIH0sCiAgImNjLm1jcC11c2VyL3NydiI6IHsKICAgICJlbnYuR0lUSFVCX1RPS0VOIjogImZpeHR1cmUtc2VjcmV0LXZhbHVlIgogIH0KfQ=="
+      }
+    }
+  },
+  "py_read_ts": {
+    "ts-zip": {
+      "hash": "sha256:b5f7552481045bb87050e233fafe5358ee175f664ee67c036445bdd7d6a32fce",
+      "ok": {
+        "cc.skills/qa": true,
+        "cc.skills/한글": true,
+        "cc.agents/rev.md": true,
+        "cc.settings": true,
+        "cc.mcp-user/srv": true,
+        "desk.mcp/dsk": true,
+        "cc.refs/hooks/guard.py": true
+      },
+      "secrets": {
+        "cc.settings": {
+          "env.API_TOKEN": "fixture-secret-value"
+        },
+        "cc.mcp-user/srv": {
+          "env.GITHUB_TOKEN": "fixture-secret-value"
+        }
+      }
+    },
+    "ts-folder": {
+      "hash": "sha256:b5f7552481045bb87050e233fafe5358ee175f664ee67c036445bdd7d6a32fce",
+      "ok": {
+        "cc.skills/qa": true,
+        "cc.skills/한글": true,
+        "cc.agents/rev.md": true,
+        "cc.settings": true,
+        "cc.mcp-user/srv": true,
+        "desk.mcp/dsk": true,
+        "cc.refs/hooks/guard.py": true
+      },
+      "secrets": {
+        "cc.settings": {
+          "env.API_TOKEN": "fixture-secret-value"
+        },
+        "cc.mcp-user/srv": {
+          "env.GITHUB_TOKEN": "fixture-secret-value"
+        }
+      }
+    }
+  },
+  "runs": {
+    "py-zip": [
+      {
+        "argv": [
+          "plan",
+          "--bundle",
+          "<ROOT>\\bundles\\py.cmbundle"
+        ],
+        "exit": 0,
+        "doc": {
+          "ok": true,
+          "code": "ok",
+          "message": "plan 2f1d83c305dc8e79: 신규 5 · 변경 0 · 동일 0 · 불가 2 · 제외 2. 이 PC 에 없는 경로 3개는 쓰지 않음(roots 로 짝을 정하면 다시 계산)",
+          "target": "<ROOT>\\bundles\\py.cmbundle",
+          "bundle": "<ROOT>\\bundles\\py.cmbundle",
+          "plan_id": "2f1d83c305dc8e79",
+          "source": {
+            "host": "demo-pc",
+            "os": "win32",
+            "home": "<ROOT>\\home",
+            "claude_home": "<ROOT>\\home\\.claude",
+            "desktop_dir": "<ROOT>\\home\\AppData\\Roaming\\Claude"
+          },
+          "items": [
+            {
+              "id": "cc.skills/qa",
+              "category": "cc.skills",
+              "strategy": "tree",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\skills\\qa",
+              "state": "new"
+            },
+            {
+              "id": "cc.skills/한글",
+              "category": "cc.skills",
+              "strategy": "tree",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\skills\\한글",
+              "state": "new"
+            },
+            {
+              "id": "cc.agents/rev.md",
+              "category": "cc.agents",
+              "strategy": "file",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\agents\\rev.md",
+              "state": "new"
+            },
+            {
+              "id": "cc.settings",
+              "category": "cc.settings",
+              "strategy": "json-keys",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\settings.json",
+              "hooks": [
+                {
+                  "id": "hook:ddf64e9121",
+                  "event": "Stop",
+                  "matcher": null,
+                  "command": "node \"<ROOT>\\tools\\hook.js\"",
+                  "state": "blocked",
+                  "code": "path_missing",
+                  "target": "<ROOT>\\tools\\hook.js"
+                }
+              ],
+              "dropped": [
+                {
+                  "what": "hook",
+                  "event": "Stop",
+                  "target": "<ROOT>\\tools\\hook.js"
+                }
+              ],
+              "state": "new"
+            },
+            {
+              "id": "cc.mcp-user/srv",
+              "category": "cc.mcp-user",
+              "strategy": "json-keys",
+              "target": "<ROOT>\\b\\Users\\other\\.claude.json",
+              "key": "srv",
+              "state": "blocked",
+              "code": "path_missing",
+              "missing_paths": [
+                "<ROOT>\\tools\\srv\\index.js"
+              ],
+              "reason": "이 PC 에 없는 경로: <ROOT>\\tools\\srv\\index.js"
+            },
+            {
+              "id": "desk.mcp/dsk",
+              "category": "desk.mcp",
+              "strategy": "json-keys",
+              "target": "<ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\claude_desktop_config.json",
+              "key": "dsk",
+              "state": "blocked",
+              "code": "path_missing",
+              "missing_paths": [
+                "<ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\dsk.js"
+              ],
+              "reason": "이 PC 에 없는 경로: <ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\dsk.js"
+            },
+            {
+              "id": "cc.refs/hooks/guard.py",
+              "category": "cc.refs",
+              "strategy": "file",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\hooks\\guard.py",
+              "state": "new"
+            },
+            {
+              "id": "cc.skills/synced",
+              "category": "cc.skills",
+              "state": "skipped",
+              "reason": "claude.ai 계정 동기화 폴더"
+            },
+            {
+              "id": "cm.store",
+              "category": "cm.store",
+              "state": "skipped",
+              "reason": "스토어 설정 없음: <ROOT>\\home\\store"
+            }
+          ],
+          "summary": {
+            "new": 5,
+            "same": 0,
+            "changed": 0,
+            "blocked": 2,
+            "skipped": 2
+          },
+          "external": [
+            {
+              "kind": "mcp",
+              "owners": [
+                "dsk"
+              ],
+              "scopes": [
+                "desk.mcp"
+              ],
+              "fields": [
+                "desk.mcp:args[0]"
+              ],
+              "path": "<ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\dsk.js",
+              "source_path": "<ROOT>\\home\\AppData\\Roaming\\Claude\\dsk.js",
+              "exists": false,
+              "in_home": true
+            },
+            {
+              "kind": "mcp",
+              "owners": [
+                "srv"
+              ],
+              "scopes": [
+                "cc.mcp-user"
+              ],
+              "fields": [
+                "cc.mcp-user:args[0]"
+              ],
+              "path": "<ROOT>\\tools\\srv\\index.js",
+              "source_path": "<ROOT>\\tools\\srv\\index.js",
+              "exists": false,
+              "in_home": false
+            },
+            {
+              "kind": "hook",
+              "owners": [
+                "Stop"
+              ],
+              "scopes": [
+                "cc.settings"
+              ],
+              "fields": [
+                "cc.settings:hooks.Stop[0].hooks[0].command"
+              ],
+              "path": "<ROOT>\\tools\\hook.js",
+              "source_path": "<ROOT>\\tools\\hook.js",
+              "exists": false,
+              "in_home": false
+            }
+          ],
+          "warnings": [
+            "이 PC 에 없는 경로 3개 - 그 경로를 쓰는 훅·MCP 서버는 빼고 가져옵니다",
+            "스토어가 아직 없어 적용할 때 새로 만듭니다: <ROOT>\\b\\Users\\other\\store"
+          ],
+          "warning_codes": [
+            {
+              "code": "paths_missing",
+              "n": 3
+            },
+            {
+              "code": "store_new",
+              "target": "<ROOT>\\b\\Users\\other\\store"
+            }
+          ],
+          "roots": [
+            {
+              "from": "<ROOT>",
+              "to": null,
+              "source": "none",
+              "total": 2,
+              "resolved": 0
+            }
+          ],
+          "unresolved": [
+            {
+              "path": "<ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\dsk.js",
+              "kind": "mcp",
+              "owners": [
+                "dsk"
+              ],
+              "source_path": "<ROOT>\\home\\AppData\\Roaming\\Claude\\dsk.js",
+              "in_home": true
+            },
+            {
+              "path": "<ROOT>\\tools\\srv\\index.js",
+              "kind": "mcp",
+              "owners": [
+                "srv"
+              ],
+              "source_path": "<ROOT>\\tools\\srv\\index.js",
+              "in_home": false
+            },
+            {
+              "path": "<ROOT>\\tools\\hook.js",
+              "kind": "hook",
+              "owners": [
+                "Stop"
+              ],
+              "source_path": "<ROOT>\\tools\\hook.js",
+              "in_home": false
+            }
+          ]
+        }
+      },
+      {
+        "argv": [
+          "plan",
+          "--bundle",
+          "<ROOT>\\bundles\\py.cmbundle",
+          "--secrets",
+          "{\"cc.mcp-user/srv\":{\"env.GITHUB_TOKEN\":\"x\"}}"
+        ],
+        "exit": 0,
+        "doc": {
+          "ok": true,
+          "code": "ok",
+          "message": "plan 2f1d83c305dc8e79: 신규 5 · 변경 0 · 동일 0 · 불가 2 · 제외 2. 이 PC 에 없는 경로 3개는 쓰지 않음(roots 로 짝을 정하면 다시 계산)",
+          "target": "<ROOT>\\bundles\\py.cmbundle",
+          "bundle": "<ROOT>\\bundles\\py.cmbundle",
+          "plan_id": "2f1d83c305dc8e79",
+          "source": {
+            "host": "demo-pc",
+            "os": "win32",
+            "home": "<ROOT>\\home",
+            "claude_home": "<ROOT>\\home\\.claude",
+            "desktop_dir": "<ROOT>\\home\\AppData\\Roaming\\Claude"
+          },
+          "items": [
+            {
+              "id": "cc.skills/qa",
+              "category": "cc.skills",
+              "strategy": "tree",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\skills\\qa",
+              "state": "new"
+            },
+            {
+              "id": "cc.skills/한글",
+              "category": "cc.skills",
+              "strategy": "tree",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\skills\\한글",
+              "state": "new"
+            },
+            {
+              "id": "cc.agents/rev.md",
+              "category": "cc.agents",
+              "strategy": "file",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\agents\\rev.md",
+              "state": "new"
+            },
+            {
+              "id": "cc.settings",
+              "category": "cc.settings",
+              "strategy": "json-keys",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\settings.json",
+              "hooks": [
+                {
+                  "id": "hook:ddf64e9121",
+                  "event": "Stop",
+                  "matcher": null,
+                  "command": "node \"<ROOT>\\tools\\hook.js\"",
+                  "state": "blocked",
+                  "code": "path_missing",
+                  "target": "<ROOT>\\tools\\hook.js"
+                }
+              ],
+              "dropped": [
+                {
+                  "what": "hook",
+                  "event": "Stop",
+                  "target": "<ROOT>\\tools\\hook.js"
+                }
+              ],
+              "state": "new"
+            },
+            {
+              "id": "cc.mcp-user/srv",
+              "category": "cc.mcp-user",
+              "strategy": "json-keys",
+              "target": "<ROOT>\\b\\Users\\other\\.claude.json",
+              "key": "srv",
+              "state": "blocked",
+              "code": "path_missing",
+              "missing_paths": [
+                "<ROOT>\\tools\\srv\\index.js"
+              ],
+              "reason": "이 PC 에 없는 경로: <ROOT>\\tools\\srv\\index.js"
+            },
+            {
+              "id": "desk.mcp/dsk",
+              "category": "desk.mcp",
+              "strategy": "json-keys",
+              "target": "<ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\claude_desktop_config.json",
+              "key": "dsk",
+              "state": "blocked",
+              "code": "path_missing",
+              "missing_paths": [
+                "<ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\dsk.js"
+              ],
+              "reason": "이 PC 에 없는 경로: <ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\dsk.js"
+            },
+            {
+              "id": "cc.refs/hooks/guard.py",
+              "category": "cc.refs",
+              "strategy": "file",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\hooks\\guard.py",
+              "state": "new"
+            },
+            {
+              "id": "cc.skills/synced",
+              "category": "cc.skills",
+              "state": "skipped",
+              "reason": "claude.ai 계정 동기화 폴더"
+            },
+            {
+              "id": "cm.store",
+              "category": "cm.store",
+              "state": "skipped",
+              "reason": "스토어 설정 없음: <ROOT>\\home\\store"
+            }
+          ],
+          "summary": {
+            "new": 5,
+            "same": 0,
+            "changed": 0,
+            "blocked": 2,
+            "skipped": 2
+          },
+          "external": [
+            {
+              "kind": "mcp",
+              "owners": [
+                "dsk"
+              ],
+              "scopes": [
+                "desk.mcp"
+              ],
+              "fields": [
+                "desk.mcp:args[0]"
+              ],
+              "path": "<ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\dsk.js",
+              "source_path": "<ROOT>\\home\\AppData\\Roaming\\Claude\\dsk.js",
+              "exists": false,
+              "in_home": true
+            },
+            {
+              "kind": "mcp",
+              "owners": [
+                "srv"
+              ],
+              "scopes": [
+                "cc.mcp-user"
+              ],
+              "fields": [
+                "cc.mcp-user:args[0]"
+              ],
+              "path": "<ROOT>\\tools\\srv\\index.js",
+              "source_path": "<ROOT>\\tools\\srv\\index.js",
+              "exists": false,
+              "in_home": false
+            },
+            {
+              "kind": "hook",
+              "owners": [
+                "Stop"
+              ],
+              "scopes": [
+                "cc.settings"
+              ],
+              "fields": [
+                "cc.settings:hooks.Stop[0].hooks[0].command"
+              ],
+              "path": "<ROOT>\\tools\\hook.js",
+              "source_path": "<ROOT>\\tools\\hook.js",
+              "exists": false,
+              "in_home": false
+            }
+          ],
+          "warnings": [
+            "이 PC 에 없는 경로 3개 - 그 경로를 쓰는 훅·MCP 서버는 빼고 가져옵니다",
+            "스토어가 아직 없어 적용할 때 새로 만듭니다: <ROOT>\\b\\Users\\other\\store"
+          ],
+          "warning_codes": [
+            {
+              "code": "paths_missing",
+              "n": 3
+            },
+            {
+              "code": "store_new",
+              "target": "<ROOT>\\b\\Users\\other\\store"
+            }
+          ],
+          "roots": [
+            {
+              "from": "<ROOT>",
+              "to": null,
+              "source": "none",
+              "total": 2,
+              "resolved": 0
+            }
+          ],
+          "unresolved": [
+            {
+              "path": "<ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\dsk.js",
+              "kind": "mcp",
+              "owners": [
+                "dsk"
+              ],
+              "source_path": "<ROOT>\\home\\AppData\\Roaming\\Claude\\dsk.js",
+              "in_home": true
+            },
+            {
+              "path": "<ROOT>\\tools\\srv\\index.js",
+              "kind": "mcp",
+              "owners": [
+                "srv"
+              ],
+              "source_path": "<ROOT>\\tools\\srv\\index.js",
+              "in_home": false
+            },
+            {
+              "path": "<ROOT>\\tools\\hook.js",
+              "kind": "hook",
+              "owners": [
+                "Stop"
+              ],
+              "source_path": "<ROOT>\\tools\\hook.js",
+              "in_home": false
+            }
+          ]
+        }
+      },
+      {
+        "argv": [
+          "inspect",
+          "--bundle",
+          "<ROOT>\\bundles\\py.cmbundle"
+        ],
+        "exit": 0,
+        "doc": {
+          "ok": true,
+          "code": "ok",
+          "message": "번들 py.cmbundle: demo-pc 에서 2026-11-23T09:23:38+09:00 에 만듦, 항목 7개",
+          "target": "<ROOT>\\bundles\\py.cmbundle",
+          "bundle": "<ROOT>\\bundles\\py.cmbundle",
+          "hash": "sha256:b5f7552481045bb87050e233fafe5358ee175f664ee67c036445bdd7d6a32fce",
+          "created": "2026-11-23T09:23:38+09:00",
+          "source": {
+            "host": "demo-pc",
+            "os": "win32",
+            "home": "<ROOT>\\home",
+            "claude_home": "<ROOT>\\home\\.claude",
+            "desktop_dir": "<ROOT>\\home\\AppData\\Roaming\\Claude"
+          },
+          "counts": {
+            "cc.skills": 2,
+            "cc.agents": 1,
+            "cc.settings": 1,
+            "cc.mcp-user": 1,
+            "desk.mcp": 1,
+            "cc.refs": 1
+          },
+          "skipped": [
+            {
+              "id": "cc.skills/synced",
+              "reason": "claude.ai 계정 동기화 폴더"
+            },
+            {
+              "id": "cm.store",
+              "reason": "스토어 설정 없음: <ROOT>\\home\\store"
+            }
+          ],
+          "external": [
+            {
+              "kind": "mcp",
+              "path": "<ROOT>\\home\\AppData\\Roaming\\Claude\\dsk.js",
+              "token": "${DESKTOP_DIR}\\dsk.js",
+              "exists": false,
+              "owners": [
+                "dsk"
+              ],
+              "scopes": [
+                "desk.mcp"
+              ],
+              "fields": [
+                "desk.mcp:args[0]"
+              ]
+            },
+            {
+              "kind": "mcp",
+              "path": "<ROOT>\\tools\\srv\\index.js",
+              "token": "<ROOT>\\tools\\srv\\index.js",
+              "exists": true,
+              "owners": [
+                "srv"
+              ],
+              "scopes": [
+                "cc.mcp-user"
+              ],
+              "fields": [
+                "cc.mcp-user:args[0]"
+              ]
+            },
+            {
+              "kind": "hook",
+              "path": "<ROOT>\\tools\\hook.js",
+              "token": "<ROOT>\\tools\\hook.js",
+              "exists": true,
+              "owners": [
+                "Stop"
+              ],
+              "scopes": [
+                "cc.settings"
+              ],
+              "fields": [
+                "cc.settings:hooks.Stop[0].hooks[0].command"
+              ]
+            }
+          ],
+          "plugins": {
+            "declared": 0,
+            "market": [],
+            "builtin": [],
+            "inline": [],
+            "added_explicit": [],
+            "dropped": [],
+            "markets_added": []
+          },
+          "has_secrets": true
+        }
+      },
+      {
+        "argv": [
+          "plan",
+          "--bundle",
+          "<ROOT>\\bundles\\py.cmbundle",
+          "--secrets",
+          "[1]"
+        ],
+        "exit": 1,
+        "doc": {
+          "ok": false,
+          "code": "invalid_arg",
+          "message": "--secrets 은 JSON 객체여야 함",
+          "target": "--secrets"
+        }
+      }
+    ],
+    "py-folder": [
+      {
+        "argv": [
+          "plan",
+          "--bundle",
+          "<ROOT>\\bundles\\py-bundle"
+        ],
+        "exit": 0,
+        "doc": {
+          "ok": true,
+          "code": "ok",
+          "message": "plan 2f1d83c305dc8e79: 신규 5 · 변경 0 · 동일 0 · 불가 2 · 제외 2. 이 PC 에 없는 경로 3개는 쓰지 않음(roots 로 짝을 정하면 다시 계산)",
+          "target": "<ROOT>\\bundles\\py-bundle",
+          "bundle": "<ROOT>\\bundles\\py-bundle",
+          "plan_id": "2f1d83c305dc8e79",
+          "source": {
+            "host": "demo-pc",
+            "os": "win32",
+            "home": "<ROOT>\\home",
+            "claude_home": "<ROOT>\\home\\.claude",
+            "desktop_dir": "<ROOT>\\home\\AppData\\Roaming\\Claude"
+          },
+          "items": [
+            {
+              "id": "cc.skills/qa",
+              "category": "cc.skills",
+              "strategy": "tree",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\skills\\qa",
+              "state": "new"
+            },
+            {
+              "id": "cc.skills/한글",
+              "category": "cc.skills",
+              "strategy": "tree",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\skills\\한글",
+              "state": "new"
+            },
+            {
+              "id": "cc.agents/rev.md",
+              "category": "cc.agents",
+              "strategy": "file",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\agents\\rev.md",
+              "state": "new"
+            },
+            {
+              "id": "cc.settings",
+              "category": "cc.settings",
+              "strategy": "json-keys",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\settings.json",
+              "hooks": [
+                {
+                  "id": "hook:ddf64e9121",
+                  "event": "Stop",
+                  "matcher": null,
+                  "command": "node \"<ROOT>\\tools\\hook.js\"",
+                  "state": "blocked",
+                  "code": "path_missing",
+                  "target": "<ROOT>\\tools\\hook.js"
+                }
+              ],
+              "dropped": [
+                {
+                  "what": "hook",
+                  "event": "Stop",
+                  "target": "<ROOT>\\tools\\hook.js"
+                }
+              ],
+              "state": "new"
+            },
+            {
+              "id": "cc.mcp-user/srv",
+              "category": "cc.mcp-user",
+              "strategy": "json-keys",
+              "target": "<ROOT>\\b\\Users\\other\\.claude.json",
+              "key": "srv",
+              "state": "blocked",
+              "code": "path_missing",
+              "missing_paths": [
+                "<ROOT>\\tools\\srv\\index.js"
+              ],
+              "reason": "이 PC 에 없는 경로: <ROOT>\\tools\\srv\\index.js"
+            },
+            {
+              "id": "desk.mcp/dsk",
+              "category": "desk.mcp",
+              "strategy": "json-keys",
+              "target": "<ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\claude_desktop_config.json",
+              "key": "dsk",
+              "state": "blocked",
+              "code": "path_missing",
+              "missing_paths": [
+                "<ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\dsk.js"
+              ],
+              "reason": "이 PC 에 없는 경로: <ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\dsk.js"
+            },
+            {
+              "id": "cc.refs/hooks/guard.py",
+              "category": "cc.refs",
+              "strategy": "file",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\hooks\\guard.py",
+              "state": "new"
+            },
+            {
+              "id": "cc.skills/synced",
+              "category": "cc.skills",
+              "state": "skipped",
+              "reason": "claude.ai 계정 동기화 폴더"
+            },
+            {
+              "id": "cm.store",
+              "category": "cm.store",
+              "state": "skipped",
+              "reason": "스토어 설정 없음: <ROOT>\\home\\store"
+            }
+          ],
+          "summary": {
+            "new": 5,
+            "same": 0,
+            "changed": 0,
+            "blocked": 2,
+            "skipped": 2
+          },
+          "external": [
+            {
+              "kind": "mcp",
+              "owners": [
+                "dsk"
+              ],
+              "scopes": [
+                "desk.mcp"
+              ],
+              "fields": [
+                "desk.mcp:args[0]"
+              ],
+              "path": "<ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\dsk.js",
+              "source_path": "<ROOT>\\home\\AppData\\Roaming\\Claude\\dsk.js",
+              "exists": false,
+              "in_home": true
+            },
+            {
+              "kind": "mcp",
+              "owners": [
+                "srv"
+              ],
+              "scopes": [
+                "cc.mcp-user"
+              ],
+              "fields": [
+                "cc.mcp-user:args[0]"
+              ],
+              "path": "<ROOT>\\tools\\srv\\index.js",
+              "source_path": "<ROOT>\\tools\\srv\\index.js",
+              "exists": false,
+              "in_home": false
+            },
+            {
+              "kind": "hook",
+              "owners": [
+                "Stop"
+              ],
+              "scopes": [
+                "cc.settings"
+              ],
+              "fields": [
+                "cc.settings:hooks.Stop[0].hooks[0].command"
+              ],
+              "path": "<ROOT>\\tools\\hook.js",
+              "source_path": "<ROOT>\\tools\\hook.js",
+              "exists": false,
+              "in_home": false
+            }
+          ],
+          "warnings": [
+            "이 PC 에 없는 경로 3개 - 그 경로를 쓰는 훅·MCP 서버는 빼고 가져옵니다",
+            "스토어가 아직 없어 적용할 때 새로 만듭니다: <ROOT>\\b\\Users\\other\\store"
+          ],
+          "warning_codes": [
+            {
+              "code": "paths_missing",
+              "n": 3
+            },
+            {
+              "code": "store_new",
+              "target": "<ROOT>\\b\\Users\\other\\store"
+            }
+          ],
+          "roots": [
+            {
+              "from": "<ROOT>",
+              "to": null,
+              "source": "none",
+              "total": 2,
+              "resolved": 0
+            }
+          ],
+          "unresolved": [
+            {
+              "path": "<ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\dsk.js",
+              "kind": "mcp",
+              "owners": [
+                "dsk"
+              ],
+              "source_path": "<ROOT>\\home\\AppData\\Roaming\\Claude\\dsk.js",
+              "in_home": true
+            },
+            {
+              "path": "<ROOT>\\tools\\srv\\index.js",
+              "kind": "mcp",
+              "owners": [
+                "srv"
+              ],
+              "source_path": "<ROOT>\\tools\\srv\\index.js",
+              "in_home": false
+            },
+            {
+              "path": "<ROOT>\\tools\\hook.js",
+              "kind": "hook",
+              "owners": [
+                "Stop"
+              ],
+              "source_path": "<ROOT>\\tools\\hook.js",
+              "in_home": false
+            }
+          ]
+        }
+      },
+      {
+        "argv": [
+          "plan",
+          "--bundle",
+          "<ROOT>\\bundles\\py-bundle",
+          "--secrets",
+          "{\"cc.mcp-user/srv\":{\"env.GITHUB_TOKEN\":\"x\"}}"
+        ],
+        "exit": 0,
+        "doc": {
+          "ok": true,
+          "code": "ok",
+          "message": "plan 2f1d83c305dc8e79: 신규 5 · 변경 0 · 동일 0 · 불가 2 · 제외 2. 이 PC 에 없는 경로 3개는 쓰지 않음(roots 로 짝을 정하면 다시 계산)",
+          "target": "<ROOT>\\bundles\\py-bundle",
+          "bundle": "<ROOT>\\bundles\\py-bundle",
+          "plan_id": "2f1d83c305dc8e79",
+          "source": {
+            "host": "demo-pc",
+            "os": "win32",
+            "home": "<ROOT>\\home",
+            "claude_home": "<ROOT>\\home\\.claude",
+            "desktop_dir": "<ROOT>\\home\\AppData\\Roaming\\Claude"
+          },
+          "items": [
+            {
+              "id": "cc.skills/qa",
+              "category": "cc.skills",
+              "strategy": "tree",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\skills\\qa",
+              "state": "new"
+            },
+            {
+              "id": "cc.skills/한글",
+              "category": "cc.skills",
+              "strategy": "tree",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\skills\\한글",
+              "state": "new"
+            },
+            {
+              "id": "cc.agents/rev.md",
+              "category": "cc.agents",
+              "strategy": "file",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\agents\\rev.md",
+              "state": "new"
+            },
+            {
+              "id": "cc.settings",
+              "category": "cc.settings",
+              "strategy": "json-keys",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\settings.json",
+              "hooks": [
+                {
+                  "id": "hook:ddf64e9121",
+                  "event": "Stop",
+                  "matcher": null,
+                  "command": "node \"<ROOT>\\tools\\hook.js\"",
+                  "state": "blocked",
+                  "code": "path_missing",
+                  "target": "<ROOT>\\tools\\hook.js"
+                }
+              ],
+              "dropped": [
+                {
+                  "what": "hook",
+                  "event": "Stop",
+                  "target": "<ROOT>\\tools\\hook.js"
+                }
+              ],
+              "state": "new"
+            },
+            {
+              "id": "cc.mcp-user/srv",
+              "category": "cc.mcp-user",
+              "strategy": "json-keys",
+              "target": "<ROOT>\\b\\Users\\other\\.claude.json",
+              "key": "srv",
+              "state": "blocked",
+              "code": "path_missing",
+              "missing_paths": [
+                "<ROOT>\\tools\\srv\\index.js"
+              ],
+              "reason": "이 PC 에 없는 경로: <ROOT>\\tools\\srv\\index.js"
+            },
+            {
+              "id": "desk.mcp/dsk",
+              "category": "desk.mcp",
+              "strategy": "json-keys",
+              "target": "<ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\claude_desktop_config.json",
+              "key": "dsk",
+              "state": "blocked",
+              "code": "path_missing",
+              "missing_paths": [
+                "<ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\dsk.js"
+              ],
+              "reason": "이 PC 에 없는 경로: <ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\dsk.js"
+            },
+            {
+              "id": "cc.refs/hooks/guard.py",
+              "category": "cc.refs",
+              "strategy": "file",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\hooks\\guard.py",
+              "state": "new"
+            },
+            {
+              "id": "cc.skills/synced",
+              "category": "cc.skills",
+              "state": "skipped",
+              "reason": "claude.ai 계정 동기화 폴더"
+            },
+            {
+              "id": "cm.store",
+              "category": "cm.store",
+              "state": "skipped",
+              "reason": "스토어 설정 없음: <ROOT>\\home\\store"
+            }
+          ],
+          "summary": {
+            "new": 5,
+            "same": 0,
+            "changed": 0,
+            "blocked": 2,
+            "skipped": 2
+          },
+          "external": [
+            {
+              "kind": "mcp",
+              "owners": [
+                "dsk"
+              ],
+              "scopes": [
+                "desk.mcp"
+              ],
+              "fields": [
+                "desk.mcp:args[0]"
+              ],
+              "path": "<ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\dsk.js",
+              "source_path": "<ROOT>\\home\\AppData\\Roaming\\Claude\\dsk.js",
+              "exists": false,
+              "in_home": true
+            },
+            {
+              "kind": "mcp",
+              "owners": [
+                "srv"
+              ],
+              "scopes": [
+                "cc.mcp-user"
+              ],
+              "fields": [
+                "cc.mcp-user:args[0]"
+              ],
+              "path": "<ROOT>\\tools\\srv\\index.js",
+              "source_path": "<ROOT>\\tools\\srv\\index.js",
+              "exists": false,
+              "in_home": false
+            },
+            {
+              "kind": "hook",
+              "owners": [
+                "Stop"
+              ],
+              "scopes": [
+                "cc.settings"
+              ],
+              "fields": [
+                "cc.settings:hooks.Stop[0].hooks[0].command"
+              ],
+              "path": "<ROOT>\\tools\\hook.js",
+              "source_path": "<ROOT>\\tools\\hook.js",
+              "exists": false,
+              "in_home": false
+            }
+          ],
+          "warnings": [
+            "이 PC 에 없는 경로 3개 - 그 경로를 쓰는 훅·MCP 서버는 빼고 가져옵니다",
+            "스토어가 아직 없어 적용할 때 새로 만듭니다: <ROOT>\\b\\Users\\other\\store"
+          ],
+          "warning_codes": [
+            {
+              "code": "paths_missing",
+              "n": 3
+            },
+            {
+              "code": "store_new",
+              "target": "<ROOT>\\b\\Users\\other\\store"
+            }
+          ],
+          "roots": [
+            {
+              "from": "<ROOT>",
+              "to": null,
+              "source": "none",
+              "total": 2,
+              "resolved": 0
+            }
+          ],
+          "unresolved": [
+            {
+              "path": "<ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\dsk.js",
+              "kind": "mcp",
+              "owners": [
+                "dsk"
+              ],
+              "source_path": "<ROOT>\\home\\AppData\\Roaming\\Claude\\dsk.js",
+              "in_home": true
+            },
+            {
+              "path": "<ROOT>\\tools\\srv\\index.js",
+              "kind": "mcp",
+              "owners": [
+                "srv"
+              ],
+              "source_path": "<ROOT>\\tools\\srv\\index.js",
+              "in_home": false
+            },
+            {
+              "path": "<ROOT>\\tools\\hook.js",
+              "kind": "hook",
+              "owners": [
+                "Stop"
+              ],
+              "source_path": "<ROOT>\\tools\\hook.js",
+              "in_home": false
+            }
+          ]
+        }
+      },
+      {
+        "argv": [
+          "inspect",
+          "--bundle",
+          "<ROOT>\\bundles\\py-bundle"
+        ],
+        "exit": 0,
+        "doc": {
+          "ok": true,
+          "code": "ok",
+          "message": "번들 py-bundle: demo-pc 에서 2026-11-23T09:23:38+09:00 에 만듦, 항목 7개",
+          "target": "<ROOT>\\bundles\\py-bundle",
+          "bundle": "<ROOT>\\bundles\\py-bundle",
+          "hash": "sha256:b5f7552481045bb87050e233fafe5358ee175f664ee67c036445bdd7d6a32fce",
+          "created": "2026-11-23T09:23:38+09:00",
+          "source": {
+            "host": "demo-pc",
+            "os": "win32",
+            "home": "<ROOT>\\home",
+            "claude_home": "<ROOT>\\home\\.claude",
+            "desktop_dir": "<ROOT>\\home\\AppData\\Roaming\\Claude"
+          },
+          "counts": {
+            "cc.skills": 2,
+            "cc.agents": 1,
+            "cc.settings": 1,
+            "cc.mcp-user": 1,
+            "desk.mcp": 1,
+            "cc.refs": 1
+          },
+          "skipped": [
+            {
+              "id": "cc.skills/synced",
+              "reason": "claude.ai 계정 동기화 폴더"
+            },
+            {
+              "id": "cm.store",
+              "reason": "스토어 설정 없음: <ROOT>\\home\\store"
+            }
+          ],
+          "external": [
+            {
+              "kind": "mcp",
+              "path": "<ROOT>\\home\\AppData\\Roaming\\Claude\\dsk.js",
+              "token": "${DESKTOP_DIR}\\dsk.js",
+              "exists": false,
+              "owners": [
+                "dsk"
+              ],
+              "scopes": [
+                "desk.mcp"
+              ],
+              "fields": [
+                "desk.mcp:args[0]"
+              ]
+            },
+            {
+              "kind": "mcp",
+              "path": "<ROOT>\\tools\\srv\\index.js",
+              "token": "<ROOT>\\tools\\srv\\index.js",
+              "exists": true,
+              "owners": [
+                "srv"
+              ],
+              "scopes": [
+                "cc.mcp-user"
+              ],
+              "fields": [
+                "cc.mcp-user:args[0]"
+              ]
+            },
+            {
+              "kind": "hook",
+              "path": "<ROOT>\\tools\\hook.js",
+              "token": "<ROOT>\\tools\\hook.js",
+              "exists": true,
+              "owners": [
+                "Stop"
+              ],
+              "scopes": [
+                "cc.settings"
+              ],
+              "fields": [
+                "cc.settings:hooks.Stop[0].hooks[0].command"
+              ]
+            }
+          ],
+          "plugins": {
+            "declared": 0,
+            "market": [],
+            "builtin": [],
+            "inline": [],
+            "added_explicit": [],
+            "dropped": [],
+            "markets_added": []
+          },
+          "has_secrets": true
+        }
+      },
+      {
+        "argv": [
+          "plan",
+          "--bundle",
+          "<ROOT>\\bundles\\py-bundle",
+          "--secrets",
+          "[1]"
+        ],
+        "exit": 1,
+        "doc": {
+          "ok": false,
+          "code": "invalid_arg",
+          "message": "--secrets 은 JSON 객체여야 함",
+          "target": "--secrets"
+        }
+      }
+    ],
+    "ts-zip": [
+      {
+        "argv": [
+          "plan",
+          "--bundle",
+          "<ROOT>\\bundles\\ts.cmbundle"
+        ],
+        "exit": 0,
+        "doc": {
+          "ok": true,
+          "code": "ok",
+          "message": "plan 2f1d83c305dc8e79: 신규 5 · 변경 0 · 동일 0 · 불가 2 · 제외 2. 이 PC 에 없는 경로 3개는 쓰지 않음(roots 로 짝을 정하면 다시 계산)",
+          "target": "<ROOT>\\bundles\\ts.cmbundle",
+          "bundle": "<ROOT>\\bundles\\ts.cmbundle",
+          "plan_id": "2f1d83c305dc8e79",
+          "source": {
+            "host": "demo-pc",
+            "os": "win32",
+            "home": "<ROOT>\\home",
+            "claude_home": "<ROOT>\\home\\.claude",
+            "desktop_dir": "<ROOT>\\home\\AppData\\Roaming\\Claude"
+          },
+          "items": [
+            {
+              "id": "cc.skills/qa",
+              "category": "cc.skills",
+              "strategy": "tree",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\skills\\qa",
+              "state": "new"
+            },
+            {
+              "id": "cc.skills/한글",
+              "category": "cc.skills",
+              "strategy": "tree",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\skills\\한글",
+              "state": "new"
+            },
+            {
+              "id": "cc.agents/rev.md",
+              "category": "cc.agents",
+              "strategy": "file",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\agents\\rev.md",
+              "state": "new"
+            },
+            {
+              "id": "cc.settings",
+              "category": "cc.settings",
+              "strategy": "json-keys",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\settings.json",
+              "hooks": [
+                {
+                  "id": "hook:ddf64e9121",
+                  "event": "Stop",
+                  "matcher": null,
+                  "command": "node \"<ROOT>\\tools\\hook.js\"",
+                  "state": "blocked",
+                  "code": "path_missing",
+                  "target": "<ROOT>\\tools\\hook.js"
+                }
+              ],
+              "dropped": [
+                {
+                  "what": "hook",
+                  "event": "Stop",
+                  "target": "<ROOT>\\tools\\hook.js"
+                }
+              ],
+              "state": "new"
+            },
+            {
+              "id": "cc.mcp-user/srv",
+              "category": "cc.mcp-user",
+              "strategy": "json-keys",
+              "target": "<ROOT>\\b\\Users\\other\\.claude.json",
+              "key": "srv",
+              "state": "blocked",
+              "code": "path_missing",
+              "missing_paths": [
+                "<ROOT>\\tools\\srv\\index.js"
+              ],
+              "reason": "이 PC 에 없는 경로: <ROOT>\\tools\\srv\\index.js"
+            },
+            {
+              "id": "desk.mcp/dsk",
+              "category": "desk.mcp",
+              "strategy": "json-keys",
+              "target": "<ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\claude_desktop_config.json",
+              "key": "dsk",
+              "state": "blocked",
+              "code": "path_missing",
+              "missing_paths": [
+                "<ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\dsk.js"
+              ],
+              "reason": "이 PC 에 없는 경로: <ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\dsk.js"
+            },
+            {
+              "id": "cc.refs/hooks/guard.py",
+              "category": "cc.refs",
+              "strategy": "file",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\hooks\\guard.py",
+              "state": "new"
+            },
+            {
+              "id": "cc.skills/synced",
+              "category": "cc.skills",
+              "state": "skipped",
+              "reason": "claude.ai 계정 동기화 폴더"
+            },
+            {
+              "id": "cm.store",
+              "category": "cm.store",
+              "state": "skipped",
+              "reason": "스토어 설정 없음: <ROOT>\\home\\store"
+            }
+          ],
+          "summary": {
+            "new": 5,
+            "same": 0,
+            "changed": 0,
+            "blocked": 2,
+            "skipped": 2
+          },
+          "external": [
+            {
+              "kind": "mcp",
+              "owners": [
+                "dsk"
+              ],
+              "scopes": [
+                "desk.mcp"
+              ],
+              "fields": [
+                "desk.mcp:args[0]"
+              ],
+              "path": "<ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\dsk.js",
+              "source_path": "<ROOT>\\home\\AppData\\Roaming\\Claude\\dsk.js",
+              "exists": false,
+              "in_home": true
+            },
+            {
+              "kind": "mcp",
+              "owners": [
+                "srv"
+              ],
+              "scopes": [
+                "cc.mcp-user"
+              ],
+              "fields": [
+                "cc.mcp-user:args[0]"
+              ],
+              "path": "<ROOT>\\tools\\srv\\index.js",
+              "source_path": "<ROOT>\\tools\\srv\\index.js",
+              "exists": false,
+              "in_home": false
+            },
+            {
+              "kind": "hook",
+              "owners": [
+                "Stop"
+              ],
+              "scopes": [
+                "cc.settings"
+              ],
+              "fields": [
+                "cc.settings:hooks.Stop[0].hooks[0].command"
+              ],
+              "path": "<ROOT>\\tools\\hook.js",
+              "source_path": "<ROOT>\\tools\\hook.js",
+              "exists": false,
+              "in_home": false
+            }
+          ],
+          "warnings": [
+            "이 PC 에 없는 경로 3개 - 그 경로를 쓰는 훅·MCP 서버는 빼고 가져옵니다",
+            "스토어가 아직 없어 적용할 때 새로 만듭니다: <ROOT>\\b\\Users\\other\\store"
+          ],
+          "warning_codes": [
+            {
+              "code": "paths_missing",
+              "n": 3
+            },
+            {
+              "code": "store_new",
+              "target": "<ROOT>\\b\\Users\\other\\store"
+            }
+          ],
+          "roots": [
+            {
+              "from": "<ROOT>",
+              "to": null,
+              "source": "none",
+              "total": 2,
+              "resolved": 0
+            }
+          ],
+          "unresolved": [
+            {
+              "path": "<ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\dsk.js",
+              "kind": "mcp",
+              "owners": [
+                "dsk"
+              ],
+              "source_path": "<ROOT>\\home\\AppData\\Roaming\\Claude\\dsk.js",
+              "in_home": true
+            },
+            {
+              "path": "<ROOT>\\tools\\srv\\index.js",
+              "kind": "mcp",
+              "owners": [
+                "srv"
+              ],
+              "source_path": "<ROOT>\\tools\\srv\\index.js",
+              "in_home": false
+            },
+            {
+              "path": "<ROOT>\\tools\\hook.js",
+              "kind": "hook",
+              "owners": [
+                "Stop"
+              ],
+              "source_path": "<ROOT>\\tools\\hook.js",
+              "in_home": false
+            }
+          ]
+        }
+      },
+      {
+        "argv": [
+          "plan",
+          "--bundle",
+          "<ROOT>\\bundles\\ts.cmbundle",
+          "--secrets",
+          "{\"cc.mcp-user/srv\":{\"env.GITHUB_TOKEN\":\"x\"}}"
+        ],
+        "exit": 0,
+        "doc": {
+          "ok": true,
+          "code": "ok",
+          "message": "plan 2f1d83c305dc8e79: 신규 5 · 변경 0 · 동일 0 · 불가 2 · 제외 2. 이 PC 에 없는 경로 3개는 쓰지 않음(roots 로 짝을 정하면 다시 계산)",
+          "target": "<ROOT>\\bundles\\ts.cmbundle",
+          "bundle": "<ROOT>\\bundles\\ts.cmbundle",
+          "plan_id": "2f1d83c305dc8e79",
+          "source": {
+            "host": "demo-pc",
+            "os": "win32",
+            "home": "<ROOT>\\home",
+            "claude_home": "<ROOT>\\home\\.claude",
+            "desktop_dir": "<ROOT>\\home\\AppData\\Roaming\\Claude"
+          },
+          "items": [
+            {
+              "id": "cc.skills/qa",
+              "category": "cc.skills",
+              "strategy": "tree",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\skills\\qa",
+              "state": "new"
+            },
+            {
+              "id": "cc.skills/한글",
+              "category": "cc.skills",
+              "strategy": "tree",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\skills\\한글",
+              "state": "new"
+            },
+            {
+              "id": "cc.agents/rev.md",
+              "category": "cc.agents",
+              "strategy": "file",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\agents\\rev.md",
+              "state": "new"
+            },
+            {
+              "id": "cc.settings",
+              "category": "cc.settings",
+              "strategy": "json-keys",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\settings.json",
+              "hooks": [
+                {
+                  "id": "hook:ddf64e9121",
+                  "event": "Stop",
+                  "matcher": null,
+                  "command": "node \"<ROOT>\\tools\\hook.js\"",
+                  "state": "blocked",
+                  "code": "path_missing",
+                  "target": "<ROOT>\\tools\\hook.js"
+                }
+              ],
+              "dropped": [
+                {
+                  "what": "hook",
+                  "event": "Stop",
+                  "target": "<ROOT>\\tools\\hook.js"
+                }
+              ],
+              "state": "new"
+            },
+            {
+              "id": "cc.mcp-user/srv",
+              "category": "cc.mcp-user",
+              "strategy": "json-keys",
+              "target": "<ROOT>\\b\\Users\\other\\.claude.json",
+              "key": "srv",
+              "state": "blocked",
+              "code": "path_missing",
+              "missing_paths": [
+                "<ROOT>\\tools\\srv\\index.js"
+              ],
+              "reason": "이 PC 에 없는 경로: <ROOT>\\tools\\srv\\index.js"
+            },
+            {
+              "id": "desk.mcp/dsk",
+              "category": "desk.mcp",
+              "strategy": "json-keys",
+              "target": "<ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\claude_desktop_config.json",
+              "key": "dsk",
+              "state": "blocked",
+              "code": "path_missing",
+              "missing_paths": [
+                "<ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\dsk.js"
+              ],
+              "reason": "이 PC 에 없는 경로: <ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\dsk.js"
+            },
+            {
+              "id": "cc.refs/hooks/guard.py",
+              "category": "cc.refs",
+              "strategy": "file",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\hooks\\guard.py",
+              "state": "new"
+            },
+            {
+              "id": "cc.skills/synced",
+              "category": "cc.skills",
+              "state": "skipped",
+              "reason": "claude.ai 계정 동기화 폴더"
+            },
+            {
+              "id": "cm.store",
+              "category": "cm.store",
+              "state": "skipped",
+              "reason": "스토어 설정 없음: <ROOT>\\home\\store"
+            }
+          ],
+          "summary": {
+            "new": 5,
+            "same": 0,
+            "changed": 0,
+            "blocked": 2,
+            "skipped": 2
+          },
+          "external": [
+            {
+              "kind": "mcp",
+              "owners": [
+                "dsk"
+              ],
+              "scopes": [
+                "desk.mcp"
+              ],
+              "fields": [
+                "desk.mcp:args[0]"
+              ],
+              "path": "<ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\dsk.js",
+              "source_path": "<ROOT>\\home\\AppData\\Roaming\\Claude\\dsk.js",
+              "exists": false,
+              "in_home": true
+            },
+            {
+              "kind": "mcp",
+              "owners": [
+                "srv"
+              ],
+              "scopes": [
+                "cc.mcp-user"
+              ],
+              "fields": [
+                "cc.mcp-user:args[0]"
+              ],
+              "path": "<ROOT>\\tools\\srv\\index.js",
+              "source_path": "<ROOT>\\tools\\srv\\index.js",
+              "exists": false,
+              "in_home": false
+            },
+            {
+              "kind": "hook",
+              "owners": [
+                "Stop"
+              ],
+              "scopes": [
+                "cc.settings"
+              ],
+              "fields": [
+                "cc.settings:hooks.Stop[0].hooks[0].command"
+              ],
+              "path": "<ROOT>\\tools\\hook.js",
+              "source_path": "<ROOT>\\tools\\hook.js",
+              "exists": false,
+              "in_home": false
+            }
+          ],
+          "warnings": [
+            "이 PC 에 없는 경로 3개 - 그 경로를 쓰는 훅·MCP 서버는 빼고 가져옵니다",
+            "스토어가 아직 없어 적용할 때 새로 만듭니다: <ROOT>\\b\\Users\\other\\store"
+          ],
+          "warning_codes": [
+            {
+              "code": "paths_missing",
+              "n": 3
+            },
+            {
+              "code": "store_new",
+              "target": "<ROOT>\\b\\Users\\other\\store"
+            }
+          ],
+          "roots": [
+            {
+              "from": "<ROOT>",
+              "to": null,
+              "source": "none",
+              "total": 2,
+              "resolved": 0
+            }
+          ],
+          "unresolved": [
+            {
+              "path": "<ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\dsk.js",
+              "kind": "mcp",
+              "owners": [
+                "dsk"
+              ],
+              "source_path": "<ROOT>\\home\\AppData\\Roaming\\Claude\\dsk.js",
+              "in_home": true
+            },
+            {
+              "path": "<ROOT>\\tools\\srv\\index.js",
+              "kind": "mcp",
+              "owners": [
+                "srv"
+              ],
+              "source_path": "<ROOT>\\tools\\srv\\index.js",
+              "in_home": false
+            },
+            {
+              "path": "<ROOT>\\tools\\hook.js",
+              "kind": "hook",
+              "owners": [
+                "Stop"
+              ],
+              "source_path": "<ROOT>\\tools\\hook.js",
+              "in_home": false
+            }
+          ]
+        }
+      },
+      {
+        "argv": [
+          "inspect",
+          "--bundle",
+          "<ROOT>\\bundles\\ts.cmbundle"
+        ],
+        "exit": 0,
+        "doc": {
+          "ok": true,
+          "code": "ok",
+          "message": "번들 ts.cmbundle: demo-pc 에서 2026-11-23T09:23:38+09:00 에 만듦, 항목 7개",
+          "target": "<ROOT>\\bundles\\ts.cmbundle",
+          "bundle": "<ROOT>\\bundles\\ts.cmbundle",
+          "hash": "sha256:b5f7552481045bb87050e233fafe5358ee175f664ee67c036445bdd7d6a32fce",
+          "created": "2026-11-23T09:23:38+09:00",
+          "source": {
+            "host": "demo-pc",
+            "os": "win32",
+            "home": "<ROOT>\\home",
+            "claude_home": "<ROOT>\\home\\.claude",
+            "desktop_dir": "<ROOT>\\home\\AppData\\Roaming\\Claude"
+          },
+          "counts": {
+            "cc.skills": 2,
+            "cc.agents": 1,
+            "cc.settings": 1,
+            "cc.mcp-user": 1,
+            "desk.mcp": 1,
+            "cc.refs": 1
+          },
+          "skipped": [
+            {
+              "id": "cc.skills/synced",
+              "reason": "claude.ai 계정 동기화 폴더"
+            },
+            {
+              "id": "cm.store",
+              "reason": "스토어 설정 없음: <ROOT>\\home\\store"
+            }
+          ],
+          "external": [
+            {
+              "kind": "mcp",
+              "path": "<ROOT>\\home\\AppData\\Roaming\\Claude\\dsk.js",
+              "token": "${DESKTOP_DIR}\\dsk.js",
+              "exists": false,
+              "owners": [
+                "dsk"
+              ],
+              "scopes": [
+                "desk.mcp"
+              ],
+              "fields": [
+                "desk.mcp:args[0]"
+              ]
+            },
+            {
+              "kind": "mcp",
+              "path": "<ROOT>\\tools\\srv\\index.js",
+              "token": "<ROOT>\\tools\\srv\\index.js",
+              "exists": true,
+              "owners": [
+                "srv"
+              ],
+              "scopes": [
+                "cc.mcp-user"
+              ],
+              "fields": [
+                "cc.mcp-user:args[0]"
+              ]
+            },
+            {
+              "kind": "hook",
+              "path": "<ROOT>\\tools\\hook.js",
+              "token": "<ROOT>\\tools\\hook.js",
+              "exists": true,
+              "owners": [
+                "Stop"
+              ],
+              "scopes": [
+                "cc.settings"
+              ],
+              "fields": [
+                "cc.settings:hooks.Stop[0].hooks[0].command"
+              ]
+            }
+          ],
+          "plugins": {
+            "declared": 0,
+            "market": [],
+            "builtin": [],
+            "inline": [],
+            "added_explicit": [],
+            "dropped": [],
+            "markets_added": []
+          },
+          "has_secrets": true
+        }
+      },
+      {
+        "argv": [
+          "plan",
+          "--bundle",
+          "<ROOT>\\bundles\\ts.cmbundle",
+          "--secrets",
+          "[1]"
+        ],
+        "exit": 1,
+        "doc": {
+          "ok": false,
+          "code": "invalid_arg",
+          "message": "--secrets 은 JSON 객체여야 함",
+          "target": "--secrets"
+        }
+      }
+    ],
+    "ts-folder": [
+      {
+        "argv": [
+          "plan",
+          "--bundle",
+          "<ROOT>\\bundles\\ts-bundle"
+        ],
+        "exit": 0,
+        "doc": {
+          "ok": true,
+          "code": "ok",
+          "message": "plan 2f1d83c305dc8e79: 신규 5 · 변경 0 · 동일 0 · 불가 2 · 제외 2. 이 PC 에 없는 경로 3개는 쓰지 않음(roots 로 짝을 정하면 다시 계산)",
+          "target": "<ROOT>\\bundles\\ts-bundle",
+          "bundle": "<ROOT>\\bundles\\ts-bundle",
+          "plan_id": "2f1d83c305dc8e79",
+          "source": {
+            "host": "demo-pc",
+            "os": "win32",
+            "home": "<ROOT>\\home",
+            "claude_home": "<ROOT>\\home\\.claude",
+            "desktop_dir": "<ROOT>\\home\\AppData\\Roaming\\Claude"
+          },
+          "items": [
+            {
+              "id": "cc.skills/qa",
+              "category": "cc.skills",
+              "strategy": "tree",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\skills\\qa",
+              "state": "new"
+            },
+            {
+              "id": "cc.skills/한글",
+              "category": "cc.skills",
+              "strategy": "tree",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\skills\\한글",
+              "state": "new"
+            },
+            {
+              "id": "cc.agents/rev.md",
+              "category": "cc.agents",
+              "strategy": "file",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\agents\\rev.md",
+              "state": "new"
+            },
+            {
+              "id": "cc.settings",
+              "category": "cc.settings",
+              "strategy": "json-keys",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\settings.json",
+              "hooks": [
+                {
+                  "id": "hook:ddf64e9121",
+                  "event": "Stop",
+                  "matcher": null,
+                  "command": "node \"<ROOT>\\tools\\hook.js\"",
+                  "state": "blocked",
+                  "code": "path_missing",
+                  "target": "<ROOT>\\tools\\hook.js"
+                }
+              ],
+              "dropped": [
+                {
+                  "what": "hook",
+                  "event": "Stop",
+                  "target": "<ROOT>\\tools\\hook.js"
+                }
+              ],
+              "state": "new"
+            },
+            {
+              "id": "cc.mcp-user/srv",
+              "category": "cc.mcp-user",
+              "strategy": "json-keys",
+              "target": "<ROOT>\\b\\Users\\other\\.claude.json",
+              "key": "srv",
+              "state": "blocked",
+              "code": "path_missing",
+              "missing_paths": [
+                "<ROOT>\\tools\\srv\\index.js"
+              ],
+              "reason": "이 PC 에 없는 경로: <ROOT>\\tools\\srv\\index.js"
+            },
+            {
+              "id": "desk.mcp/dsk",
+              "category": "desk.mcp",
+              "strategy": "json-keys",
+              "target": "<ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\claude_desktop_config.json",
+              "key": "dsk",
+              "state": "blocked",
+              "code": "path_missing",
+              "missing_paths": [
+                "<ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\dsk.js"
+              ],
+              "reason": "이 PC 에 없는 경로: <ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\dsk.js"
+            },
+            {
+              "id": "cc.refs/hooks/guard.py",
+              "category": "cc.refs",
+              "strategy": "file",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\hooks\\guard.py",
+              "state": "new"
+            },
+            {
+              "id": "cc.skills/synced",
+              "category": "cc.skills",
+              "state": "skipped",
+              "reason": "claude.ai 계정 동기화 폴더"
+            },
+            {
+              "id": "cm.store",
+              "category": "cm.store",
+              "state": "skipped",
+              "reason": "스토어 설정 없음: <ROOT>\\home\\store"
+            }
+          ],
+          "summary": {
+            "new": 5,
+            "same": 0,
+            "changed": 0,
+            "blocked": 2,
+            "skipped": 2
+          },
+          "external": [
+            {
+              "kind": "mcp",
+              "owners": [
+                "dsk"
+              ],
+              "scopes": [
+                "desk.mcp"
+              ],
+              "fields": [
+                "desk.mcp:args[0]"
+              ],
+              "path": "<ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\dsk.js",
+              "source_path": "<ROOT>\\home\\AppData\\Roaming\\Claude\\dsk.js",
+              "exists": false,
+              "in_home": true
+            },
+            {
+              "kind": "mcp",
+              "owners": [
+                "srv"
+              ],
+              "scopes": [
+                "cc.mcp-user"
+              ],
+              "fields": [
+                "cc.mcp-user:args[0]"
+              ],
+              "path": "<ROOT>\\tools\\srv\\index.js",
+              "source_path": "<ROOT>\\tools\\srv\\index.js",
+              "exists": false,
+              "in_home": false
+            },
+            {
+              "kind": "hook",
+              "owners": [
+                "Stop"
+              ],
+              "scopes": [
+                "cc.settings"
+              ],
+              "fields": [
+                "cc.settings:hooks.Stop[0].hooks[0].command"
+              ],
+              "path": "<ROOT>\\tools\\hook.js",
+              "source_path": "<ROOT>\\tools\\hook.js",
+              "exists": false,
+              "in_home": false
+            }
+          ],
+          "warnings": [
+            "이 PC 에 없는 경로 3개 - 그 경로를 쓰는 훅·MCP 서버는 빼고 가져옵니다",
+            "스토어가 아직 없어 적용할 때 새로 만듭니다: <ROOT>\\b\\Users\\other\\store"
+          ],
+          "warning_codes": [
+            {
+              "code": "paths_missing",
+              "n": 3
+            },
+            {
+              "code": "store_new",
+              "target": "<ROOT>\\b\\Users\\other\\store"
+            }
+          ],
+          "roots": [
+            {
+              "from": "<ROOT>",
+              "to": null,
+              "source": "none",
+              "total": 2,
+              "resolved": 0
+            }
+          ],
+          "unresolved": [
+            {
+              "path": "<ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\dsk.js",
+              "kind": "mcp",
+              "owners": [
+                "dsk"
+              ],
+              "source_path": "<ROOT>\\home\\AppData\\Roaming\\Claude\\dsk.js",
+              "in_home": true
+            },
+            {
+              "path": "<ROOT>\\tools\\srv\\index.js",
+              "kind": "mcp",
+              "owners": [
+                "srv"
+              ],
+              "source_path": "<ROOT>\\tools\\srv\\index.js",
+              "in_home": false
+            },
+            {
+              "path": "<ROOT>\\tools\\hook.js",
+              "kind": "hook",
+              "owners": [
+                "Stop"
+              ],
+              "source_path": "<ROOT>\\tools\\hook.js",
+              "in_home": false
+            }
+          ]
+        }
+      },
+      {
+        "argv": [
+          "plan",
+          "--bundle",
+          "<ROOT>\\bundles\\ts-bundle",
+          "--secrets",
+          "{\"cc.mcp-user/srv\":{\"env.GITHUB_TOKEN\":\"x\"}}"
+        ],
+        "exit": 0,
+        "doc": {
+          "ok": true,
+          "code": "ok",
+          "message": "plan 2f1d83c305dc8e79: 신규 5 · 변경 0 · 동일 0 · 불가 2 · 제외 2. 이 PC 에 없는 경로 3개는 쓰지 않음(roots 로 짝을 정하면 다시 계산)",
+          "target": "<ROOT>\\bundles\\ts-bundle",
+          "bundle": "<ROOT>\\bundles\\ts-bundle",
+          "plan_id": "2f1d83c305dc8e79",
+          "source": {
+            "host": "demo-pc",
+            "os": "win32",
+            "home": "<ROOT>\\home",
+            "claude_home": "<ROOT>\\home\\.claude",
+            "desktop_dir": "<ROOT>\\home\\AppData\\Roaming\\Claude"
+          },
+          "items": [
+            {
+              "id": "cc.skills/qa",
+              "category": "cc.skills",
+              "strategy": "tree",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\skills\\qa",
+              "state": "new"
+            },
+            {
+              "id": "cc.skills/한글",
+              "category": "cc.skills",
+              "strategy": "tree",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\skills\\한글",
+              "state": "new"
+            },
+            {
+              "id": "cc.agents/rev.md",
+              "category": "cc.agents",
+              "strategy": "file",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\agents\\rev.md",
+              "state": "new"
+            },
+            {
+              "id": "cc.settings",
+              "category": "cc.settings",
+              "strategy": "json-keys",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\settings.json",
+              "hooks": [
+                {
+                  "id": "hook:ddf64e9121",
+                  "event": "Stop",
+                  "matcher": null,
+                  "command": "node \"<ROOT>\\tools\\hook.js\"",
+                  "state": "blocked",
+                  "code": "path_missing",
+                  "target": "<ROOT>\\tools\\hook.js"
+                }
+              ],
+              "dropped": [
+                {
+                  "what": "hook",
+                  "event": "Stop",
+                  "target": "<ROOT>\\tools\\hook.js"
+                }
+              ],
+              "state": "new"
+            },
+            {
+              "id": "cc.mcp-user/srv",
+              "category": "cc.mcp-user",
+              "strategy": "json-keys",
+              "target": "<ROOT>\\b\\Users\\other\\.claude.json",
+              "key": "srv",
+              "state": "blocked",
+              "code": "path_missing",
+              "missing_paths": [
+                "<ROOT>\\tools\\srv\\index.js"
+              ],
+              "reason": "이 PC 에 없는 경로: <ROOT>\\tools\\srv\\index.js"
+            },
+            {
+              "id": "desk.mcp/dsk",
+              "category": "desk.mcp",
+              "strategy": "json-keys",
+              "target": "<ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\claude_desktop_config.json",
+              "key": "dsk",
+              "state": "blocked",
+              "code": "path_missing",
+              "missing_paths": [
+                "<ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\dsk.js"
+              ],
+              "reason": "이 PC 에 없는 경로: <ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\dsk.js"
+            },
+            {
+              "id": "cc.refs/hooks/guard.py",
+              "category": "cc.refs",
+              "strategy": "file",
+              "target": "<ROOT>\\b\\Users\\other\\.claude\\hooks\\guard.py",
+              "state": "new"
+            },
+            {
+              "id": "cc.skills/synced",
+              "category": "cc.skills",
+              "state": "skipped",
+              "reason": "claude.ai 계정 동기화 폴더"
+            },
+            {
+              "id": "cm.store",
+              "category": "cm.store",
+              "state": "skipped",
+              "reason": "스토어 설정 없음: <ROOT>\\home\\store"
+            }
+          ],
+          "summary": {
+            "new": 5,
+            "same": 0,
+            "changed": 0,
+            "blocked": 2,
+            "skipped": 2
+          },
+          "external": [
+            {
+              "kind": "mcp",
+              "owners": [
+                "dsk"
+              ],
+              "scopes": [
+                "desk.mcp"
+              ],
+              "fields": [
+                "desk.mcp:args[0]"
+              ],
+              "path": "<ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\dsk.js",
+              "source_path": "<ROOT>\\home\\AppData\\Roaming\\Claude\\dsk.js",
+              "exists": false,
+              "in_home": true
+            },
+            {
+              "kind": "mcp",
+              "owners": [
+                "srv"
+              ],
+              "scopes": [
+                "cc.mcp-user"
+              ],
+              "fields": [
+                "cc.mcp-user:args[0]"
+              ],
+              "path": "<ROOT>\\tools\\srv\\index.js",
+              "source_path": "<ROOT>\\tools\\srv\\index.js",
+              "exists": false,
+              "in_home": false
+            },
+            {
+              "kind": "hook",
+              "owners": [
+                "Stop"
+              ],
+              "scopes": [
+                "cc.settings"
+              ],
+              "fields": [
+                "cc.settings:hooks.Stop[0].hooks[0].command"
+              ],
+              "path": "<ROOT>\\tools\\hook.js",
+              "source_path": "<ROOT>\\tools\\hook.js",
+              "exists": false,
+              "in_home": false
+            }
+          ],
+          "warnings": [
+            "이 PC 에 없는 경로 3개 - 그 경로를 쓰는 훅·MCP 서버는 빼고 가져옵니다",
+            "스토어가 아직 없어 적용할 때 새로 만듭니다: <ROOT>\\b\\Users\\other\\store"
+          ],
+          "warning_codes": [
+            {
+              "code": "paths_missing",
+              "n": 3
+            },
+            {
+              "code": "store_new",
+              "target": "<ROOT>\\b\\Users\\other\\store"
+            }
+          ],
+          "roots": [
+            {
+              "from": "<ROOT>",
+              "to": null,
+              "source": "none",
+              "total": 2,
+              "resolved": 0
+            }
+          ],
+          "unresolved": [
+            {
+              "path": "<ROOT>\\b\\Users\\other\\AppData\\Roaming\\Claude\\dsk.js",
+              "kind": "mcp",
+              "owners": [
+                "dsk"
+              ],
+              "source_path": "<ROOT>\\home\\AppData\\Roaming\\Claude\\dsk.js",
+              "in_home": true
+            },
+            {
+              "path": "<ROOT>\\tools\\srv\\index.js",
+              "kind": "mcp",
+              "owners": [
+                "srv"
+              ],
+              "source_path": "<ROOT>\\tools\\srv\\index.js",
+              "in_home": false
+            },
+            {
+              "path": "<ROOT>\\tools\\hook.js",
+              "kind": "hook",
+              "owners": [
+                "Stop"
+              ],
+              "source_path": "<ROOT>\\tools\\hook.js",
+              "in_home": false
+            }
+          ]
+        }
+      },
+      {
+        "argv": [
+          "inspect",
+          "--bundle",
+          "<ROOT>\\bundles\\ts-bundle"
+        ],
+        "exit": 0,
+        "doc": {
+          "ok": true,
+          "code": "ok",
+          "message": "번들 ts-bundle: demo-pc 에서 2026-11-23T09:23:38+09:00 에 만듦, 항목 7개",
+          "target": "<ROOT>\\bundles\\ts-bundle",
+          "bundle": "<ROOT>\\bundles\\ts-bundle",
+          "hash": "sha256:b5f7552481045bb87050e233fafe5358ee175f664ee67c036445bdd7d6a32fce",
+          "created": "2026-11-23T09:23:38+09:00",
+          "source": {
+            "host": "demo-pc",
+            "os": "win32",
+            "home": "<ROOT>\\home",
+            "claude_home": "<ROOT>\\home\\.claude",
+            "desktop_dir": "<ROOT>\\home\\AppData\\Roaming\\Claude"
+          },
+          "counts": {
+            "cc.skills": 2,
+            "cc.agents": 1,
+            "cc.settings": 1,
+            "cc.mcp-user": 1,
+            "desk.mcp": 1,
+            "cc.refs": 1
+          },
+          "skipped": [
+            {
+              "id": "cc.skills/synced",
+              "reason": "claude.ai 계정 동기화 폴더"
+            },
+            {
+              "id": "cm.store",
+              "reason": "스토어 설정 없음: <ROOT>\\home\\store"
+            }
+          ],
+          "external": [
+            {
+              "kind": "mcp",
+              "path": "<ROOT>\\home\\AppData\\Roaming\\Claude\\dsk.js",
+              "token": "${DESKTOP_DIR}\\dsk.js",
+              "exists": false,
+              "owners": [
+                "dsk"
+              ],
+              "scopes": [
+                "desk.mcp"
+              ],
+              "fields": [
+                "desk.mcp:args[0]"
+              ]
+            },
+            {
+              "kind": "mcp",
+              "path": "<ROOT>\\tools\\srv\\index.js",
+              "token": "<ROOT>\\tools\\srv\\index.js",
+              "exists": true,
+              "owners": [
+                "srv"
+              ],
+              "scopes": [
+                "cc.mcp-user"
+              ],
+              "fields": [
+                "cc.mcp-user:args[0]"
+              ]
+            },
+            {
+              "kind": "hook",
+              "path": "<ROOT>\\tools\\hook.js",
+              "token": "<ROOT>\\tools\\hook.js",
+              "exists": true,
+              "owners": [
+                "Stop"
+              ],
+              "scopes": [
+                "cc.settings"
+              ],
+              "fields": [
+                "cc.settings:hooks.Stop[0].hooks[0].command"
+              ]
+            }
+          ],
+          "plugins": {
+            "declared": 0,
+            "market": [],
+            "builtin": [],
+            "inline": [],
+            "added_explicit": [],
+            "dropped": [],
+            "markets_added": []
+          },
+          "has_secrets": true
+        }
+      },
+      {
+        "argv": [
+          "plan",
+          "--bundle",
+          "<ROOT>\\bundles\\ts-bundle",
+          "--secrets",
+          "[1]"
+        ],
+        "exit": 1,
+        "doc": {
+          "ok": false,
+          "code": "invalid_arg",
+          "message": "--secrets 은 JSON 객체여야 함",
+          "target": "--secrets"
+        }
+      }
+    ],
+    "misc": [
+      {
+        "argv": [
+          "plan",
+          "--bundle",
+          "<ROOT>\\nope"
+        ],
+        "exit": 1,
+        "doc": {
+          "ok": false,
+          "code": "bundle_invalid",
+          "message": "번들이 아님(폴더나 .cmbundle zip 이어야 함): <ROOT>\\nope",
+          "target": "<ROOT>\\nope"
+        }
+      },
+      {
+        "argv": [
+          "plan"
+        ],
+        "exit": 1,
+        "doc": {
+          "ok": false,
+          "code": "invalid_arg",
+          "message": "--bundle 이나 --sync-from 중 하나가 필요합니다",
+          "target": "--bundle"
+        }
+      }
+    ]
+  }
+}

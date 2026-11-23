@@ -1,0 +1,73 @@
+{
+  "id": "cas.history",
+  "module": "cas",
+  "steps": [
+    {
+      "argv": [
+        "history",
+        "{CLAUDE}/settings.json",
+        "--json"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Revisions: 4",
+        "path": "<ROOT>\\Users\\alex\\.claude\\settings.json",
+        "revisions": [
+          {
+            "snapshot": "<SNAP>",
+            "time": "<TIME>",
+            "message": "initial setup",
+            "hash": "<HEX>",
+            "present": true
+          },
+          {
+            "snapshot": "<SNAP>",
+            "time": "<TIME>",
+            "message": "allow npm test",
+            "hash": "<HEX>",
+            "present": true
+          },
+          {
+            "snapshot": "<SNAP>",
+            "time": "<TIME>",
+            "message": "deny reading secrets",
+            "hash": "<HEX>",
+            "present": true
+          },
+          {
+            "snapshot": "<SNAP>",
+            "time": "<TIME>",
+            "message": "switch model",
+            "hash": "<HEX>",
+            "present": true
+          }
+        ]
+      }
+    },
+    {
+      "argv": [
+        "history",
+        "{PROJECT}/.claude/settings.json",
+        "--json"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Revisions: 1",
+        "path": "<ROOT>\\work\\acme-web\\.claude\\settings.json",
+        "revisions": [
+          {
+            "snapshot": "<SNAP>",
+            "time": "<TIME>",
+            "message": "initial setup",
+            "hash": "<HEX>",
+            "present": true
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "id": "plugin_catalog.no-cache",
+  "module": "plugin_catalog",
+  "steps": [
+    {
+      "argv": [
+        "summary"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "cache_unavailable",
+        "message": "Cannot read the catalog cache: <ROOT>\\Users\\alex\\.claude\\plugins\\plugin-catalog-cache.json",
+        "entries": {},
+        "fetched_at": "",
+        "generated_at": "",
+        "installs_at": "",
+        "models": []
+      }
+    },
+    {
+      "argv": [
+        "details",
+        "demo@market"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "cache_unavailable",
+        "message": "Cannot read the catalog cache: <ROOT>\\Users\\alex\\.claude\\plugins\\plugin-catalog-cache.json",
+        "id": "demo@market"
+      }
+    },
+    {
+      "argv": [
+        "--cache",
+        "{ROOT}/missing.json",
+        "summary"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "cache_unavailable",
+        "message": "Cannot read the catalog cache: <ROOT>\\missing.json",
+        "entries": {},
+        "fetched_at": "",
+        "generated_at": "",
+        "installs_at": "",
+        "models": []
+      }
+    }
+  ]
+}

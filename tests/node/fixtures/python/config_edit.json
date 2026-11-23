@@ -1,0 +1,258 @@
+{
+ "edit --claude-json <TMP>\\a.json mcp-add x --json {\"a\": }": {
+  "doc": {
+   "ok": false,
+   "code": "invalid_arg",
+   "message": "--json 파싱 실패: Expecting value: line 1 column 7 (char 6)",
+   "target": "--json"
+  },
+  "files": {
+   "<TMP>\\a.json": null
+  }
+ },
+ "edit --claude-json <TMP>\\py\\.claude.json mcp-add demo --json {\"command\":\"npx\",\"timeout\":1.5e-3,\"n\":12345678901234567890}": {
+  "doc": {
+   "ok": true,
+   "code": "ok",
+   "message": "추가됨: mcpServers.demo",
+   "changed": true,
+   "file": "<TMP>\\py\\.claude.json",
+   "backup": "<TMP>\\py\\.claude.json.20261123103212.bak"
+  },
+  "files": {
+   "<TMP>\\py\\.claude.json": "txt:{\r\n  \"numStartups\": 9007199254740993,\r\n  \"id\": 123456789012345678901234567890,\r\n  \"cost\": 1e-07,\r\n  \"rate\": 1.234e-05,\r\n  \"one\": 1.0,\r\n  \"big\": 1.2345678901234568e+20,\r\n  \"neg\": -0.0,\r\n  \"projects\": {\r\n    \"D:\\\\a\": {\r\n      \"lastCost\": 0.1,\r\n      \"n\": [\r\n        1,\r\n        2.5e+300\r\n      ]\r\n    }\r\n  },\r\n  \"mcpServers\": {\r\n    \"old\": {\r\n      \"command\": \"x\"\r\n    },\r\n    \"demo\": {\r\n      \"command\": \"npx\",\r\n      \"timeout\": 0.0015,\r\n      \"n\": 12345678901234567890\r\n    }\r\n  }\r\n}"
+  }
+ },
+ "edit --claude-json <TMP>\\py\\.claude.json mcp-remove old": {
+  "doc": {
+   "ok": true,
+   "code": "ok",
+   "message": "제거됨: mcpServers.old",
+   "changed": true,
+   "file": "<TMP>\\py\\.claude.json",
+   "backup": "<TMP>\\py\\.claude.json.20261123103213.bak"
+  },
+  "files": {
+   "<TMP>\\py\\.claude.json": "txt:{\r\n  \"numStartups\": 9007199254740993,\r\n  \"id\": 123456789012345678901234567890,\r\n  \"cost\": 1e-07,\r\n  \"rate\": 1.234e-05,\r\n  \"one\": 1.0,\r\n  \"big\": 1.2345678901234568e+20,\r\n  \"neg\": -0.0,\r\n  \"projects\": {\r\n    \"D:\\\\a\": {\r\n      \"lastCost\": 0.1,\r\n      \"n\": [\r\n        1,\r\n        2.5e+300\r\n      ]\r\n    }\r\n  },\r\n  \"mcpServers\": {\r\n    \"demo\": {\r\n      \"command\": \"npx\",\r\n      \"timeout\": 0.0015,\r\n      \"n\": 12345678901234567890\r\n    }\r\n  }\r\n}"
+  }
+ },
+ "edit --settings <TMP>\\mixed\\.claude\\settings.json hook-add PostToolUse node \"C:\\x y\\h.js\" --matcher Edit": {
+  "doc": {
+   "ok": true,
+   "code": "ok",
+   "message": "hook 추가됨: PostToolUse (matcher=Edit) <- node \"C:\\x y\\h.js\"",
+   "changed": true,
+   "settings": "<TMP>\\mixed\\.claude\\settings.json",
+   "backup": "<TMP>\\mixed\\.claude\\settings.json.20261123103210.bak"
+  },
+  "files": {
+   "<TMP>\\mixed\\.claude\\settings.json": "txt:{\r\n  \"permissions\": {\r\n    \"allow\": [\r\n      \"Read\",\r\n      \"Bash(git:*)\"\r\n    ]\r\n  },\r\n  \"model\": \"opus\",\r\n  \"hooks\": {\r\n    \"PostToolUse\": [\r\n      {\r\n        \"matcher\": \"Edit\",\r\n        \"hooks\": [\r\n          {\r\n            \"type\": \"command\",\r\n            \"command\": \"node \\\"C:\\\\x y\\\\h.js\\\"\"\r\n          }\r\n        ]\r\n      }\r\n    ]\r\n  }\r\n}"
+  }
+ },
+ "edit --settings <TMP>\\mixed\\.claude\\settings.json hook-remove PostToolUse node \"C:\\x y\\h.js\"": {
+  "doc": {
+   "ok": true,
+   "code": "ok",
+   "message": "hook 제거됨 1건: PostToolUse ~ 'node \"C:\\x y\\h.js\"'",
+   "changed": true,
+   "settings": "<TMP>\\mixed\\.claude\\settings.json",
+   "backup": "<TMP>\\mixed\\.claude\\settings.json.20261123103212.bak"
+  },
+  "files": {
+   "<TMP>\\mixed\\.claude\\settings.json": "txt:{\r\n  \"permissions\": {\r\n    \"allow\": [\r\n      \"Read\",\r\n      \"Bash(git:*)\"\r\n    ]\r\n  },\r\n  \"model\": \"opus\",\r\n  \"hooks\": {\r\n    \"PostToolUse\": [\r\n      {\r\n        \"matcher\": \"*\",\r\n        \"hooks\": [\r\n          {\r\n            \"type\": \"command\",\r\n            \"command\": \"echo 두번째\"\r\n          }\r\n        ]\r\n      }\r\n    ]\r\n  },\r\n  \"enabledPlugins\": {\r\n    \"demo@m\": false\r\n  },\r\n  \"outputStyle\": \"터스\"\r\n}"
+  }
+ },
+ "edit --settings <TMP>\\mixed\\.claude\\settings.json outputstyle-set 터스": {
+  "doc": {
+   "ok": true,
+   "code": "ok",
+   "message": "output style 활성화: 터스",
+   "changed": true,
+   "file": "<TMP>\\mixed\\.claude\\settings.json",
+   "backup": "<TMP>\\mixed\\.claude\\settings.json.20261123103211.bak"
+  },
+  "files": {
+   "<TMP>\\mixed\\.claude\\settings.json": "txt:{\r\n  \"permissions\": {\r\n    \"allow\": [\r\n      \"Read\",\r\n      \"Bash(git:*)\"\r\n    ]\r\n  },\r\n  \"model\": \"opus\",\r\n  \"hooks\": {\r\n    \"PostToolUse\": [\r\n      {\r\n        \"matcher\": \"Edit\",\r\n        \"hooks\": [\r\n          {\r\n            \"type\": \"command\",\r\n            \"command\": \"node \\\"C:\\\\x y\\\\h.js\\\"\"\r\n          }\r\n        ]\r\n      }\r\n    ]\r\n  },\r\n  \"enabledPlugins\": {\r\n    \"demo@m\": false\r\n  },\r\n  \"outputStyle\": \"터스\"\r\n}"
+  }
+ },
+ "edit --settings <TMP>\\only\\.claude\\settings.json hook-add PostToolUse echo 두번째": {
+  "doc": {
+   "ok": true,
+   "code": "ok",
+   "message": "hook 추가됨: PostToolUse (matcher=*) <- echo 두번째",
+   "changed": true,
+   "settings": "<TMP>\\only\\.claude\\settings.json",
+   "backup": "<TMP>\\only\\.claude\\settings.json.20261123103211.bak"
+  },
+  "files": {
+   "<TMP>\\only\\.claude\\settings.json": "txt:{\r\n  \"permissions\": {\r\n    \"allow\": [\r\n      \"Read\",\r\n      \"Bash(git:*)\"\r\n    ]\r\n  },\r\n  \"model\": \"opus\",\r\n  \"hooks\": {\r\n    \"PostToolUse\": [\r\n      {\r\n        \"matcher\": \"Edit\",\r\n        \"hooks\": [\r\n          {\r\n            \"type\": \"command\",\r\n            \"command\": \"node \\\"C:\\\\x y\\\\h.js\\\"\"\r\n          }\r\n        ]\r\n      },\r\n      {\r\n        \"matcher\": \"*\",\r\n        \"hooks\": [\r\n          {\r\n            \"type\": \"command\",\r\n            \"command\": \"echo 두번째\"\r\n          }\r\n        ]\r\n      }\r\n    ]\r\n  },\r\n  \"enabledPlugins\": {\r\n    \"demo@m\": false\r\n  },\r\n  \"outputStyle\": \"터스\"\r\n}"
+  }
+ },
+ "edit --settings <TMP>\\only\\.claude\\settings.json hook-add PostToolUse node \"C:\\x y\\h.js\" --matcher Edit": {
+  "doc": {
+   "ok": true,
+   "code": "ok",
+   "message": "hook 추가됨: PostToolUse (matcher=Edit) <- node \"C:\\x y\\h.js\"",
+   "changed": true,
+   "settings": "<TMP>\\only\\.claude\\settings.json",
+   "backup": "<TMP>\\only\\.claude\\settings.json.20261123103210.bak"
+  },
+  "files": {
+   "<TMP>\\only\\.claude\\settings.json": "txt:{\r\n  \"permissions\": {\r\n    \"allow\": [\r\n      \"Read\",\r\n      \"Bash(git:*)\"\r\n    ]\r\n  },\r\n  \"model\": \"opus\",\r\n  \"hooks\": {\r\n    \"PostToolUse\": [\r\n      {\r\n        \"matcher\": \"Edit\",\r\n        \"hooks\": [\r\n          {\r\n            \"type\": \"command\",\r\n            \"command\": \"node \\\"C:\\\\x y\\\\h.js\\\"\"\r\n          }\r\n        ]\r\n      }\r\n    ]\r\n  }\r\n}"
+  }
+ },
+ "edit --settings <TMP>\\only\\.claude\\settings.json hook-remove PostToolUse node \"C:\\x y\\h.js\"": {
+  "doc": {
+   "ok": true,
+   "code": "ok",
+   "message": "hook 제거됨 1건: PostToolUse ~ 'node \"C:\\x y\\h.js\"'",
+   "changed": true,
+   "settings": "<TMP>\\only\\.claude\\settings.json",
+   "backup": "<TMP>\\only\\.claude\\settings.json.20261123103211.bak"
+  },
+  "files": {
+   "<TMP>\\only\\.claude\\settings.json": "txt:{\r\n  \"permissions\": {\r\n    \"allow\": [\r\n      \"Read\",\r\n      \"Bash(git:*)\"\r\n    ]\r\n  },\r\n  \"model\": \"opus\",\r\n  \"hooks\": {\r\n    \"PostToolUse\": [\r\n      {\r\n        \"matcher\": \"*\",\r\n        \"hooks\": [\r\n          {\r\n            \"type\": \"command\",\r\n            \"command\": \"echo 두번째\"\r\n          }\r\n        ]\r\n      }\r\n    ]\r\n  },\r\n  \"enabledPlugins\": {\r\n    \"demo@m\": false\r\n  },\r\n  \"outputStyle\": \"터스\"\r\n}"
+  }
+ },
+ "edit --settings <TMP>\\only\\.claude\\settings.json outputstyle-set 터스": {
+  "doc": {
+   "ok": true,
+   "code": "ok",
+   "message": "output style 활성화: 터스",
+   "changed": true,
+   "file": "<TMP>\\only\\.claude\\settings.json",
+   "backup": "<TMP>\\only\\.claude\\settings.json.20261123103211.bak"
+  },
+  "files": {
+   "<TMP>\\only\\.claude\\settings.json": "txt:{\r\n  \"permissions\": {\r\n    \"allow\": [\r\n      \"Read\",\r\n      \"Bash(git:*)\"\r\n    ]\r\n  },\r\n  \"model\": \"opus\",\r\n  \"hooks\": {\r\n    \"PostToolUse\": [\r\n      {\r\n        \"matcher\": \"Edit\",\r\n        \"hooks\": [\r\n          {\r\n            \"type\": \"command\",\r\n            \"command\": \"node \\\"C:\\\\x y\\\\h.js\\\"\"\r\n          }\r\n        ]\r\n      }\r\n    ]\r\n  },\r\n  \"enabledPlugins\": {\r\n    \"demo@m\": false\r\n  },\r\n  \"outputStyle\": \"터스\"\r\n}"
+  }
+ },
+ "edit --settings <TMP>\\only\\.claude\\settings.json perm-add allow Bash(git:*)": {
+  "doc": {
+   "ok": true,
+   "code": "ok",
+   "message": "추가됨: permissions.allow += 'Bash(git:*)'",
+   "changed": true,
+   "settings": "<TMP>\\only\\.claude\\settings.json",
+   "backup": "<TMP>\\only\\.claude\\settings.json.20261123103210.bak"
+  },
+  "files": {
+   "<TMP>\\only\\.claude\\settings.json": "txt:{\r\n  \"permissions\": {\r\n    \"allow\": [\r\n      \"Read\",\r\n      \"Bash(git:*)\"\r\n    ]\r\n  },\r\n  \"model\": \"opus\"\r\n}"
+  }
+ },
+ "edit --settings <TMP>\\only\\.claude\\settings.json perm-remove allow Read": {
+  "doc": {
+   "ok": true,
+   "code": "ok",
+   "message": "제거됨: permissions.allow -= 'Read'",
+   "changed": true,
+   "settings": "<TMP>\\only\\.claude\\settings.json",
+   "backup": "<TMP>\\only\\.claude\\settings.json.20261123103212.bak"
+  },
+  "files": {
+   "<TMP>\\only\\.claude\\settings.json": "txt:{\r\n  \"permissions\": {\r\n    \"allow\": [\r\n      \"Bash(git:*)\"\r\n    ]\r\n  },\r\n  \"model\": \"opus\",\r\n  \"hooks\": {\r\n    \"PostToolUse\": [\r\n      {\r\n        \"matcher\": \"*\",\r\n        \"hooks\": [\r\n          {\r\n            \"type\": \"command\",\r\n            \"command\": \"echo 두번째\"\r\n          }\r\n        ]\r\n      }\r\n    ]\r\n  },\r\n  \"enabledPlugins\": {\r\n    \"demo@m\": false\r\n  },\r\n  \"outputStyle\": \"터스\"\r\n}"
+  }
+ },
+ "edit --settings <TMP>\\only\\.claude\\settings.json plugin-toggle demo@m off": {
+  "doc": {
+   "ok": true,
+   "code": "ok",
+   "message": "플러그인 끔: demo@m (다음 세션부터 적용)",
+   "changed": true,
+   "settings": "<TMP>\\only\\.claude\\settings.json",
+   "backup": "<TMP>\\only\\.claude\\settings.json.20261123103210.bak"
+  },
+  "files": {
+   "<TMP>\\only\\.claude\\settings.json": "txt:{\r\n  \"permissions\": {\r\n    \"allow\": [\r\n      \"Read\",\r\n      \"Bash(git:*)\"\r\n    ]\r\n  },\r\n  \"model\": \"opus\",\r\n  \"hooks\": {\r\n    \"PostToolUse\": [\r\n      {\r\n        \"matcher\": \"Edit\",\r\n        \"hooks\": [\r\n          {\r\n            \"type\": \"command\",\r\n            \"command\": \"node \\\"C:\\\\x y\\\\h.js\\\"\"\r\n          }\r\n        ]\r\n      }\r\n    ]\r\n  },\r\n  \"enabledPlugins\": {\r\n    \"demo@m\": false\r\n  }\r\n}"
+  }
+ },
+ "edit --settings <TMP>\\py\\.claude\\settings.json --agents-dir <TMP>\\py\\.claude\\agents agent-scaffold a1 --desc D --tools Read, Grep --model sonnet": {
+  "doc": {
+   "ok": true,
+   "code": "ok",
+   "message": "에이전트 스캐폴드 생성: <TMP>\\py\\.claude\\agents\\a1.md",
+   "path": "<TMP>\\py\\.claude\\agents\\a1.md"
+  },
+  "files": {
+   "<TMP>\\py\\.claude\\settings.json": null,
+   "<TMP>\\py\\.claude\\agents": {
+    "a1.md": "txt:---\nname: a1\ndescription: D\ntools: Read, Grep\nmodel: sonnet\n---\n\n# a1\n\n작성 중.\n"
+   }
+  }
+ },
+ "edit --settings <TMP>\\py\\.claude\\settings.json --items-dir <TMP>\\py\\.claude\\output-styles item-scaffold output-style o1": {
+  "doc": {
+   "ok": true,
+   "code": "ok",
+   "message": "output-style 스캐폴드 생성: <TMP>\\py\\.claude\\output-styles\\o1.md",
+   "path": "<TMP>\\py\\.claude\\output-styles\\o1.md"
+  },
+  "files": {
+   "<TMP>\\py\\.claude\\settings.json": null,
+   "<TMP>\\py\\.claude\\output-styles": {
+    "o1.md": "txt:---\nname: o1\ndescription: TODO\n---\n\n# o1\n\n작성 중.\n"
+   }
+  }
+ },
+ "edit --settings <TMP>\\py\\.claude\\settings.json --items-dir <TMP>\\py\\.claude\\rules item-scaffold rule r1 --desc R --paths src/**": {
+  "doc": {
+   "ok": true,
+   "code": "ok",
+   "message": "rule 스캐폴드 생성: <TMP>\\py\\.claude\\rules\\r1.md",
+   "path": "<TMP>\\py\\.claude\\rules\\r1.md"
+  },
+  "files": {
+   "<TMP>\\py\\.claude\\settings.json": null,
+   "<TMP>\\py\\.claude\\rules": {
+    "r1.md": "txt:---\nname: r1\ndescription: R\npaths:\n  - src/**\n---\n\n# r1\n\n작성 중.\n"
+   }
+  }
+ },
+ "edit --settings <TMP>\\py\\.claude\\settings.json --items-dir <TMP>\\py\\.claude\\workflows item-scaffold workflow w1 --desc W": {
+  "doc": {
+   "ok": true,
+   "code": "ok",
+   "message": "workflow 스캐폴드 생성: <TMP>\\py\\.claude\\workflows\\w1.js",
+   "path": "<TMP>\\py\\.claude\\workflows\\w1.js"
+  },
+  "files": {
+   "<TMP>\\py\\.claude\\settings.json": null,
+   "<TMP>\\py\\.claude\\workflows": {
+    "w1.js": "txt:export const meta = {\n  name: 'w1',\n  description: 'W',\n  phases: [{ title: 'Work' }],\n}\n\nphase('Work')\n"
+   }
+  }
+ },
+ "edit --settings <TMP>\\py\\.claude\\settings.json --skills-dir <TMP>\\py\\.claude\\skills skill-scaffold s1 --desc 설명 \"q\"": {
+  "doc": {
+   "ok": true,
+   "code": "ok",
+   "message": "스킬 스캐폴드 생성: <TMP>\\py\\.claude\\skills\\s1\\SKILL.md",
+   "path": "<TMP>\\py\\.claude\\skills\\s1\\SKILL.md"
+  },
+  "files": {
+   "<TMP>\\py\\.claude\\settings.json": null,
+   "<TMP>\\py\\.claude\\skills": {
+    "s1/SKILL.md": "txt:---\nname: s1\ndescription: 설명 \"q\"\n---\n\n# s1\n\n작성 중.\n"
+   }
+  }
+ },
+ "edit --settings <TMP>\\py\\.claude\\settings.json --skills-dir <TMP>\\py\\.claude\\skills skill-scaffold s2 --content ---\r\nname: s2\r\n---\r\n본문": {
+  "doc": {
+   "ok": true,
+   "code": "ok",
+   "message": "스킬 설치: <TMP>\\py\\.claude\\skills\\s2\\SKILL.md",
+   "path": "<TMP>\\py\\.claude\\skills\\s2\\SKILL.md"
+  },
+  "files": {
+   "<TMP>\\py\\.claude\\settings.json": null,
+   "<TMP>\\py\\.claude\\skills": {
+    "s1/SKILL.md": "txt:---\nname: s1\ndescription: 설명 \"q\"\n---\n\n# s1\n\n작성 중.\n",
+    "s2/SKILL.md": "txt:---\r\nname: s2\r\n---\r\n본문"
+   }
+  }
+ },
+ "save_atomic <TMP>\\py\\settings.json {\"permissions\":{\"allow\":[\"Bash(ls:*)\",\"Read(./**)\"],\"deny\":[]},\"hooks\":{\"PostToolUse\":[{\"matcher\":\"Edit|Write\",\"hooks\":[{\"type\":\"command\",\"command\":\"node \\\"D:\\\\a b\\\\x.js\\\" --q \\\"1\\\"\"}]}]},\"env\":{\"한글\":\"값 é   \\t tab\",\"emoji\":\"😀\",\"ctl\":\"\\u0001\\u001f\",\"slash\":\"a/b\"},\"nested\":{\"empty_obj\":{},\"empty_arr\":[],\"n\":-12,\"f\":0.5,\"t\":true,\"z\":null,\"big\":1730000000000}} -": "txt:{\n  \"permissions\": {\n    \"allow\": [\n      \"Bash(ls:*)\",\n      \"Read(./**)\"\n    ],\n    \"deny\": []\n  },\n  \"hooks\": {\n    \"PostToolUse\": [\n      {\n        \"matcher\": \"Edit|Write\",\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"node \\\"D:\\\\a b\\\\x.js\\\" --q \\\"1\\\"\"\n          }\n        ]\n      }\n    ]\n  },\n  \"env\": {\n    \"한글\": \"값 é   \\t tab\",\n    \"emoji\": \"😀\",\n    \"ctl\": \"\\u0001\\u001f\",\n    \"slash\": \"a/b\"\n  },\n  \"nested\": {\n    \"empty_obj\": {},\n    \"empty_arr\": [],\n    \"n\": -12,\n    \"f\": 0.5,\n    \"t\": true,\n    \"z\": null,\n    \"big\": 1730000000000\n  }\n}",
+ "save_atomic <TMP>\\py\\settings.json {\"permissions\":{\"allow\":[\"Bash(ls:*)\",\"Read(./**)\"],\"deny\":[]},\"hooks\":{\"PostToolUse\":[{\"matcher\":\"Edit|Write\",\"hooks\":[{\"type\":\"command\",\"command\":\"node \\\"D:\\\\a b\\\\x.js\\\" --q \\\"1\\\"\"}]}]},\"env\":{\"한글\":\"값 é   \\t tab\",\"emoji\":\"😀\",\"ctl\":\"\\u0001\\u001f\",\"slash\":\"a/b\"},\"nested\":{\"empty_obj\":{},\"empty_arr\":[],\"n\":-12,\"f\":0.5,\"t\":true,\"z\":null,\"big\":1730000000000}} txt:{\n  \"x\": 1\n}": "txt:{\n  \"permissions\": {\n    \"allow\": [\n      \"Bash(ls:*)\",\n      \"Read(./**)\"\n    ],\n    \"deny\": []\n  },\n  \"hooks\": {\n    \"PostToolUse\": [\n      {\n        \"matcher\": \"Edit|Write\",\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"node \\\"D:\\\\a b\\\\x.js\\\" --q \\\"1\\\"\"\n          }\n        ]\n      }\n    ]\n  },\n  \"env\": {\n    \"한글\": \"값 é   \\t tab\",\n    \"emoji\": \"😀\",\n    \"ctl\": \"\\u0001\\u001f\",\n    \"slash\": \"a/b\"\n  },\n  \"nested\": {\n    \"empty_obj\": {},\n    \"empty_arr\": [],\n    \"n\": -12,\n    \"f\": 0.5,\n    \"t\": true,\n    \"z\": null,\n    \"big\": 1730000000000\n  }\n}",
+ "save_atomic <TMP>\\py\\settings.json {\"permissions\":{\"allow\":[\"Bash(ls:*)\",\"Read(./**)\"],\"deny\":[]},\"hooks\":{\"PostToolUse\":[{\"matcher\":\"Edit|Write\",\"hooks\":[{\"type\":\"command\",\"command\":\"node \\\"D:\\\\a b\\\\x.js\\\" --q \\\"1\\\"\"}]}]},\"env\":{\"한글\":\"값 é   \\t tab\",\"emoji\":\"😀\",\"ctl\":\"\\u0001\\u001f\",\"slash\":\"a/b\"},\"nested\":{\"empty_obj\":{},\"empty_arr\":[],\"n\":-12,\"f\":0.5,\"t\":true,\"z\":null,\"big\":1730000000000}} txt:{\r\n  \"x\": 1\r\n}": "txt:{\r\n  \"permissions\": {\r\n    \"allow\": [\r\n      \"Bash(ls:*)\",\r\n      \"Read(./**)\"\r\n    ],\r\n    \"deny\": []\r\n  },\r\n  \"hooks\": {\r\n    \"PostToolUse\": [\r\n      {\r\n        \"matcher\": \"Edit|Write\",\r\n        \"hooks\": [\r\n          {\r\n            \"type\": \"command\",\r\n            \"command\": \"node \\\"D:\\\\a b\\\\x.js\\\" --q \\\"1\\\"\"\r\n          }\r\n        ]\r\n      }\r\n    ]\r\n  },\r\n  \"env\": {\r\n    \"한글\": \"값 é   \\t tab\",\r\n    \"emoji\": \"😀\",\r\n    \"ctl\": \"\\u0001\\u001f\",\r\n    \"slash\": \"a/b\"\r\n  },\r\n  \"nested\": {\r\n    \"empty_obj\": {},\r\n    \"empty_arr\": [],\r\n    \"n\": -12,\r\n    \"f\": 0.5,\r\n    \"t\": true,\r\n    \"z\": null,\r\n    \"big\": 1730000000000\r\n  }\r\n}",
+ "save_atomic <TMP>\\py\\settings.json {\"permissions\":{\"allow\":[\"Bash(ls:*)\",\"Read(./**)\"],\"deny\":[]},\"hooks\":{\"PostToolUse\":[{\"matcher\":\"Edit|Write\",\"hooks\":[{\"type\":\"command\",\"command\":\"node \\\"D:\\\\a b\\\\x.js\\\" --q \\\"1\\\"\"}]}]},\"env\":{\"한글\":\"값 é   \\t tab\",\"emoji\":\"😀\",\"ctl\":\"\\u0001\\u001f\",\"slash\":\"a/b\"},\"nested\":{\"empty_obj\":{},\"empty_arr\":[],\"n\":-12,\"f\":0.5,\"t\":true,\"z\":null,\"big\":1730000000000}} txt:﻿{}": "txt:{\n  \"permissions\": {\n    \"allow\": [\n      \"Bash(ls:*)\",\n      \"Read(./**)\"\n    ],\n    \"deny\": []\n  },\n  \"hooks\": {\n    \"PostToolUse\": [\n      {\n        \"matcher\": \"Edit|Write\",\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"node \\\"D:\\\\a b\\\\x.js\\\" --q \\\"1\\\"\"\n          }\n        ]\n      }\n    ]\n  },\n  \"env\": {\n    \"한글\": \"값 é   \\t tab\",\n    \"emoji\": \"😀\",\n    \"ctl\": \"\\u0001\\u001f\",\n    \"slash\": \"a/b\"\n  },\n  \"nested\": {\n    \"empty_obj\": {},\n    \"empty_arr\": [],\n    \"n\": -12,\n    \"f\": 0.5,\n    \"t\": true,\n    \"z\": null,\n    \"big\": 1730000000000\n  }\n}"
+}

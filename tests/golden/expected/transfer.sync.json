@@ -1,0 +1,644 @@
+{
+  "id": "transfer.sync",
+  "module": "transfer",
+  "steps": [
+    {
+      "argv": [
+        "sync-status"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "sync_unconfigured",
+        "message": "Sync folder is not set. Set it with sync-setup --dir"
+      }
+    },
+    {
+      "argv": [
+        "sync-setup",
+        "--dir",
+        "{ROOT}/sync",
+        "--profile",
+        "pc1"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Sync folder: <ROOT>\\sync (this PC is pc1)",
+        "target": "<ROOT>\\sync",
+        "sync": {
+          "dir": "<ROOT>\\sync",
+          "profile": "pc1"
+        },
+        "profiles": []
+      }
+    },
+    {
+      "argv": [
+        "sync-push"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Pushed: <ROOT>\\sync\\pc1 (19 items)",
+        "target": "<ROOT>\\sync\\pc1",
+        "bundle": "<ROOT>\\sync\\pc1",
+        "hash": "sha256:<HASH>",
+        "counts": {
+          "cc.skills": 4,
+          "cc.agents": 3,
+          "cc.commands": 2,
+          "cc.rules": 2,
+          "cc.output-styles": 1,
+          "cc.claude-md": 1,
+          "cc.settings": 1,
+          "cc.mcp-user": 2,
+          "desk.mcp": 2,
+          "cm.store": 1
+        },
+        "plugins": {
+          "declared": 0,
+          "market": [],
+          "builtin": [],
+          "inline": [],
+          "added_explicit": [],
+          "dropped": [],
+          "markets_added": []
+        },
+        "external": [
+          {
+            "kind": "mcp",
+            "path": "<ROOT>\\tools\\my-tools\\servers\\notes\\server.js",
+            "token": "<ROOT>\\tools\\my-tools\\servers\\notes\\server.js",
+            "exists": true,
+            "owners": [
+              "notes"
+            ],
+            "scopes": [
+              "cc.mcp-user",
+              "desk.mcp"
+            ],
+            "fields": [
+              "cc.mcp-user:args[0]",
+              "desk.mcp:args[0]"
+            ]
+          },
+          {
+            "kind": "mcp",
+            "path": "<ROOT>\\work\\acme-web",
+            "token": "<ROOT>\\work\\acme-web",
+            "exists": true,
+            "owners": [
+              "filesystem"
+            ],
+            "scopes": [
+              "desk.mcp"
+            ],
+            "fields": [
+              "desk.mcp:args[2]"
+            ]
+          },
+          {
+            "kind": "hook",
+            "path": "<ROOT>\\tools\\my-tools\\hooks\\format-on-save\\index.js",
+            "token": "<ROOT>\\tools\\my-tools\\hooks\\format-on-save\\index.js",
+            "exists": true,
+            "owners": [
+              "PostToolUse"
+            ],
+            "scopes": [
+              "cc.settings"
+            ],
+            "fields": [
+              "cc.settings:hooks.PostToolUse[0].hooks[0].command"
+            ]
+          },
+          {
+            "kind": "hook",
+            "path": "<ROOT>\\tools\\my-tools\\hooks\\guard-secrets\\index.js",
+            "token": "<ROOT>\\tools\\my-tools\\hooks\\guard-secrets\\index.js",
+            "exists": true,
+            "owners": [
+              "PreToolUse"
+            ],
+            "scopes": [
+              "cc.settings"
+            ],
+            "fields": [
+              "cc.settings:hooks.PreToolUse[0].hooks[0].command"
+            ]
+          }
+        ],
+        "skipped": [],
+        "warnings": [],
+        "secrets": [],
+        "include_secrets": false,
+        "report": [
+          "Export result: <ROOT>\\sync\\pc1",
+          "- Skill: 4",
+          "- Agent: 3",
+          "- Command: 2",
+          "- Rule: 2",
+          "- Output style: 1",
+          "- CLAUDE.md",
+          "- settings.json (permissions, hooks, env, plugin declarations)",
+          "- MCP server (Claude Code): 2",
+          "- MCP server (Desktop): 2",
+          "- config-monitor store settings",
+          "- Plugin declarations 0 (marketplace 0, built-in 0, inline 0); Claude Code on the new PC downloads them on its next start",
+          "- Not bundled (prepare these at the same paths on the new PC)",
+          "  - MCP servers",
+          "    - filesystem (Desktop): <ROOT>\\work\\acme-web",
+          "    - notes (Claude Code, Desktop): <ROOT>\\tools\\my-tools\\servers\\notes\\server.js",
+          "  - Hooks",
+          "    - <ROOT>\\tools\\my-tools\\hooks\\format-on-save\\index.js (PostToolUse)",
+          "    - <ROOT>\\tools\\my-tools\\hooks\\guard-secrets\\index.js (PreToolUse)"
+        ]
+      }
+    },
+    {
+      "argv": [
+        "sync-status"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "1 PCs in the sync folder",
+        "target": "<ROOT>\\sync",
+        "sync": {
+          "dir": "<ROOT>\\sync",
+          "profile": "pc1",
+          "pushed_at": "<TIME>"
+        },
+        "profiles": [
+          {
+            "profile": "pc1",
+            "host": "<HOST>",
+            "created": "<TIME>",
+            "items": 19
+          }
+        ]
+      }
+    },
+    {
+      "argv": [
+        "sync-status",
+        "--from",
+        "pc1"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Compared with pc1: in-sync 19",
+        "target": "pc1",
+        "sync": {
+          "dir": "<ROOT>\\sync",
+          "profile": "pc1",
+          "pushed_at": "<TIME>"
+        },
+        "profiles": [
+          {
+            "profile": "pc1",
+            "host": "<HOST>",
+            "created": "<TIME>",
+            "items": 19
+          }
+        ],
+        "items": [
+          {
+            "id": "cc.agents/doc-editor.md",
+            "state": "in-sync",
+            "local": "sha256:<HASH>",
+            "remote": "sha256:<HASH>",
+            "base": null
+          },
+          {
+            "id": "cc.agents/planner.md",
+            "state": "in-sync",
+            "local": "sha256:<HASH>",
+            "remote": "sha256:<HASH>",
+            "base": null
+          },
+          {
+            "id": "cc.agents/test-writer.md",
+            "state": "in-sync",
+            "local": "sha256:<HASH>",
+            "remote": "sha256:<HASH>",
+            "base": null
+          },
+          {
+            "id": "cc.claude-md",
+            "state": "in-sync",
+            "local": "sha256:<HASH>",
+            "remote": "sha256:<HASH>",
+            "base": null
+          },
+          {
+            "id": "cc.commands/standup.md",
+            "state": "in-sync",
+            "local": "sha256:<HASH>",
+            "remote": "sha256:<HASH>",
+            "base": null
+          },
+          {
+            "id": "cc.commands/triage.md",
+            "state": "in-sync",
+            "local": "sha256:<HASH>",
+            "remote": "sha256:<HASH>",
+            "base": null
+          },
+          {
+            "id": "cc.mcp-user/github",
+            "state": "in-sync",
+            "local": "sha256:<HASH>",
+            "remote": "sha256:<HASH>",
+            "base": null
+          },
+          {
+            "id": "cc.mcp-user/notes",
+            "state": "in-sync",
+            "local": "sha256:<HASH>",
+            "remote": "sha256:<HASH>",
+            "base": null
+          },
+          {
+            "id": "cc.output-styles/concise.md",
+            "state": "in-sync",
+            "local": "sha256:<HASH>",
+            "remote": "sha256:<HASH>",
+            "base": null
+          },
+          {
+            "id": "cc.rules/sql.md",
+            "state": "in-sync",
+            "local": "sha256:<HASH>",
+            "remote": "sha256:<HASH>",
+            "base": null
+          },
+          {
+            "id": "cc.rules/style.md",
+            "state": "in-sync",
+            "local": "sha256:<HASH>",
+            "remote": "sha256:<HASH>",
+            "base": null
+          },
+          {
+            "id": "cc.settings",
+            "state": "in-sync",
+            "local": "sha256:<HASH>",
+            "remote": "sha256:<HASH>",
+            "base": null
+          },
+          {
+            "id": "cc.skills/changelog",
+            "state": "in-sync",
+            "local": "sha256:<HASH>",
+            "remote": "sha256:<HASH>",
+            "base": null
+          },
+          {
+            "id": "cc.skills/code-review",
+            "state": "in-sync",
+            "local": "sha256:<HASH>",
+            "remote": "sha256:<HASH>",
+            "base": null
+          },
+          {
+            "id": "cc.skills/debug-trace",
+            "state": "in-sync",
+            "local": "sha256:<HASH>",
+            "remote": "sha256:<HASH>",
+            "base": null
+          },
+          {
+            "id": "cc.skills/release-notes",
+            "state": "in-sync",
+            "local": "sha256:<HASH>",
+            "remote": "sha256:<HASH>",
+            "base": null
+          },
+          {
+            "id": "cm.store",
+            "state": "in-sync",
+            "local": "sha256:<HASH>",
+            "remote": "sha256:<HASH>",
+            "base": null
+          },
+          {
+            "id": "desk.mcp/filesystem",
+            "state": "in-sync",
+            "local": "sha256:<HASH>",
+            "remote": "sha256:<HASH>",
+            "base": null
+          },
+          {
+            "id": "desk.mcp/notes",
+            "state": "in-sync",
+            "local": "sha256:<HASH>",
+            "remote": "sha256:<HASH>",
+            "base": null
+          }
+        ],
+        "summary": {
+          "in-sync": 19
+        }
+      }
+    },
+    {
+      "argv": [
+        "plan",
+        "--sync-from",
+        "pc1"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "plan <HEX16>: new 0, changed 0, same 19, blocked 0, skipped 0",
+        "target": "<ROOT>\\sync\\pc1",
+        "bundle": "<ROOT>\\sync\\pc1",
+        "plan_id": "<HEX>",
+        "source": {
+          "host": "<HOST>",
+          "os": "win32",
+          "home": "<ROOT>\\Users\\alex",
+          "claude_home": "<ROOT>\\Users\\alex\\.claude",
+          "desktop_dir": "<ROOT>\\Users\\alex\\AppData\\Roaming\\Claude"
+        },
+        "items": [
+          {
+            "id": "cc.skills/changelog",
+            "category": "cc.skills",
+            "strategy": "tree",
+            "target": "<ROOT>\\Users\\alex\\.claude\\skills\\changelog",
+            "state": "same"
+          },
+          {
+            "id": "cc.skills/code-review",
+            "category": "cc.skills",
+            "strategy": "tree",
+            "target": "<ROOT>\\Users\\alex\\.claude\\skills\\code-review",
+            "state": "same"
+          },
+          {
+            "id": "cc.skills/debug-trace",
+            "category": "cc.skills",
+            "strategy": "tree",
+            "target": "<ROOT>\\Users\\alex\\.claude\\skills\\debug-trace",
+            "state": "same"
+          },
+          {
+            "id": "cc.skills/release-notes",
+            "category": "cc.skills",
+            "strategy": "tree",
+            "target": "<ROOT>\\Users\\alex\\.claude\\skills\\release-notes",
+            "state": "same"
+          },
+          {
+            "id": "cc.agents/doc-editor.md",
+            "category": "cc.agents",
+            "strategy": "file",
+            "target": "<ROOT>\\Users\\alex\\.claude\\agents\\doc-editor.md",
+            "state": "same"
+          },
+          {
+            "id": "cc.agents/planner.md",
+            "category": "cc.agents",
+            "strategy": "file",
+            "target": "<ROOT>\\Users\\alex\\.claude\\agents\\planner.md",
+            "state": "same"
+          },
+          {
+            "id": "cc.agents/test-writer.md",
+            "category": "cc.agents",
+            "strategy": "file",
+            "target": "<ROOT>\\Users\\alex\\.claude\\agents\\test-writer.md",
+            "state": "same"
+          },
+          {
+            "id": "cc.commands/standup.md",
+            "category": "cc.commands",
+            "strategy": "file",
+            "target": "<ROOT>\\Users\\alex\\.claude\\commands\\standup.md",
+            "state": "same"
+          },
+          {
+            "id": "cc.commands/triage.md",
+            "category": "cc.commands",
+            "strategy": "file",
+            "target": "<ROOT>\\Users\\alex\\.claude\\commands\\triage.md",
+            "state": "same"
+          },
+          {
+            "id": "cc.rules/sql.md",
+            "category": "cc.rules",
+            "strategy": "file",
+            "target": "<ROOT>\\Users\\alex\\.claude\\rules\\sql.md",
+            "state": "same"
+          },
+          {
+            "id": "cc.rules/style.md",
+            "category": "cc.rules",
+            "strategy": "file",
+            "target": "<ROOT>\\Users\\alex\\.claude\\rules\\style.md",
+            "state": "same"
+          },
+          {
+            "id": "cc.output-styles/concise.md",
+            "category": "cc.output-styles",
+            "strategy": "file",
+            "target": "<ROOT>\\Users\\alex\\.claude\\output-styles\\concise.md",
+            "state": "same"
+          },
+          {
+            "id": "cc.claude-md",
+            "category": "cc.claude-md",
+            "strategy": "file",
+            "target": "<ROOT>\\Users\\alex\\.claude\\CLAUDE.md",
+            "state": "same"
+          },
+          {
+            "id": "cc.settings",
+            "category": "cc.settings",
+            "strategy": "json-keys",
+            "target": "<ROOT>\\Users\\alex\\.claude\\settings.json",
+            "hooks": [
+              {
+                "id": "hook:<HEX10>",
+                "event": "PostToolUse",
+                "matcher": "Edit|Write",
+                "command": "node \"<ROOT>\\tools\\my-tools\\hooks\\format-on-save\\index.js\"",
+                "state": "same",
+                "code": "dup"
+              },
+              {
+                "id": "hook:<HEX10>",
+                "event": "PreToolUse",
+                "matcher": "Bash",
+                "command": "node \"<ROOT>\\tools\\my-tools\\hooks\\guard-secrets\\index.js\"",
+                "state": "same",
+                "code": "dup"
+              }
+            ],
+            "state": "same"
+          },
+          {
+            "id": "cc.mcp-user/github",
+            "category": "cc.mcp-user",
+            "strategy": "json-keys",
+            "target": "<ROOT>\\Users\\alex\\.claude.json",
+            "key": "github",
+            "state": "same"
+          },
+          {
+            "id": "cc.mcp-user/notes",
+            "category": "cc.mcp-user",
+            "strategy": "json-keys",
+            "target": "<ROOT>\\Users\\alex\\.claude.json",
+            "key": "notes",
+            "state": "same"
+          },
+          {
+            "id": "desk.mcp/filesystem",
+            "category": "desk.mcp",
+            "strategy": "json-keys",
+            "target": "<ROOT>\\Users\\alex\\AppData\\Roaming\\Claude\\claude_desktop_config.json",
+            "key": "filesystem",
+            "state": "same"
+          },
+          {
+            "id": "desk.mcp/notes",
+            "category": "desk.mcp",
+            "strategy": "json-keys",
+            "target": "<ROOT>\\Users\\alex\\AppData\\Roaming\\Claude\\claude_desktop_config.json",
+            "key": "notes",
+            "state": "same"
+          },
+          {
+            "id": "cm.store",
+            "category": "cm.store",
+            "strategy": "json-keys",
+            "target": "<ROOT>\\Users\\alex\\.claude-snapshot\\config.json",
+            "state": "same"
+          }
+        ],
+        "summary": {
+          "new": 0,
+          "same": 19,
+          "changed": 0,
+          "blocked": 0,
+          "skipped": 0
+        },
+        "external": [
+          {
+            "kind": "mcp",
+            "owners": [
+              "notes"
+            ],
+            "scopes": [
+              "cc.mcp-user",
+              "desk.mcp"
+            ],
+            "fields": [
+              "cc.mcp-user:args[0]",
+              "desk.mcp:args[0]"
+            ],
+            "path": "<ROOT>\\tools\\my-tools\\servers\\notes\\server.js",
+            "source_path": "<ROOT>\\tools\\my-tools\\servers\\notes\\server.js",
+            "exists": true,
+            "in_home": false
+          },
+          {
+            "kind": "mcp",
+            "owners": [
+              "filesystem"
+            ],
+            "scopes": [
+              "desk.mcp"
+            ],
+            "fields": [
+              "desk.mcp:args[2]"
+            ],
+            "path": "<ROOT>\\work\\acme-web",
+            "source_path": "<ROOT>\\work\\acme-web",
+            "exists": true,
+            "in_home": false
+          },
+          {
+            "kind": "hook",
+            "owners": [
+              "PostToolUse"
+            ],
+            "scopes": [
+              "cc.settings"
+            ],
+            "fields": [
+              "cc.settings:hooks.PostToolUse[0].hooks[0].command"
+            ],
+            "path": "<ROOT>\\tools\\my-tools\\hooks\\format-on-save\\index.js",
+            "source_path": "<ROOT>\\tools\\my-tools\\hooks\\format-on-save\\index.js",
+            "exists": true,
+            "in_home": false
+          },
+          {
+            "kind": "hook",
+            "owners": [
+              "PreToolUse"
+            ],
+            "scopes": [
+              "cc.settings"
+            ],
+            "fields": [
+              "cc.settings:hooks.PreToolUse[0].hooks[0].command"
+            ],
+            "path": "<ROOT>\\tools\\my-tools\\hooks\\guard-secrets\\index.js",
+            "source_path": "<ROOT>\\tools\\my-tools\\hooks\\guard-secrets\\index.js",
+            "exists": true,
+            "in_home": false
+          }
+        ],
+        "warnings": [],
+        "warning_codes": [],
+        "roots": [],
+        "unresolved": []
+      }
+    },
+    {
+      "argv": [
+        "sync-pull",
+        "--from",
+        "pc1",
+        "--plan-id",
+        "{S5.plan_id}"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "noop",
+        "message": "No items to change",
+        "applied": [],
+        "failed": [],
+        "plugins": [],
+        "sync_from": "pc1"
+      }
+    },
+    {
+      "argv": [
+        "sync-status",
+        "--from",
+        "nope"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "not_found",
+        "message": "No such PC in the sync folder: nope",
+        "target": "<ROOT>\\sync\\nope"
+      }
+    }
+  ]
+}

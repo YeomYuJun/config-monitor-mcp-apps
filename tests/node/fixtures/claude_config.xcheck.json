@@ -1,0 +1,3617 @@
+[
+  {
+    "argv": [
+      "dump",
+      "--projects",
+      "<ROOT>\\proj\\.claude"
+    ],
+    "exit": 0,
+    "doc": {
+      "ok": true,
+      "code": "ok",
+      "message": "설정 상세",
+      "sources": {
+        "claude_json": "<ROOT>\\home\\.claude.json",
+        "code_settings": "<ROOT>\\home\\.claude\\settings.json",
+        "skills_dir": "<ROOT>\\home\\.claude\\skills",
+        "agents_dir": "<ROOT>\\home\\.claude\\agents",
+        "commands_dir": null,
+        "plugins_dir": "<ROOT>\\home\\.claude\\plugins",
+        "rules_dir": null,
+        "output_styles_dir": "<ROOT>\\home\\.claude\\output-styles",
+        "user_claude_md": null,
+        "workflows_dir": "<ROOT>\\home\\.claude\\workflows",
+        "themes_dir": "<ROOT>\\home\\.claude\\themes",
+        "agent_memory_dir": "<ROOT>\\home\\.claude\\agent-memory",
+        "scheduled_dir": "<ROOT>\\home\\Claude\\Scheduled",
+        "desktop_config": "<ROOT>\\home\\AppData\\Roaming\\Claude\\claude_desktop_config.json",
+        "desktop_skill_manifest_glob": [
+          "<ROOT>\\home\\AppData\\Roaming\\Claude\\local-agent-mode-sessions\\skills-plugin\\s1\\manifest.json",
+          "<ROOT>\\home\\AppData\\Roaming\\Claude\\local-agent-mode-sessions\\skills-plugin\\s2\\deep\\manifest.json"
+        ]
+      },
+      "sections": [
+        {
+          "id": "mcp-desktop",
+          "title": "MCP Servers (desktop) · 2",
+          "group": "connect",
+          "source": "<ROOT>\\home\\AppData\\Roaming\\Claude\\claude_desktop_config.json",
+          "cards": [
+            {
+              "name": "a",
+              "badge": "stdio",
+              "ok": true,
+              "kv": [
+                [
+                  "command",
+                  "npx"
+                ],
+                [
+                  "args",
+                  "1 True None {'k': 'v'}"
+                ],
+                [
+                  "env",
+                  "X"
+                ]
+              ],
+              "edit": {
+                "kind": "mcp",
+                "scope": "desktop",
+                "name": "a"
+              }
+            },
+            {
+              "name": "r",
+              "badge": "sse",
+              "ok": true,
+              "kv": [
+                [
+                  "command",
+                  "-"
+                ],
+                [
+                  "args",
+                  "-"
+                ],
+                [
+                  "env",
+                  "-"
+                ]
+              ],
+              "edit": {
+                "kind": "mcp",
+                "scope": "desktop",
+                "name": "r"
+              }
+            },
+            {
+              "name": "＋ 새 MCP 서버",
+              "badge": "add",
+              "ok": false,
+              "kv": [
+                [
+                  "형식",
+                  "name {\"command\":\"npx\",\"args\":[...]}"
+                ]
+              ],
+              "edit": {
+                "kind": "mcp-add",
+                "scope": "desktop"
+              }
+            }
+          ],
+          "load": "never"
+        },
+        {
+          "id": "claude-json",
+          "title": "Claude Code (.claude.json) · 5",
+          "group": "connect",
+          "source": "<ROOT>\\home\\.claude.json",
+          "cards": [
+            {
+              "name": "전역 요약",
+              "badge": "claude.json",
+              "ok": true,
+              "kv": [
+                [
+                  "global MCP",
+                  "g"
+                ],
+                [
+                  "projects",
+                  "2"
+                ],
+                [
+                  "account",
+                  "set"
+                ],
+                [
+                  "dropped",
+                  "history(노이즈) 제외 · 관심 키만 선별 추출"
+                ]
+              ]
+            },
+            {
+              "name": "g",
+              "badge": "global mcp",
+              "ok": true,
+              "kv": [
+                [
+                  "command",
+                  "node"
+                ],
+                [
+                  "args",
+                  "x"
+                ]
+              ],
+              "edit": {
+                "kind": "mcp",
+                "scope": "user",
+                "name": "g"
+              }
+            },
+            {
+              "name": "＋ 새 전역 MCP 서버",
+              "badge": "add",
+              "ok": false,
+              "kv": [
+                [
+                  "형식",
+                  "name {\"command\":\"npx\",\"args\":[...]}"
+                ]
+              ],
+              "edit": {
+                "kind": "mcp-add",
+                "scope": "user"
+              }
+            },
+            {
+              "name": "proj",
+              "badge": "project",
+              "ok": false,
+              "kv": [
+                [
+                  "path",
+                  "<ROOT>/proj"
+                ],
+                [
+                  "allowedTools",
+                  "2"
+                ],
+                [
+                  "mcpServers",
+                  "m"
+                ],
+                [
+                  "trust",
+                  "False"
+                ]
+              ]
+            },
+            {
+              "name": "Sp:s0",
+              "badge": "plugin mcp",
+              "ok": true,
+              "kv": [
+                [
+                  "type",
+                  "-"
+                ],
+                [
+                  "url",
+                  "-"
+                ],
+                [
+                  "from",
+                  "sp@m"
+                ]
+              ],
+              "plugin": "sp@m"
+            },
+            {
+              "name": "Sp:s1",
+              "badge": "plugin mcp",
+              "ok": true,
+              "kv": [
+                [
+                  "command",
+                  "uvx"
+                ],
+                [
+                  "args",
+                  "q"
+                ],
+                [
+                  "from",
+                  "sp@m"
+                ]
+              ],
+              "plugin": "sp@m"
+            }
+          ],
+          "load": "never",
+          "note": "앱 상태 · 전역 MCP · trust"
+        },
+        {
+          "id": "mcp-project",
+          "title": "MCP Servers (project) · 0",
+          "group": "connect",
+          "source": null,
+          "cards": [],
+          "load": "lazy",
+          "note": "연결/스키마"
+        },
+        {
+          "id": "perm",
+          "title": "Permissions · 9",
+          "group": "exec",
+          "source": "<ROOT>\\home\\.claude\\settings.json  (+1 more)",
+          "cards": [
+            {
+              "name": "allow",
+              "badge": "0",
+              "ok": true,
+              "kv": [
+                [
+                  "source",
+                  "settings.json"
+                ]
+              ],
+              "edit": {
+                "kind": "perm",
+                "permKind": "allow",
+                "items": [],
+                "settings": "<ROOT>\\home\\.claude\\settings.json"
+              },
+              "source": "<ROOT>\\home\\.claude\\settings.json"
+            },
+            {
+              "name": "deny",
+              "badge": "0",
+              "ok": false,
+              "kv": [
+                [
+                  "source",
+                  "settings.json"
+                ]
+              ],
+              "edit": {
+                "kind": "perm",
+                "permKind": "deny",
+                "items": [],
+                "settings": "<ROOT>\\home\\.claude\\settings.json"
+              },
+              "source": "<ROOT>\\home\\.claude\\settings.json"
+            },
+            {
+              "name": "ask",
+              "badge": "0",
+              "ok": false,
+              "kv": [
+                [
+                  "source",
+                  "settings.json"
+                ]
+              ],
+              "edit": {
+                "kind": "perm",
+                "permKind": "ask",
+                "items": [],
+                "settings": "<ROOT>\\home\\.claude\\settings.json"
+              },
+              "source": "<ROOT>\\home\\.claude\\settings.json"
+            },
+            {
+              "name": "allow",
+              "badge": "1",
+              "ok": true,
+              "kv": [
+                [
+                  "source",
+                  "settings.local.json"
+                ]
+              ],
+              "edit": {
+                "kind": "perm",
+                "permKind": "allow",
+                "items": [
+                  "A"
+                ],
+                "settings": "<ROOT>\\home\\.claude\\settings.local.json"
+              },
+              "source": "<ROOT>\\home\\.claude\\settings.local.json"
+            },
+            {
+              "name": "deny",
+              "badge": "0",
+              "ok": false,
+              "kv": [
+                [
+                  "source",
+                  "settings.local.json"
+                ]
+              ],
+              "edit": {
+                "kind": "perm",
+                "permKind": "deny",
+                "items": [],
+                "settings": "<ROOT>\\home\\.claude\\settings.local.json"
+              },
+              "source": "<ROOT>\\home\\.claude\\settings.local.json"
+            },
+            {
+              "name": "ask",
+              "badge": "0",
+              "ok": false,
+              "kv": [
+                [
+                  "source",
+                  "settings.local.json"
+                ]
+              ],
+              "edit": {
+                "kind": "perm",
+                "permKind": "ask",
+                "items": [],
+                "settings": "<ROOT>\\home\\.claude\\settings.local.json"
+              },
+              "source": "<ROOT>\\home\\.claude\\settings.local.json"
+            },
+            {
+              "name": "allow",
+              "badge": "0",
+              "ok": true,
+              "kv": [
+                [
+                  "source",
+                  "settings.json"
+                ]
+              ],
+              "edit": {
+                "kind": "perm",
+                "permKind": "allow",
+                "items": [],
+                "settings": "<ROOT>\\proj\\.claude\\settings.json"
+              },
+              "scope": "project",
+              "project": "<ROOT>\\proj",
+              "source": "<ROOT>\\proj\\.claude\\settings.json"
+            },
+            {
+              "name": "deny",
+              "badge": "0",
+              "ok": false,
+              "kv": [
+                [
+                  "source",
+                  "settings.json"
+                ]
+              ],
+              "edit": {
+                "kind": "perm",
+                "permKind": "deny",
+                "items": [],
+                "settings": "<ROOT>\\proj\\.claude\\settings.json"
+              },
+              "scope": "project",
+              "project": "<ROOT>\\proj",
+              "source": "<ROOT>\\proj\\.claude\\settings.json"
+            },
+            {
+              "name": "ask",
+              "badge": "1",
+              "ok": false,
+              "kv": [
+                [
+                  "source",
+                  "settings.json"
+                ]
+              ],
+              "edit": {
+                "kind": "perm",
+                "permKind": "ask",
+                "items": [
+                  "Q"
+                ],
+                "settings": "<ROOT>\\proj\\.claude\\settings.json"
+              },
+              "scope": "project",
+              "project": "<ROOT>\\proj",
+              "source": "<ROOT>\\proj\\.claude\\settings.json"
+            }
+          ],
+          "load": "never",
+          "note": "런타임 판정"
+        },
+        {
+          "id": "hooks",
+          "title": "Hooks · 3",
+          "group": "exec",
+          "source": "<ROOT>\\home\\.claude\\settings.json  (+1 more)",
+          "cards": [
+            {
+              "name": "Stop",
+              "badge": "hook",
+              "ok": false,
+              "kv": [
+                [
+                  "matchers",
+                  "2"
+                ],
+                [
+                  "source",
+                  "settings.json"
+                ]
+              ],
+              "edit": {
+                "kind": "hook",
+                "event": "Stop",
+                "items": [
+                  "echo s"
+                ],
+                "settings": "<ROOT>\\home\\.claude\\settings.json"
+              },
+              "source": "<ROOT>\\home\\.claude\\settings.json"
+            },
+            {
+              "name": "Post",
+              "badge": "plugin",
+              "ok": false,
+              "kv": [
+                [
+                  "matchers",
+                  "0"
+                ],
+                [
+                  "commands",
+                  "-"
+                ],
+                [
+                  "from",
+                  "sp@m"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\plugins\\cache\\m\\sp\\1.0.0\\hooks\\hooks.json"
+                ]
+              ],
+              "plugin": "sp@m"
+            },
+            {
+              "name": "Pre",
+              "badge": "plugin",
+              "ok": false,
+              "kv": [
+                [
+                  "matchers",
+                  "1"
+                ],
+                [
+                  "commands",
+                  "a ; b"
+                ],
+                [
+                  "from",
+                  "sp@m"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\plugins\\cache\\m\\sp\\1.0.0\\hooks\\hooks.json"
+                ]
+              ],
+              "plugin": "sp@m"
+            }
+          ],
+          "load": "never",
+          "note": "런타임 실행"
+        },
+        {
+          "id": "claude-md",
+          "title": "CLAUDE.md · 1",
+          "group": "instructions",
+          "source": null,
+          "cards": [
+            {
+              "name": "CLAUDE.local.md",
+              "badge": "CLAUDE.local.md",
+              "ok": true,
+              "kv": [
+                [
+                  "size",
+                  "1 B"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\proj\\CLAUDE.local.md"
+                ]
+              ],
+              "scope": "project",
+              "project": "<ROOT>\\proj",
+              "source": "<ROOT>\\proj\\CLAUDE.local.md",
+              "load": "eager"
+            }
+          ],
+          "load": "eager",
+          "note": "세션마다 전문 적재"
+        },
+        {
+          "id": "rules",
+          "title": "Rules · 2",
+          "group": "instructions",
+          "source": null,
+          "cards": [
+            {
+              "name": "＋ 새 규칙",
+              "badge": "add",
+              "ok": false,
+              "kv": [
+                [
+                  "형식",
+                  "name 설명…"
+                ]
+              ],
+              "edit": {
+                "kind": "item-add",
+                "itemKind": "rule"
+              }
+            },
+            {
+              "name": "Sp:pr",
+              "badge": "plugin",
+              "ok": true,
+              "kv": [
+                [
+                  "desc",
+                  "pr"
+                ],
+                [
+                  "from",
+                  "sp@m"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\plugins\\cache\\m\\sp\\1.0.0\\rules\\pr.md"
+                ]
+              ],
+              "plugin": "sp@m"
+            },
+            {
+              "name": "r",
+              "badge": "rule",
+              "ok": true,
+              "kv": [
+                [
+                  "desc",
+                  "-"
+                ],
+                [
+                  "size",
+                  "17 B"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\proj\\.claude\\rules\\r.md"
+                ]
+              ],
+              "scope": "project",
+              "project": "<ROOT>\\proj",
+              "load": "lazy",
+              "edit": {
+                "kind": "item",
+                "itemKind": "rule",
+                "name": "r",
+                "dir": "<ROOT>\\proj\\.claude\\rules"
+              }
+            }
+          ],
+          "note": "paths: 있으면 LAZY · 없으면 EAGER"
+        },
+        {
+          "id": "output-styles",
+          "title": "Output Styles · 1",
+          "group": "instructions",
+          "source": "<ROOT>\\home\\.claude\\output-styles",
+          "cards": [
+            {
+              "name": "concise",
+              "badge": "output-style",
+              "ok": true,
+              "kv": [
+                [
+                  "desc",
+                  "c"
+                ],
+                [
+                  "size",
+                  "23 B"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\output-styles\\concise.md"
+                ]
+              ],
+              "load": "eager",
+              "edit": {
+                "kind": "item",
+                "itemKind": "output-style",
+                "name": "concise",
+                "active": true
+              }
+            },
+            {
+              "name": "＋ 새 출력 스타일",
+              "badge": "add",
+              "ok": false,
+              "kv": [
+                [
+                  "형식",
+                  "name 설명…"
+                ]
+              ],
+              "edit": {
+                "kind": "item-add",
+                "itemKind": "output-style"
+              }
+            }
+          ],
+          "note": "outputStyle 로 선택된 것만 EAGER"
+        },
+        {
+          "id": "workflows",
+          "title": "Workflows · 4",
+          "group": "extensions",
+          "source": "<ROOT>\\home\\.claude\\workflows",
+          "cards": [
+            {
+              "name": "Ship",
+              "badge": "workflow",
+              "ok": true,
+              "kv": [
+                [
+                  "size",
+                  "1 B"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\workflows\\Ship.JS"
+                ]
+              ],
+              "edit": {
+                "kind": "item",
+                "itemKind": "workflow",
+                "name": "Ship"
+              }
+            },
+            {
+              "name": "a",
+              "badge": "workflow",
+              "ok": true,
+              "kv": [
+                [
+                  "size",
+                  "1 B"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\workflows\\a.js"
+                ]
+              ],
+              "edit": {
+                "kind": "item",
+                "itemKind": "workflow",
+                "name": "a"
+              }
+            },
+            {
+              "name": "＋ 새 워크플로",
+              "badge": "add",
+              "ok": false,
+              "kv": [
+                [
+                  "형식",
+                  "name 설명…"
+                ]
+              ],
+              "edit": {
+                "kind": "item-add",
+                "itemKind": "workflow"
+              }
+            },
+            {
+              "name": "Sp:pw",
+              "badge": "plugin",
+              "ok": true,
+              "kv": [
+                [
+                  "desc",
+                  "-"
+                ],
+                [
+                  "from",
+                  "sp@m"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\plugins\\cache\\m\\sp\\1.0.0\\workflows\\pw.js"
+                ]
+              ],
+              "plugin": "sp@m"
+            },
+            {
+              "name": "w",
+              "badge": "workflow",
+              "ok": true,
+              "kv": [
+                [
+                  "size",
+                  "0 B"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\proj\\.claude\\workflows\\w.js"
+                ]
+              ],
+              "scope": "project",
+              "project": "<ROOT>\\proj",
+              "edit": {
+                "kind": "item",
+                "itemKind": "workflow",
+                "name": "w",
+                "dir": "<ROOT>\\proj\\.claude\\workflows"
+              }
+            }
+          ],
+          "load": "lazy",
+          "note": "각 파일이 /<name>"
+        },
+        {
+          "id": "themes",
+          "title": "Themes · 1",
+          "group": "env",
+          "source": "<ROOT>\\home\\.claude\\themes",
+          "cards": [
+            {
+              "name": "dark",
+              "badge": "theme",
+              "ok": true,
+              "kv": [
+                [
+                  "size",
+                  "2 B"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\themes\\dark.json"
+                ]
+              ]
+            }
+          ],
+          "load": "never",
+          "note": "/theme 목록 · hot-reload"
+        },
+        {
+          "id": "agent-memory",
+          "title": "Agent Memory · 2",
+          "group": "memory",
+          "source": "<ROOT>\\home\\.claude\\agent-memory",
+          "cards": [
+            {
+              "name": "sub/note",
+              "badge": "agent-memory",
+              "ok": true,
+              "kv": [
+                [
+                  "desc",
+                  "n"
+                ],
+                [
+                  "size",
+                  "23 B"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\agent-memory\\sub\\note.md"
+                ]
+              ]
+            },
+            {
+              "name": "m",
+              "badge": "agent-memory-local",
+              "ok": true,
+              "kv": [
+                [
+                  "desc",
+                  "-"
+                ],
+                [
+                  "size",
+                  "0 B"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\proj\\.claude\\agent-memory-local\\m.md"
+                ]
+              ],
+              "scope": "project",
+              "project": "<ROOT>\\proj"
+            }
+          ],
+          "load": "lazy",
+          "note": "서브에이전트 memory"
+        },
+        {
+          "id": "project-memory",
+          "title": "Project Memory · 2",
+          "group": "memory",
+          "source": "<ROOT>\\home\\.claude\\projects",
+          "cards": [
+            {
+              "name": "MEMORY",
+              "badge": "memory",
+              "ok": true,
+              "kv": [
+                [
+                  "desc",
+                  "-"
+                ],
+                [
+                  "size",
+                  "1 B"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\projects\\<ROOT-ENC>-proj\\memory\\MEMORY.md"
+                ]
+              ],
+              "scope": "project",
+              "project": "<ROOT>\\proj",
+              "load": "eager"
+            },
+            {
+              "name": "topic",
+              "badge": "memory",
+              "ok": true,
+              "kv": [
+                [
+                  "desc",
+                  "t"
+                ],
+                [
+                  "size",
+                  "23 B"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\projects\\<ROOT-ENC>-proj\\memory\\topic.md"
+                ]
+              ],
+              "scope": "project",
+              "project": "<ROOT>\\proj",
+              "load": "lazy",
+              "edit": {
+                "kind": "memory",
+                "name": "topic",
+                "memoryDir": "<ROOT>\\home\\.claude\\projects\\<ROOT-ENC>-proj\\memory"
+              }
+            }
+          ],
+          "note": "MEMORY.md EAGER(앞 200줄/25KB) · topic LAZY"
+        },
+        {
+          "id": "worktreeinclude",
+          "title": ".worktreeinclude · 1",
+          "group": "env",
+          "source": null,
+          "cards": [
+            {
+              "name": ".worktreeinclude",
+              "badge": "worktree",
+              "ok": true,
+              "kv": [
+                [
+                  "size",
+                  "5 B"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\proj\\.worktreeinclude"
+                ]
+              ],
+              "scope": "project",
+              "project": "<ROOT>\\proj",
+              "source": "<ROOT>\\proj\\.worktreeinclude",
+              "load": "lazy"
+            }
+          ],
+          "load": "lazy",
+          "note": "worktree 생성 시 복사 목록"
+        },
+        {
+          "id": "skills",
+          "title": "Skills (code) · 3",
+          "group": "extensions",
+          "source": "<ROOT>\\home\\.claude\\skills",
+          "cards": [
+            {
+              "name": "Alpha",
+              "badge": "no md",
+              "ok": false,
+              "kv": [
+                [
+                  "desc",
+                  "-"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\skills\\Alpha"
+                ]
+              ],
+              "edit": {
+                "kind": "skill",
+                "name": "Alpha"
+              }
+            },
+            {
+              "name": "zeta",
+              "badge": "SKILL.md",
+              "ok": true,
+              "kv": [
+                [
+                  "desc",
+                  "crlf desc"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\skills\\zeta"
+                ]
+              ],
+              "edit": {
+                "kind": "skill",
+                "name": "zeta"
+              }
+            },
+            {
+              "name": "＋ 새 스킬",
+              "badge": "add",
+              "ok": false,
+              "kv": [
+                [
+                  "형식",
+                  "name 설명…"
+                ]
+              ],
+              "edit": {
+                "kind": "skill-add"
+              }
+            },
+            {
+              "name": "Sp:s",
+              "badge": "plugin",
+              "ok": true,
+              "kv": [
+                [
+                  "desc",
+                  "ps"
+                ],
+                [
+                  "from",
+                  "sp@m"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\plugins\\cache\\m\\sp\\1.0.0\\skills\\s\\SKILL.md"
+                ]
+              ],
+              "plugin": "sp@m"
+            }
+          ],
+          "load": "eager",
+          "note": "name+description 만 · 본문 LAZY"
+        },
+        {
+          "id": "agents",
+          "title": "Agents · 4",
+          "group": "extensions",
+          "source": "<ROOT>\\home\\.claude\\agents",
+          "cards": [
+            {
+              "name": "dir-agent",
+              "badge": "agent",
+              "ok": false,
+              "kv": [
+                [
+                  "desc",
+                  "-"
+                ],
+                [
+                  "tools",
+                  "Read"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\agents\\dirform"
+                ]
+              ],
+              "edit": {
+                "kind": "agent",
+                "name": "dirform"
+              }
+            },
+            {
+              "name": "nest/deep",
+              "badge": "agent",
+              "ok": false,
+              "kv": [
+                [
+                  "desc",
+                  "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy…"
+                ],
+                [
+                  "tools",
+                  "-"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\agents\\nest\\deep.md"
+                ]
+              ]
+            },
+            {
+              "name": "＋ 새 에이전트",
+              "badge": "add",
+              "ok": false,
+              "kv": [
+                [
+                  "형식",
+                  "name 설명…"
+                ]
+              ],
+              "edit": {
+                "kind": "agent-add"
+              }
+            },
+            {
+              "name": "proj:proj-agent",
+              "badge": "plugin",
+              "ok": true,
+              "kv": [
+                [
+                  "desc",
+                  "-"
+                ],
+                [
+                  "tools",
+                  "-"
+                ],
+                [
+                  "from",
+                  "proj@m"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\plugins\\cache\\m\\proj\\1.0.0\\agents\\pa.md"
+                ]
+              ],
+              "scope": "project",
+              "project": "<ROOT>\\proj",
+              "plugin": "proj@m"
+            },
+            {
+              "name": "planner",
+              "badge": "agent",
+              "ok": false,
+              "kv": [
+                [
+                  "desc",
+                  "-"
+                ],
+                [
+                  "tools",
+                  "-"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\proj\\.claude\\agents\\planner.md"
+                ]
+              ],
+              "edit": {
+                "kind": "agent",
+                "name": "planner",
+                "dir": "<ROOT>\\proj\\.claude\\agents"
+              },
+              "scope": "project",
+              "project": "<ROOT>\\proj"
+            }
+          ],
+          "load": "eager",
+          "note": "description 만 · 본문 LAZY"
+        },
+        {
+          "id": "commands",
+          "title": "Commands · 1",
+          "group": "extensions",
+          "source": null,
+          "cards": [
+            {
+              "name": "Sp:ns/c",
+              "badge": "plugin",
+              "ok": true,
+              "kv": [
+                [
+                  "desc",
+                  "-"
+                ],
+                [
+                  "from",
+                  "sp@m"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\plugins\\cache\\m\\sp\\1.0.0\\commands\\ns\\c.md"
+                ]
+              ],
+              "plugin": "sp@m"
+            }
+          ],
+          "load": "lazy",
+          "note": "본문은 호출 시"
+        },
+        {
+          "id": "plugins",
+          "title": "Plugins · 5",
+          "group": "extensions",
+          "source": "<ROOT>\\home\\.claude\\plugins",
+          "cards": [
+            {
+              "name": "gone",
+              "badge": "missing",
+              "ok": false,
+              "kv": [
+                [
+                  "desc",
+                  "-"
+                ],
+                [
+                  "market",
+                  "m"
+                ],
+                [
+                  "version",
+                  "-"
+                ],
+                [
+                  "gives",
+                  "-"
+                ],
+                [
+                  "id",
+                  "gone@m"
+                ],
+                [
+                  "note",
+                  "설치 경로가 없습니다: <ROOT>\\nowhere"
+                ],
+                [
+                  "source",
+                  "settings.json"
+                ]
+              ],
+              "source": "<ROOT>\\home\\.claude\\settings.json",
+              "plugin": "gone@m"
+            },
+            {
+              "name": "off",
+              "badge": "disabled",
+              "ok": false,
+              "kv": [
+                [
+                  "desc",
+                  "-"
+                ],
+                [
+                  "market",
+                  "m"
+                ],
+                [
+                  "version",
+                  "-"
+                ],
+                [
+                  "gives",
+                  "skills 1"
+                ],
+                [
+                  "id",
+                  "off@m"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\plugins\\cache\\m\\off\\1.0.0"
+                ],
+                [
+                  "installed",
+                  "project  D:\\x"
+                ],
+                [
+                  "source",
+                  "settings.json"
+                ]
+              ],
+              "edit": {
+                "kind": "plugin",
+                "id": "off@m",
+                "on": false,
+                "settings": "<ROOT>\\home\\.claude\\settings.json",
+                "scope": "project",
+                "cwd": "D:\\x"
+              },
+              "source": "<ROOT>\\home\\.claude\\settings.json",
+              "plugin": "off@m"
+            },
+            {
+              "name": "proj",
+              "badge": "plugin",
+              "ok": true,
+              "kv": [
+                [
+                  "desc",
+                  "-"
+                ],
+                [
+                  "market",
+                  "m"
+                ],
+                [
+                  "version",
+                  "-"
+                ],
+                [
+                  "gives",
+                  "agents 1"
+                ],
+                [
+                  "id",
+                  "proj@m"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\plugins\\cache\\m\\proj\\1.0.0"
+                ],
+                [
+                  "installed",
+                  "local  -"
+                ],
+                [
+                  "source",
+                  "settings.json"
+                ]
+              ],
+              "edit": {
+                "kind": "plugin",
+                "id": "proj@m",
+                "on": true,
+                "settings": "<ROOT>\\proj\\.claude\\settings.json",
+                "scope": "local",
+                "cwd": ""
+              },
+              "scope": "project",
+              "project": "<ROOT>\\proj",
+              "source": "<ROOT>\\proj\\.claude\\settings.json",
+              "plugin": "proj@m"
+            },
+            {
+              "name": "sp",
+              "badge": "plugin",
+              "ok": true,
+              "kv": [
+                [
+                  "desc",
+                  "-"
+                ],
+                [
+                  "market",
+                  "m"
+                ],
+                [
+                  "version",
+                  "9"
+                ],
+                [
+                  "gives",
+                  "skills 1 · commands 1 · rules 1 · workflows 1 · hooks 2 · mcp 2"
+                ],
+                [
+                  "namespace",
+                  "Sp:"
+                ],
+                [
+                  "id",
+                  "sp@m"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\plugins\\cache\\m\\sp\\1.0.0"
+                ],
+                [
+                  "source",
+                  "settings.json"
+                ]
+              ],
+              "edit": {
+                "kind": "plugin",
+                "id": "sp@m",
+                "on": true,
+                "settings": "<ROOT>\\home\\.claude\\settings.json",
+                "scope": "user",
+                "cwd": ""
+              },
+              "source": "<ROOT>\\home\\.claude\\settings.json",
+              "plugin": "sp@m"
+            },
+            {
+              "name": "ghost",
+              "badge": "stale",
+              "ok": false,
+              "kv": [
+                [
+                  "desc",
+                  "-"
+                ],
+                [
+                  "market",
+                  "x"
+                ],
+                [
+                  "version",
+                  "-"
+                ],
+                [
+                  "gives",
+                  "-"
+                ],
+                [
+                  "id",
+                  "ghost@x"
+                ],
+                [
+                  "note",
+                  "enabledPlugins 에만 남은 키 - 설치 기록이 없습니다"
+                ],
+                [
+                  "source",
+                  "settings.json"
+                ]
+              ],
+              "source": "<ROOT>\\home\\.claude\\settings.json",
+              "plugin": "ghost@x"
+            }
+          ],
+          "load": "never",
+          "note": "관리 단위 · 항목은 각 섹션에 합류"
+        },
+        {
+          "id": "scheduled",
+          "title": "Scheduled Tasks · 2",
+          "group": "env",
+          "source": "<ROOT>\\home\\Claude\\Scheduled",
+          "cards": [
+            {
+              "name": "daily",
+              "badge": "scheduled",
+              "ok": true,
+              "kv": [
+                [
+                  "desc",
+                  "d"
+                ],
+                [
+                  "schedule",
+                  "0 9 * * *"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\Claude\\Scheduled\\daily"
+                ]
+              ]
+            },
+            {
+              "name": "fire",
+              "badge": "scheduled",
+              "ok": true,
+              "kv": [
+                [
+                  "desc",
+                  "-"
+                ],
+                [
+                  "schedule",
+                  "soon"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\Claude\\Scheduled\\fire"
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "id": "desktop-skills",
+          "title": "Desktop Skills · 2",
+          "group": "connect",
+          "source": "<ROOT>\\home\\AppData\\Roaming\\Claude\\local-agent-mode-sessions\\skills-plugin\\s1\\manifest.json  (+1 more)",
+          "cards": [
+            {
+              "name": "a",
+              "badge": "user",
+              "ok": true,
+              "kv": [
+                [
+                  "desc",
+                  "-"
+                ],
+                [
+                  "creator",
+                  "user"
+                ],
+                [
+                  "enabled",
+                  "True"
+                ],
+                [
+                  "updated",
+                  "-"
+                ]
+              ]
+            },
+            {
+              "name": "b2",
+              "badge": "anthropic",
+              "ok": false,
+              "kv": [
+                [
+                  "desc",
+                  "-"
+                ],
+                [
+                  "creator",
+                  "anthropic"
+                ],
+                [
+                  "enabled",
+                  "-"
+                ],
+                [
+                  "updated",
+                  "3"
+                ]
+              ],
+              "builtin": true
+            }
+          ],
+          "note": "user 1 / anthropic 1"
+        }
+      ]
+    }
+  },
+  {
+    "argv": [
+      "summary",
+      "--projects",
+      "<ROOT>\\proj\\.claude"
+    ],
+    "exit": 0,
+    "doc": {
+      "ok": true,
+      "code": "ok",
+      "message": "설정 요약",
+      "sources": {
+        "claude_json": "<ROOT>\\home\\.claude.json",
+        "code_settings": "<ROOT>\\home\\.claude\\settings.json",
+        "skills_dir": "<ROOT>\\home\\.claude\\skills",
+        "agents_dir": "<ROOT>\\home\\.claude\\agents",
+        "commands_dir": null,
+        "plugins_dir": "<ROOT>\\home\\.claude\\plugins",
+        "rules_dir": null,
+        "output_styles_dir": "<ROOT>\\home\\.claude\\output-styles",
+        "user_claude_md": null,
+        "workflows_dir": "<ROOT>\\home\\.claude\\workflows",
+        "themes_dir": "<ROOT>\\home\\.claude\\themes",
+        "agent_memory_dir": "<ROOT>\\home\\.claude\\agent-memory",
+        "scheduled_dir": "<ROOT>\\home\\Claude\\Scheduled",
+        "desktop_config": "<ROOT>\\home\\AppData\\Roaming\\Claude\\claude_desktop_config.json",
+        "desktop_skill_manifest_glob": [
+          "<ROOT>\\home\\AppData\\Roaming\\Claude\\local-agent-mode-sessions\\skills-plugin\\s1\\manifest.json",
+          "<ROOT>\\home\\AppData\\Roaming\\Claude\\local-agent-mode-sessions\\skills-plugin\\s2\\deep\\manifest.json"
+        ]
+      },
+      "sections": [
+        {
+          "id": "mcp-desktop",
+          "title": "MCP Servers (desktop)",
+          "group": "connect",
+          "load": "never",
+          "count": 2,
+          "global": 2,
+          "project": 0,
+          "names": [
+            "a",
+            "r"
+          ]
+        },
+        {
+          "id": "claude-json",
+          "title": "Claude Code (.claude.json)",
+          "group": "connect",
+          "load": "never",
+          "count": 5,
+          "global": 5,
+          "project": 0,
+          "names": [
+            "전역 요약",
+            "g",
+            "proj",
+            "Sp:s0",
+            "Sp:s1"
+          ],
+          "plugin": 2,
+          "note": "앱 상태 · 전역 MCP · trust"
+        },
+        {
+          "id": "mcp-project",
+          "title": "MCP Servers (project)",
+          "group": "connect",
+          "load": "lazy",
+          "count": 0,
+          "global": 0,
+          "project": 0,
+          "names": [],
+          "note": "연결/스키마"
+        },
+        {
+          "id": "perm",
+          "title": "Permissions",
+          "group": "exec",
+          "load": "never",
+          "count": 9,
+          "global": 6,
+          "project": 3,
+          "names": [
+            "allow (settings.json)",
+            "deny (settings.json)",
+            "ask (settings.json)",
+            "allow (settings.local.json)",
+            "deny (settings.local.json)",
+            "ask (settings.local.json)",
+            "allow (proj/settings.json)",
+            "deny (proj/settings.json)",
+            "ask (proj/settings.json)"
+          ],
+          "note": "런타임 판정"
+        },
+        {
+          "id": "hooks",
+          "title": "Hooks",
+          "group": "exec",
+          "load": "never",
+          "count": 3,
+          "global": 3,
+          "project": 0,
+          "names": [
+            "Stop",
+            "Post",
+            "Pre"
+          ],
+          "plugin": 2,
+          "note": "런타임 실행"
+        },
+        {
+          "id": "claude-md",
+          "title": "CLAUDE.md",
+          "group": "instructions",
+          "load": "eager",
+          "count": 1,
+          "global": 0,
+          "project": 1,
+          "names": [
+            "CLAUDE.local.md"
+          ],
+          "note": "세션마다 전문 적재"
+        },
+        {
+          "id": "rules",
+          "title": "Rules",
+          "group": "instructions",
+          "load": null,
+          "count": 2,
+          "global": 1,
+          "project": 1,
+          "names": [
+            "Sp:pr",
+            "r"
+          ],
+          "plugin": 1,
+          "note": "paths: 있으면 LAZY · 없으면 EAGER"
+        },
+        {
+          "id": "output-styles",
+          "title": "Output Styles",
+          "group": "instructions",
+          "load": null,
+          "count": 1,
+          "global": 1,
+          "project": 0,
+          "names": [
+            "concise"
+          ],
+          "note": "outputStyle 로 선택된 것만 EAGER"
+        },
+        {
+          "id": "workflows",
+          "title": "Workflows",
+          "group": "extensions",
+          "load": "lazy",
+          "count": 4,
+          "global": 3,
+          "project": 1,
+          "names": [
+            "Ship",
+            "a",
+            "Sp:pw",
+            "w"
+          ],
+          "plugin": 1,
+          "note": "각 파일이 /<name>"
+        },
+        {
+          "id": "themes",
+          "title": "Themes",
+          "group": "env",
+          "load": "never",
+          "count": 1,
+          "global": 1,
+          "project": 0,
+          "names": [
+            "dark"
+          ],
+          "note": "/theme 목록 · hot-reload"
+        },
+        {
+          "id": "agent-memory",
+          "title": "Agent Memory",
+          "group": "memory",
+          "load": "lazy",
+          "count": 2,
+          "global": 1,
+          "project": 1,
+          "names": [
+            "sub/note",
+            "m"
+          ],
+          "note": "서브에이전트 memory"
+        },
+        {
+          "id": "project-memory",
+          "title": "Project Memory",
+          "group": "memory",
+          "load": null,
+          "count": 2,
+          "global": 0,
+          "project": 2,
+          "names": [
+            "MEMORY",
+            "topic"
+          ],
+          "note": "MEMORY.md EAGER(앞 200줄/25KB) · topic LAZY"
+        },
+        {
+          "id": "worktreeinclude",
+          "title": ".worktreeinclude",
+          "group": "env",
+          "load": "lazy",
+          "count": 1,
+          "global": 0,
+          "project": 1,
+          "names": [
+            ".worktreeinclude"
+          ],
+          "note": "worktree 생성 시 복사 목록"
+        },
+        {
+          "id": "skills",
+          "title": "Skills (code)",
+          "group": "extensions",
+          "load": "eager",
+          "count": 3,
+          "global": 3,
+          "project": 0,
+          "names": [
+            "Alpha",
+            "zeta",
+            "Sp:s"
+          ],
+          "plugin": 1,
+          "note": "name+description 만 · 본문 LAZY"
+        },
+        {
+          "id": "agents",
+          "title": "Agents",
+          "group": "extensions",
+          "load": "eager",
+          "count": 4,
+          "global": 2,
+          "project": 2,
+          "names": [
+            "dir-agent",
+            "nest/deep",
+            "proj:proj-agent",
+            "planner"
+          ],
+          "plugin": 1,
+          "note": "description 만 · 본문 LAZY"
+        },
+        {
+          "id": "commands",
+          "title": "Commands",
+          "group": "extensions",
+          "load": "lazy",
+          "count": 1,
+          "global": 1,
+          "project": 0,
+          "names": [
+            "Sp:ns/c"
+          ],
+          "plugin": 1,
+          "note": "본문은 호출 시"
+        },
+        {
+          "id": "plugins",
+          "title": "Plugins",
+          "group": "extensions",
+          "load": "never",
+          "count": 5,
+          "global": 4,
+          "project": 1,
+          "names": [
+            "gone",
+            "off",
+            "proj",
+            "sp",
+            "ghost"
+          ],
+          "plugin": 5,
+          "note": "관리 단위 · 항목은 각 섹션에 합류"
+        },
+        {
+          "id": "scheduled",
+          "title": "Scheduled Tasks",
+          "group": "env",
+          "load": null,
+          "count": 2,
+          "global": 2,
+          "project": 0,
+          "names": [
+            "daily",
+            "fire"
+          ]
+        },
+        {
+          "id": "desktop-skills",
+          "title": "Desktop Skills",
+          "group": "connect",
+          "load": null,
+          "count": 2,
+          "global": 2,
+          "project": 0,
+          "names": [
+            "a",
+            "b2"
+          ],
+          "builtin": 1,
+          "note": "user 1 / anthropic 1"
+        }
+      ],
+      "collisions": [],
+      "plugins": {
+        "missing": 1,
+        "disabled": 1,
+        "plugin": 2,
+        "stale": 1
+      }
+    }
+  },
+  {
+    "argv": [
+      "dump",
+      "--projects",
+      "<ROOT>\\proj\\.claude",
+      "--query",
+      "SP",
+      "--compact"
+    ],
+    "exit": 0,
+    "doc": {
+      "ok": true,
+      "code": "ok",
+      "message": "설정 상세",
+      "sources": {
+        "claude_json": "<ROOT>\\home\\.claude.json",
+        "code_settings": "<ROOT>\\home\\.claude\\settings.json",
+        "skills_dir": "<ROOT>\\home\\.claude\\skills",
+        "agents_dir": "<ROOT>\\home\\.claude\\agents",
+        "commands_dir": null,
+        "plugins_dir": "<ROOT>\\home\\.claude\\plugins",
+        "rules_dir": null,
+        "output_styles_dir": "<ROOT>\\home\\.claude\\output-styles",
+        "user_claude_md": null,
+        "workflows_dir": "<ROOT>\\home\\.claude\\workflows",
+        "themes_dir": "<ROOT>\\home\\.claude\\themes",
+        "agent_memory_dir": "<ROOT>\\home\\.claude\\agent-memory",
+        "scheduled_dir": "<ROOT>\\home\\Claude\\Scheduled",
+        "desktop_config": "<ROOT>\\home\\AppData\\Roaming\\Claude\\claude_desktop_config.json",
+        "desktop_skill_manifest_glob": [
+          "<ROOT>\\home\\AppData\\Roaming\\Claude\\local-agent-mode-sessions\\skills-plugin\\s1\\manifest.json",
+          "<ROOT>\\home\\AppData\\Roaming\\Claude\\local-agent-mode-sessions\\skills-plugin\\s2\\deep\\manifest.json"
+        ]
+      },
+      "sections": [
+        {
+          "id": "mcp-desktop",
+          "title": "MCP Servers (desktop) · 0",
+          "group": "connect",
+          "source": "<ROOT>\\home\\AppData\\Roaming\\Claude\\claude_desktop_config.json",
+          "cards": [],
+          "load": "never"
+        },
+        {
+          "id": "claude-json",
+          "title": "Claude Code (.claude.json) · 2",
+          "group": "connect",
+          "source": "<ROOT>\\home\\.claude.json",
+          "cards": [
+            {
+              "name": "Sp:s0",
+              "badge": "plugin mcp",
+              "plugin": "sp@m"
+            },
+            {
+              "name": "Sp:s1",
+              "badge": "plugin mcp",
+              "plugin": "sp@m"
+            }
+          ],
+          "load": "never",
+          "note": "앱 상태 · 전역 MCP · trust"
+        },
+        {
+          "id": "mcp-project",
+          "title": "MCP Servers (project) · 0",
+          "group": "connect",
+          "source": null,
+          "cards": [],
+          "load": "lazy",
+          "note": "연결/스키마"
+        },
+        {
+          "id": "perm",
+          "title": "Permissions · 0",
+          "group": "exec",
+          "source": "<ROOT>\\home\\.claude\\settings.json  (+1 more)",
+          "cards": [],
+          "load": "never",
+          "note": "런타임 판정"
+        },
+        {
+          "id": "hooks",
+          "title": "Hooks · 2",
+          "group": "exec",
+          "source": "<ROOT>\\home\\.claude\\settings.json  (+1 more)",
+          "cards": [
+            {
+              "name": "Post",
+              "badge": "plugin",
+              "plugin": "sp@m"
+            },
+            {
+              "name": "Pre",
+              "badge": "plugin",
+              "plugin": "sp@m"
+            }
+          ],
+          "load": "never",
+          "note": "런타임 실행"
+        },
+        {
+          "id": "claude-md",
+          "title": "CLAUDE.md · 0",
+          "group": "instructions",
+          "source": null,
+          "cards": [],
+          "load": "eager",
+          "note": "세션마다 전문 적재"
+        },
+        {
+          "id": "rules",
+          "title": "Rules · 1",
+          "group": "instructions",
+          "source": null,
+          "cards": [
+            {
+              "name": "Sp:pr",
+              "badge": "plugin",
+              "plugin": "sp@m",
+              "desc": "pr"
+            }
+          ],
+          "note": "paths: 있으면 LAZY · 없으면 EAGER"
+        },
+        {
+          "id": "output-styles",
+          "title": "Output Styles · 0",
+          "group": "instructions",
+          "source": "<ROOT>\\home\\.claude\\output-styles",
+          "cards": [],
+          "note": "outputStyle 로 선택된 것만 EAGER"
+        },
+        {
+          "id": "workflows",
+          "title": "Workflows · 1",
+          "group": "extensions",
+          "source": "<ROOT>\\home\\.claude\\workflows",
+          "cards": [
+            {
+              "name": "Sp:pw",
+              "badge": "plugin",
+              "plugin": "sp@m",
+              "desc": "-"
+            }
+          ],
+          "load": "lazy",
+          "note": "각 파일이 /<name>"
+        },
+        {
+          "id": "themes",
+          "title": "Themes · 0",
+          "group": "env",
+          "source": "<ROOT>\\home\\.claude\\themes",
+          "cards": [],
+          "load": "never",
+          "note": "/theme 목록 · hot-reload"
+        },
+        {
+          "id": "agent-memory",
+          "title": "Agent Memory · 0",
+          "group": "memory",
+          "source": "<ROOT>\\home\\.claude\\agent-memory",
+          "cards": [],
+          "load": "lazy",
+          "note": "서브에이전트 memory"
+        },
+        {
+          "id": "project-memory",
+          "title": "Project Memory · 0",
+          "group": "memory",
+          "source": "<ROOT>\\home\\.claude\\projects",
+          "cards": [],
+          "note": "MEMORY.md EAGER(앞 200줄/25KB) · topic LAZY"
+        },
+        {
+          "id": "worktreeinclude",
+          "title": ".worktreeinclude · 0",
+          "group": "env",
+          "source": null,
+          "cards": [],
+          "load": "lazy",
+          "note": "worktree 생성 시 복사 목록"
+        },
+        {
+          "id": "skills",
+          "title": "Skills (code) · 1",
+          "group": "extensions",
+          "source": "<ROOT>\\home\\.claude\\skills",
+          "cards": [
+            {
+              "name": "Sp:s",
+              "badge": "plugin",
+              "plugin": "sp@m",
+              "desc": "ps"
+            }
+          ],
+          "load": "eager",
+          "note": "name+description 만 · 본문 LAZY"
+        },
+        {
+          "id": "agents",
+          "title": "Agents · 0",
+          "group": "extensions",
+          "source": "<ROOT>\\home\\.claude\\agents",
+          "cards": [],
+          "load": "eager",
+          "note": "description 만 · 본문 LAZY"
+        },
+        {
+          "id": "commands",
+          "title": "Commands · 1",
+          "group": "extensions",
+          "source": null,
+          "cards": [
+            {
+              "name": "Sp:ns/c",
+              "badge": "plugin",
+              "plugin": "sp@m",
+              "desc": "-"
+            }
+          ],
+          "load": "lazy",
+          "note": "본문은 호출 시"
+        },
+        {
+          "id": "plugins",
+          "title": "Plugins · 1",
+          "group": "extensions",
+          "source": "<ROOT>\\home\\.claude\\plugins",
+          "cards": [
+            {
+              "name": "sp",
+              "badge": "plugin",
+              "source": "<ROOT>\\home\\.claude\\settings.json",
+              "plugin": "sp@m",
+              "edit": {
+                "kind": "plugin",
+                "id": "sp@m",
+                "on": true,
+                "settings": "<ROOT>\\home\\.claude\\settings.json",
+                "scope": "user",
+                "cwd": ""
+              },
+              "desc": "-"
+            }
+          ],
+          "load": "never",
+          "note": "관리 단위 · 항목은 각 섹션에 합류"
+        },
+        {
+          "id": "scheduled",
+          "title": "Scheduled Tasks · 0",
+          "group": "env",
+          "source": "<ROOT>\\home\\Claude\\Scheduled",
+          "cards": []
+        },
+        {
+          "id": "desktop-skills",
+          "title": "Desktop Skills · 0",
+          "group": "connect",
+          "source": "<ROOT>\\home\\AppData\\Roaming\\Claude\\local-agent-mode-sessions\\skills-plugin\\s1\\manifest.json  (+1 more)",
+          "cards": [],
+          "note": "user 1 / anthropic 1"
+        }
+      ]
+    }
+  },
+  {
+    "argv": [
+      "dump",
+      "--projects",
+      "<ROOT>\\proj\\.claude",
+      "--scope",
+      "global",
+      "--sections",
+      "plugins",
+      "agents"
+    ],
+    "exit": 0,
+    "doc": {
+      "ok": true,
+      "code": "ok",
+      "message": "설정 상세",
+      "sources": {
+        "claude_json": "<ROOT>\\home\\.claude.json",
+        "code_settings": "<ROOT>\\home\\.claude\\settings.json",
+        "skills_dir": "<ROOT>\\home\\.claude\\skills",
+        "agents_dir": "<ROOT>\\home\\.claude\\agents",
+        "commands_dir": null,
+        "plugins_dir": "<ROOT>\\home\\.claude\\plugins",
+        "rules_dir": null,
+        "output_styles_dir": "<ROOT>\\home\\.claude\\output-styles",
+        "user_claude_md": null,
+        "workflows_dir": "<ROOT>\\home\\.claude\\workflows",
+        "themes_dir": "<ROOT>\\home\\.claude\\themes",
+        "agent_memory_dir": "<ROOT>\\home\\.claude\\agent-memory",
+        "scheduled_dir": "<ROOT>\\home\\Claude\\Scheduled",
+        "desktop_config": "<ROOT>\\home\\AppData\\Roaming\\Claude\\claude_desktop_config.json",
+        "desktop_skill_manifest_glob": [
+          "<ROOT>\\home\\AppData\\Roaming\\Claude\\local-agent-mode-sessions\\skills-plugin\\s1\\manifest.json",
+          "<ROOT>\\home\\AppData\\Roaming\\Claude\\local-agent-mode-sessions\\skills-plugin\\s2\\deep\\manifest.json"
+        ]
+      },
+      "sections": [
+        {
+          "id": "agents",
+          "title": "Agents · 2",
+          "group": "extensions",
+          "source": "<ROOT>\\home\\.claude\\agents",
+          "cards": [
+            {
+              "name": "dir-agent",
+              "badge": "agent",
+              "ok": false,
+              "kv": [
+                [
+                  "desc",
+                  "-"
+                ],
+                [
+                  "tools",
+                  "Read"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\agents\\dirform"
+                ]
+              ],
+              "edit": {
+                "kind": "agent",
+                "name": "dirform"
+              }
+            },
+            {
+              "name": "nest/deep",
+              "badge": "agent",
+              "ok": false,
+              "kv": [
+                [
+                  "desc",
+                  "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy…"
+                ],
+                [
+                  "tools",
+                  "-"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\agents\\nest\\deep.md"
+                ]
+              ]
+            }
+          ],
+          "load": "eager",
+          "note": "description 만 · 본문 LAZY"
+        },
+        {
+          "id": "plugins",
+          "title": "Plugins · 4",
+          "group": "extensions",
+          "source": "<ROOT>\\home\\.claude\\plugins",
+          "cards": [
+            {
+              "name": "gone",
+              "badge": "missing",
+              "ok": false,
+              "kv": [
+                [
+                  "desc",
+                  "-"
+                ],
+                [
+                  "market",
+                  "m"
+                ],
+                [
+                  "version",
+                  "-"
+                ],
+                [
+                  "gives",
+                  "-"
+                ],
+                [
+                  "id",
+                  "gone@m"
+                ],
+                [
+                  "note",
+                  "설치 경로가 없습니다: <ROOT>\\nowhere"
+                ],
+                [
+                  "source",
+                  "settings.json"
+                ]
+              ],
+              "source": "<ROOT>\\home\\.claude\\settings.json",
+              "plugin": "gone@m"
+            },
+            {
+              "name": "off",
+              "badge": "disabled",
+              "ok": false,
+              "kv": [
+                [
+                  "desc",
+                  "-"
+                ],
+                [
+                  "market",
+                  "m"
+                ],
+                [
+                  "version",
+                  "-"
+                ],
+                [
+                  "gives",
+                  "skills 1"
+                ],
+                [
+                  "id",
+                  "off@m"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\plugins\\cache\\m\\off\\1.0.0"
+                ],
+                [
+                  "installed",
+                  "project  D:\\x"
+                ],
+                [
+                  "source",
+                  "settings.json"
+                ]
+              ],
+              "edit": {
+                "kind": "plugin",
+                "id": "off@m",
+                "on": false,
+                "settings": "<ROOT>\\home\\.claude\\settings.json",
+                "scope": "project",
+                "cwd": "D:\\x"
+              },
+              "source": "<ROOT>\\home\\.claude\\settings.json",
+              "plugin": "off@m"
+            },
+            {
+              "name": "sp",
+              "badge": "plugin",
+              "ok": true,
+              "kv": [
+                [
+                  "desc",
+                  "-"
+                ],
+                [
+                  "market",
+                  "m"
+                ],
+                [
+                  "version",
+                  "9"
+                ],
+                [
+                  "gives",
+                  "skills 1 · commands 1 · rules 1 · workflows 1 · hooks 2 · mcp 2"
+                ],
+                [
+                  "namespace",
+                  "Sp:"
+                ],
+                [
+                  "id",
+                  "sp@m"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\plugins\\cache\\m\\sp\\1.0.0"
+                ],
+                [
+                  "source",
+                  "settings.json"
+                ]
+              ],
+              "edit": {
+                "kind": "plugin",
+                "id": "sp@m",
+                "on": true,
+                "settings": "<ROOT>\\home\\.claude\\settings.json",
+                "scope": "user",
+                "cwd": ""
+              },
+              "source": "<ROOT>\\home\\.claude\\settings.json",
+              "plugin": "sp@m"
+            },
+            {
+              "name": "ghost",
+              "badge": "stale",
+              "ok": false,
+              "kv": [
+                [
+                  "desc",
+                  "-"
+                ],
+                [
+                  "market",
+                  "x"
+                ],
+                [
+                  "version",
+                  "-"
+                ],
+                [
+                  "gives",
+                  "-"
+                ],
+                [
+                  "id",
+                  "ghost@x"
+                ],
+                [
+                  "note",
+                  "enabledPlugins 에만 남은 키 - 설치 기록이 없습니다"
+                ],
+                [
+                  "source",
+                  "settings.json"
+                ]
+              ],
+              "source": "<ROOT>\\home\\.claude\\settings.json",
+              "plugin": "ghost@x"
+            }
+          ],
+          "load": "never",
+          "note": "관리 단위 · 항목은 각 섹션에 합류"
+        }
+      ]
+    }
+  },
+  {
+    "argv": [
+      "projects",
+      "--include-missing"
+    ],
+    "exit": 0,
+    "doc": {
+      "ok": true,
+      "code": "ok",
+      "message": "프로젝트 2개",
+      "projects": [
+        {
+          "path": "<ROOT>/proj",
+          "name": "proj",
+          "claude_dir": "<ROOT>/proj\\.claude",
+          "has_claude": true
+        },
+        {
+          "path": "<ROOT>\\gone",
+          "name": "gone",
+          "claude_dir": "<ROOT>\\gone\\.claude",
+          "has_claude": false
+        }
+      ]
+    }
+  },
+  {
+    "argv": [
+      "dump",
+      "--projects"
+    ],
+    "exit": 0,
+    "doc": {
+      "ok": true,
+      "code": "ok",
+      "message": "설정 상세",
+      "sources": {
+        "claude_json": "<ROOT>\\home\\.claude.json",
+        "code_settings": "<ROOT>\\home\\.claude\\settings.json",
+        "skills_dir": "<ROOT>\\home\\.claude\\skills",
+        "agents_dir": "<ROOT>\\home\\.claude\\agents",
+        "commands_dir": null,
+        "plugins_dir": "<ROOT>\\home\\.claude\\plugins",
+        "rules_dir": null,
+        "output_styles_dir": "<ROOT>\\home\\.claude\\output-styles",
+        "user_claude_md": null,
+        "workflows_dir": "<ROOT>\\home\\.claude\\workflows",
+        "themes_dir": "<ROOT>\\home\\.claude\\themes",
+        "agent_memory_dir": "<ROOT>\\home\\.claude\\agent-memory",
+        "scheduled_dir": "<ROOT>\\home\\Claude\\Scheduled",
+        "desktop_config": "<ROOT>\\home\\AppData\\Roaming\\Claude\\claude_desktop_config.json",
+        "desktop_skill_manifest_glob": [
+          "<ROOT>\\home\\AppData\\Roaming\\Claude\\local-agent-mode-sessions\\skills-plugin\\s1\\manifest.json",
+          "<ROOT>\\home\\AppData\\Roaming\\Claude\\local-agent-mode-sessions\\skills-plugin\\s2\\deep\\manifest.json"
+        ]
+      },
+      "sections": [
+        {
+          "id": "mcp-desktop",
+          "title": "MCP Servers (desktop) · 2",
+          "group": "connect",
+          "source": "<ROOT>\\home\\AppData\\Roaming\\Claude\\claude_desktop_config.json",
+          "cards": [
+            {
+              "name": "a",
+              "badge": "stdio",
+              "ok": true,
+              "kv": [
+                [
+                  "command",
+                  "npx"
+                ],
+                [
+                  "args",
+                  "1 True None {'k': 'v'}"
+                ],
+                [
+                  "env",
+                  "X"
+                ]
+              ],
+              "edit": {
+                "kind": "mcp",
+                "scope": "desktop",
+                "name": "a"
+              }
+            },
+            {
+              "name": "r",
+              "badge": "sse",
+              "ok": true,
+              "kv": [
+                [
+                  "command",
+                  "-"
+                ],
+                [
+                  "args",
+                  "-"
+                ],
+                [
+                  "env",
+                  "-"
+                ]
+              ],
+              "edit": {
+                "kind": "mcp",
+                "scope": "desktop",
+                "name": "r"
+              }
+            },
+            {
+              "name": "＋ 새 MCP 서버",
+              "badge": "add",
+              "ok": false,
+              "kv": [
+                [
+                  "형식",
+                  "name {\"command\":\"npx\",\"args\":[...]}"
+                ]
+              ],
+              "edit": {
+                "kind": "mcp-add",
+                "scope": "desktop"
+              }
+            }
+          ],
+          "load": "never"
+        },
+        {
+          "id": "claude-json",
+          "title": "Claude Code (.claude.json) · 5",
+          "group": "connect",
+          "source": "<ROOT>\\home\\.claude.json",
+          "cards": [
+            {
+              "name": "전역 요약",
+              "badge": "claude.json",
+              "ok": true,
+              "kv": [
+                [
+                  "global MCP",
+                  "g"
+                ],
+                [
+                  "projects",
+                  "2"
+                ],
+                [
+                  "account",
+                  "set"
+                ],
+                [
+                  "dropped",
+                  "history(노이즈) 제외 · 관심 키만 선별 추출"
+                ]
+              ]
+            },
+            {
+              "name": "g",
+              "badge": "global mcp",
+              "ok": true,
+              "kv": [
+                [
+                  "command",
+                  "node"
+                ],
+                [
+                  "args",
+                  "x"
+                ]
+              ],
+              "edit": {
+                "kind": "mcp",
+                "scope": "user",
+                "name": "g"
+              }
+            },
+            {
+              "name": "＋ 새 전역 MCP 서버",
+              "badge": "add",
+              "ok": false,
+              "kv": [
+                [
+                  "형식",
+                  "name {\"command\":\"npx\",\"args\":[...]}"
+                ]
+              ],
+              "edit": {
+                "kind": "mcp-add",
+                "scope": "user"
+              }
+            },
+            {
+              "name": "proj",
+              "badge": "project",
+              "ok": false,
+              "kv": [
+                [
+                  "path",
+                  "<ROOT>/proj"
+                ],
+                [
+                  "allowedTools",
+                  "2"
+                ],
+                [
+                  "mcpServers",
+                  "m"
+                ],
+                [
+                  "trust",
+                  "False"
+                ]
+              ]
+            },
+            {
+              "name": "Sp:s0",
+              "badge": "plugin mcp",
+              "ok": true,
+              "kv": [
+                [
+                  "type",
+                  "-"
+                ],
+                [
+                  "url",
+                  "-"
+                ],
+                [
+                  "from",
+                  "sp@m"
+                ]
+              ],
+              "plugin": "sp@m"
+            },
+            {
+              "name": "Sp:s1",
+              "badge": "plugin mcp",
+              "ok": true,
+              "kv": [
+                [
+                  "command",
+                  "uvx"
+                ],
+                [
+                  "args",
+                  "q"
+                ],
+                [
+                  "from",
+                  "sp@m"
+                ]
+              ],
+              "plugin": "sp@m"
+            }
+          ],
+          "load": "never",
+          "note": "앱 상태 · 전역 MCP · trust"
+        },
+        {
+          "id": "perm",
+          "title": "Permissions · 6",
+          "group": "exec",
+          "source": "<ROOT>\\home\\.claude\\settings.json  (+1 more)",
+          "cards": [
+            {
+              "name": "allow",
+              "badge": "0",
+              "ok": true,
+              "kv": [
+                [
+                  "source",
+                  "settings.json"
+                ]
+              ],
+              "edit": {
+                "kind": "perm",
+                "permKind": "allow",
+                "items": [],
+                "settings": "<ROOT>\\home\\.claude\\settings.json"
+              },
+              "source": "<ROOT>\\home\\.claude\\settings.json"
+            },
+            {
+              "name": "deny",
+              "badge": "0",
+              "ok": false,
+              "kv": [
+                [
+                  "source",
+                  "settings.json"
+                ]
+              ],
+              "edit": {
+                "kind": "perm",
+                "permKind": "deny",
+                "items": [],
+                "settings": "<ROOT>\\home\\.claude\\settings.json"
+              },
+              "source": "<ROOT>\\home\\.claude\\settings.json"
+            },
+            {
+              "name": "ask",
+              "badge": "0",
+              "ok": false,
+              "kv": [
+                [
+                  "source",
+                  "settings.json"
+                ]
+              ],
+              "edit": {
+                "kind": "perm",
+                "permKind": "ask",
+                "items": [],
+                "settings": "<ROOT>\\home\\.claude\\settings.json"
+              },
+              "source": "<ROOT>\\home\\.claude\\settings.json"
+            },
+            {
+              "name": "allow",
+              "badge": "1",
+              "ok": true,
+              "kv": [
+                [
+                  "source",
+                  "settings.local.json"
+                ]
+              ],
+              "edit": {
+                "kind": "perm",
+                "permKind": "allow",
+                "items": [
+                  "A"
+                ],
+                "settings": "<ROOT>\\home\\.claude\\settings.local.json"
+              },
+              "source": "<ROOT>\\home\\.claude\\settings.local.json"
+            },
+            {
+              "name": "deny",
+              "badge": "0",
+              "ok": false,
+              "kv": [
+                [
+                  "source",
+                  "settings.local.json"
+                ]
+              ],
+              "edit": {
+                "kind": "perm",
+                "permKind": "deny",
+                "items": [],
+                "settings": "<ROOT>\\home\\.claude\\settings.local.json"
+              },
+              "source": "<ROOT>\\home\\.claude\\settings.local.json"
+            },
+            {
+              "name": "ask",
+              "badge": "0",
+              "ok": false,
+              "kv": [
+                [
+                  "source",
+                  "settings.local.json"
+                ]
+              ],
+              "edit": {
+                "kind": "perm",
+                "permKind": "ask",
+                "items": [],
+                "settings": "<ROOT>\\home\\.claude\\settings.local.json"
+              },
+              "source": "<ROOT>\\home\\.claude\\settings.local.json"
+            }
+          ],
+          "load": "never",
+          "note": "런타임 판정"
+        },
+        {
+          "id": "hooks",
+          "title": "Hooks · 3",
+          "group": "exec",
+          "source": "<ROOT>\\home\\.claude\\settings.json  (+1 more)",
+          "cards": [
+            {
+              "name": "Stop",
+              "badge": "hook",
+              "ok": false,
+              "kv": [
+                [
+                  "matchers",
+                  "2"
+                ],
+                [
+                  "source",
+                  "settings.json"
+                ]
+              ],
+              "edit": {
+                "kind": "hook",
+                "event": "Stop",
+                "items": [
+                  "echo s"
+                ],
+                "settings": "<ROOT>\\home\\.claude\\settings.json"
+              },
+              "source": "<ROOT>\\home\\.claude\\settings.json"
+            },
+            {
+              "name": "Post",
+              "badge": "plugin",
+              "ok": false,
+              "kv": [
+                [
+                  "matchers",
+                  "0"
+                ],
+                [
+                  "commands",
+                  "-"
+                ],
+                [
+                  "from",
+                  "sp@m"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\plugins\\cache\\m\\sp\\1.0.0\\hooks\\hooks.json"
+                ]
+              ],
+              "plugin": "sp@m"
+            },
+            {
+              "name": "Pre",
+              "badge": "plugin",
+              "ok": false,
+              "kv": [
+                [
+                  "matchers",
+                  "1"
+                ],
+                [
+                  "commands",
+                  "a ; b"
+                ],
+                [
+                  "from",
+                  "sp@m"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\plugins\\cache\\m\\sp\\1.0.0\\hooks\\hooks.json"
+                ]
+              ],
+              "plugin": "sp@m"
+            }
+          ],
+          "load": "never",
+          "note": "런타임 실행"
+        },
+        {
+          "id": "claude-md",
+          "title": "CLAUDE.md · 0",
+          "group": "instructions",
+          "source": null,
+          "cards": [],
+          "load": "eager",
+          "note": "세션마다 전문 적재"
+        },
+        {
+          "id": "rules",
+          "title": "Rules · 1",
+          "group": "instructions",
+          "source": null,
+          "cards": [
+            {
+              "name": "＋ 새 규칙",
+              "badge": "add",
+              "ok": false,
+              "kv": [
+                [
+                  "형식",
+                  "name 설명…"
+                ]
+              ],
+              "edit": {
+                "kind": "item-add",
+                "itemKind": "rule"
+              }
+            },
+            {
+              "name": "Sp:pr",
+              "badge": "plugin",
+              "ok": true,
+              "kv": [
+                [
+                  "desc",
+                  "pr"
+                ],
+                [
+                  "from",
+                  "sp@m"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\plugins\\cache\\m\\sp\\1.0.0\\rules\\pr.md"
+                ]
+              ],
+              "plugin": "sp@m"
+            }
+          ],
+          "note": "paths: 있으면 LAZY · 없으면 EAGER"
+        },
+        {
+          "id": "output-styles",
+          "title": "Output Styles · 1",
+          "group": "instructions",
+          "source": "<ROOT>\\home\\.claude\\output-styles",
+          "cards": [
+            {
+              "name": "concise",
+              "badge": "output-style",
+              "ok": true,
+              "kv": [
+                [
+                  "desc",
+                  "c"
+                ],
+                [
+                  "size",
+                  "23 B"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\output-styles\\concise.md"
+                ]
+              ],
+              "load": "eager",
+              "edit": {
+                "kind": "item",
+                "itemKind": "output-style",
+                "name": "concise",
+                "active": true
+              }
+            },
+            {
+              "name": "＋ 새 출력 스타일",
+              "badge": "add",
+              "ok": false,
+              "kv": [
+                [
+                  "형식",
+                  "name 설명…"
+                ]
+              ],
+              "edit": {
+                "kind": "item-add",
+                "itemKind": "output-style"
+              }
+            }
+          ],
+          "note": "outputStyle 로 선택된 것만 EAGER"
+        },
+        {
+          "id": "workflows",
+          "title": "Workflows · 3",
+          "group": "extensions",
+          "source": "<ROOT>\\home\\.claude\\workflows",
+          "cards": [
+            {
+              "name": "Ship",
+              "badge": "workflow",
+              "ok": true,
+              "kv": [
+                [
+                  "size",
+                  "1 B"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\workflows\\Ship.JS"
+                ]
+              ],
+              "edit": {
+                "kind": "item",
+                "itemKind": "workflow",
+                "name": "Ship"
+              }
+            },
+            {
+              "name": "a",
+              "badge": "workflow",
+              "ok": true,
+              "kv": [
+                [
+                  "size",
+                  "1 B"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\workflows\\a.js"
+                ]
+              ],
+              "edit": {
+                "kind": "item",
+                "itemKind": "workflow",
+                "name": "a"
+              }
+            },
+            {
+              "name": "＋ 새 워크플로",
+              "badge": "add",
+              "ok": false,
+              "kv": [
+                [
+                  "형식",
+                  "name 설명…"
+                ]
+              ],
+              "edit": {
+                "kind": "item-add",
+                "itemKind": "workflow"
+              }
+            },
+            {
+              "name": "Sp:pw",
+              "badge": "plugin",
+              "ok": true,
+              "kv": [
+                [
+                  "desc",
+                  "-"
+                ],
+                [
+                  "from",
+                  "sp@m"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\plugins\\cache\\m\\sp\\1.0.0\\workflows\\pw.js"
+                ]
+              ],
+              "plugin": "sp@m"
+            }
+          ],
+          "load": "lazy",
+          "note": "각 파일이 /<name>"
+        },
+        {
+          "id": "themes",
+          "title": "Themes · 1",
+          "group": "env",
+          "source": "<ROOT>\\home\\.claude\\themes",
+          "cards": [
+            {
+              "name": "dark",
+              "badge": "theme",
+              "ok": true,
+              "kv": [
+                [
+                  "size",
+                  "2 B"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\themes\\dark.json"
+                ]
+              ]
+            }
+          ],
+          "load": "never",
+          "note": "/theme 목록 · hot-reload"
+        },
+        {
+          "id": "agent-memory",
+          "title": "Agent Memory · 1",
+          "group": "memory",
+          "source": "<ROOT>\\home\\.claude\\agent-memory",
+          "cards": [
+            {
+              "name": "sub/note",
+              "badge": "agent-memory",
+              "ok": true,
+              "kv": [
+                [
+                  "desc",
+                  "n"
+                ],
+                [
+                  "size",
+                  "23 B"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\agent-memory\\sub\\note.md"
+                ]
+              ]
+            }
+          ],
+          "load": "lazy",
+          "note": "서브에이전트 memory"
+        },
+        {
+          "id": "project-memory",
+          "title": "Project Memory · 0",
+          "group": "memory",
+          "source": "<ROOT>\\home\\.claude\\projects",
+          "cards": [],
+          "note": "MEMORY.md EAGER(앞 200줄/25KB) · topic LAZY"
+        },
+        {
+          "id": "skills",
+          "title": "Skills (code) · 3",
+          "group": "extensions",
+          "source": "<ROOT>\\home\\.claude\\skills",
+          "cards": [
+            {
+              "name": "Alpha",
+              "badge": "no md",
+              "ok": false,
+              "kv": [
+                [
+                  "desc",
+                  "-"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\skills\\Alpha"
+                ]
+              ],
+              "edit": {
+                "kind": "skill",
+                "name": "Alpha"
+              }
+            },
+            {
+              "name": "zeta",
+              "badge": "SKILL.md",
+              "ok": true,
+              "kv": [
+                [
+                  "desc",
+                  "crlf desc"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\skills\\zeta"
+                ]
+              ],
+              "edit": {
+                "kind": "skill",
+                "name": "zeta"
+              }
+            },
+            {
+              "name": "＋ 새 스킬",
+              "badge": "add",
+              "ok": false,
+              "kv": [
+                [
+                  "형식",
+                  "name 설명…"
+                ]
+              ],
+              "edit": {
+                "kind": "skill-add"
+              }
+            },
+            {
+              "name": "Sp:s",
+              "badge": "plugin",
+              "ok": true,
+              "kv": [
+                [
+                  "desc",
+                  "ps"
+                ],
+                [
+                  "from",
+                  "sp@m"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\plugins\\cache\\m\\sp\\1.0.0\\skills\\s\\SKILL.md"
+                ]
+              ],
+              "plugin": "sp@m"
+            }
+          ],
+          "load": "eager",
+          "note": "name+description 만 · 본문 LAZY"
+        },
+        {
+          "id": "agents",
+          "title": "Agents · 3",
+          "group": "extensions",
+          "source": "<ROOT>\\home\\.claude\\agents",
+          "cards": [
+            {
+              "name": "dir-agent",
+              "badge": "agent",
+              "ok": false,
+              "kv": [
+                [
+                  "desc",
+                  "-"
+                ],
+                [
+                  "tools",
+                  "Read"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\agents\\dirform"
+                ]
+              ],
+              "edit": {
+                "kind": "agent",
+                "name": "dirform"
+              }
+            },
+            {
+              "name": "nest/deep",
+              "badge": "agent",
+              "ok": false,
+              "kv": [
+                [
+                  "desc",
+                  "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy…"
+                ],
+                [
+                  "tools",
+                  "-"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\agents\\nest\\deep.md"
+                ]
+              ]
+            },
+            {
+              "name": "＋ 새 에이전트",
+              "badge": "add",
+              "ok": false,
+              "kv": [
+                [
+                  "형식",
+                  "name 설명…"
+                ]
+              ],
+              "edit": {
+                "kind": "agent-add"
+              }
+            },
+            {
+              "name": "proj:proj-agent",
+              "badge": "plugin",
+              "ok": true,
+              "kv": [
+                [
+                  "desc",
+                  "-"
+                ],
+                [
+                  "tools",
+                  "-"
+                ],
+                [
+                  "from",
+                  "proj@m"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\plugins\\cache\\m\\proj\\1.0.0\\agents\\pa.md"
+                ]
+              ],
+              "plugin": "proj@m"
+            }
+          ],
+          "load": "eager",
+          "note": "description 만 · 본문 LAZY"
+        },
+        {
+          "id": "commands",
+          "title": "Commands · 1",
+          "group": "extensions",
+          "source": null,
+          "cards": [
+            {
+              "name": "Sp:ns/c",
+              "badge": "plugin",
+              "ok": true,
+              "kv": [
+                [
+                  "desc",
+                  "-"
+                ],
+                [
+                  "from",
+                  "sp@m"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\plugins\\cache\\m\\sp\\1.0.0\\commands\\ns\\c.md"
+                ]
+              ],
+              "plugin": "sp@m"
+            }
+          ],
+          "load": "lazy",
+          "note": "본문은 호출 시"
+        },
+        {
+          "id": "plugins",
+          "title": "Plugins · 5",
+          "group": "extensions",
+          "source": "<ROOT>\\home\\.claude\\plugins",
+          "cards": [
+            {
+              "name": "gone",
+              "badge": "missing",
+              "ok": false,
+              "kv": [
+                [
+                  "desc",
+                  "-"
+                ],
+                [
+                  "market",
+                  "m"
+                ],
+                [
+                  "version",
+                  "-"
+                ],
+                [
+                  "gives",
+                  "-"
+                ],
+                [
+                  "id",
+                  "gone@m"
+                ],
+                [
+                  "note",
+                  "설치 경로가 없습니다: <ROOT>\\nowhere"
+                ],
+                [
+                  "source",
+                  "settings.json"
+                ]
+              ],
+              "source": "<ROOT>\\home\\.claude\\settings.json",
+              "plugin": "gone@m"
+            },
+            {
+              "name": "off",
+              "badge": "disabled",
+              "ok": false,
+              "kv": [
+                [
+                  "desc",
+                  "-"
+                ],
+                [
+                  "market",
+                  "m"
+                ],
+                [
+                  "version",
+                  "-"
+                ],
+                [
+                  "gives",
+                  "skills 1"
+                ],
+                [
+                  "id",
+                  "off@m"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\plugins\\cache\\m\\off\\1.0.0"
+                ],
+                [
+                  "installed",
+                  "project  D:\\x"
+                ],
+                [
+                  "source",
+                  "settings.json"
+                ]
+              ],
+              "edit": {
+                "kind": "plugin",
+                "id": "off@m",
+                "on": false,
+                "settings": "<ROOT>\\home\\.claude\\settings.json",
+                "scope": "project",
+                "cwd": "D:\\x"
+              },
+              "source": "<ROOT>\\home\\.claude\\settings.json",
+              "plugin": "off@m"
+            },
+            {
+              "name": "proj",
+              "badge": "plugin",
+              "ok": true,
+              "kv": [
+                [
+                  "desc",
+                  "-"
+                ],
+                [
+                  "market",
+                  "m"
+                ],
+                [
+                  "version",
+                  "-"
+                ],
+                [
+                  "gives",
+                  "agents 1"
+                ],
+                [
+                  "id",
+                  "proj@m"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\plugins\\cache\\m\\proj\\1.0.0"
+                ],
+                [
+                  "installed",
+                  "local  -"
+                ],
+                [
+                  "source",
+                  "settings.json"
+                ]
+              ],
+              "edit": {
+                "kind": "plugin",
+                "id": "proj@m",
+                "on": true,
+                "settings": "<ROOT>\\home\\.claude\\settings.json",
+                "scope": "local",
+                "cwd": ""
+              },
+              "source": "<ROOT>\\home\\.claude\\settings.json",
+              "plugin": "proj@m"
+            },
+            {
+              "name": "sp",
+              "badge": "plugin",
+              "ok": true,
+              "kv": [
+                [
+                  "desc",
+                  "-"
+                ],
+                [
+                  "market",
+                  "m"
+                ],
+                [
+                  "version",
+                  "9"
+                ],
+                [
+                  "gives",
+                  "skills 1 · commands 1 · rules 1 · workflows 1 · hooks 2 · mcp 2"
+                ],
+                [
+                  "namespace",
+                  "Sp:"
+                ],
+                [
+                  "id",
+                  "sp@m"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\.claude\\plugins\\cache\\m\\sp\\1.0.0"
+                ],
+                [
+                  "source",
+                  "settings.json"
+                ]
+              ],
+              "edit": {
+                "kind": "plugin",
+                "id": "sp@m",
+                "on": true,
+                "settings": "<ROOT>\\home\\.claude\\settings.json",
+                "scope": "user",
+                "cwd": ""
+              },
+              "source": "<ROOT>\\home\\.claude\\settings.json",
+              "plugin": "sp@m"
+            },
+            {
+              "name": "ghost",
+              "badge": "stale",
+              "ok": false,
+              "kv": [
+                [
+                  "desc",
+                  "-"
+                ],
+                [
+                  "market",
+                  "x"
+                ],
+                [
+                  "version",
+                  "-"
+                ],
+                [
+                  "gives",
+                  "-"
+                ],
+                [
+                  "id",
+                  "ghost@x"
+                ],
+                [
+                  "note",
+                  "enabledPlugins 에만 남은 키 - 설치 기록이 없습니다"
+                ],
+                [
+                  "source",
+                  "settings.json"
+                ]
+              ],
+              "source": "<ROOT>\\home\\.claude\\settings.json",
+              "plugin": "ghost@x"
+            }
+          ],
+          "load": "never",
+          "note": "관리 단위 · 항목은 각 섹션에 합류"
+        },
+        {
+          "id": "scheduled",
+          "title": "Scheduled Tasks · 2",
+          "group": "env",
+          "source": "<ROOT>\\home\\Claude\\Scheduled",
+          "cards": [
+            {
+              "name": "daily",
+              "badge": "scheduled",
+              "ok": true,
+              "kv": [
+                [
+                  "desc",
+                  "d"
+                ],
+                [
+                  "schedule",
+                  "0 9 * * *"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\Claude\\Scheduled\\daily"
+                ]
+              ]
+            },
+            {
+              "name": "fire",
+              "badge": "scheduled",
+              "ok": true,
+              "kv": [
+                [
+                  "desc",
+                  "-"
+                ],
+                [
+                  "schedule",
+                  "soon"
+                ],
+                [
+                  "path",
+                  "<ROOT>\\home\\Claude\\Scheduled\\fire"
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "id": "desktop-skills",
+          "title": "Desktop Skills · 2",
+          "group": "connect",
+          "source": "<ROOT>\\home\\AppData\\Roaming\\Claude\\local-agent-mode-sessions\\skills-plugin\\s1\\manifest.json  (+1 more)",
+          "cards": [
+            {
+              "name": "a",
+              "badge": "user",
+              "ok": true,
+              "kv": [
+                [
+                  "desc",
+                  "-"
+                ],
+                [
+                  "creator",
+                  "user"
+                ],
+                [
+                  "enabled",
+                  "True"
+                ],
+                [
+                  "updated",
+                  "-"
+                ]
+              ]
+            },
+            {
+              "name": "b2",
+              "badge": "anthropic",
+              "ok": false,
+              "kv": [
+                [
+                  "desc",
+                  "-"
+                ],
+                [
+                  "creator",
+                  "anthropic"
+                ],
+                [
+                  "enabled",
+                  "-"
+                ],
+                [
+                  "updated",
+                  "3"
+                ]
+              ],
+              "builtin": true
+            }
+          ],
+          "note": "user 1 / anthropic 1"
+        }
+      ]
+    }
+  }
+]

@@ -1,0 +1,111 @@
+{
+  "id": "library.mcp",
+  "module": "library",
+  "steps": [
+    {
+      "argv": [
+        "mcp-install",
+        "--origin",
+        "local:{LIB}/servers/notes",
+        "--dry-run"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "dry_run",
+        "message": "Would install MCP servers: <ROOT>\\tools\\my-tools/servers/notes (1)",
+        "target": "<ROOT>\\Users\\alex\\.claude.json",
+        "dry_run": true,
+        "origin": "local:<ROOT>\\tools\\my-tools/servers/notes",
+        "root": "<ROOT>\\tools\\my-tools/servers/notes",
+        "servers": [
+          "notes"
+        ],
+        "server_config": {
+          "notes": {
+            "command": "node",
+            "args": [
+              "<ROOT>\\tools\\my-tools/servers/notes/server.js"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "argv": [
+        "mcp-install",
+        "--origin",
+        "local:{LIB}/servers/notes",
+        "--scope",
+        "desktop"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "MCP servers installed: <ROOT>\\tools\\my-tools/servers/notes (1, scope=desktop)",
+        "target": "<ROOT>\\Users\\alex\\AppData\\Roaming\\Claude\\claude_desktop_config.json",
+        "origin": "local:<ROOT>\\tools\\my-tools/servers/notes",
+        "backup": "<ROOT>\\Users\\alex\\AppData\\Roaming\\Claude\\claude_desktop_config.json.<TS14>.bak",
+        "servers": [
+          "notes"
+        ],
+        "warning": null
+      }
+    },
+    {
+      "argv": [
+        "mcp-install",
+        "--origin",
+        "local:{LIB}/servers/notes",
+        "--server",
+        "nope"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "not_found",
+        "message": "No such server: nope",
+        "target": "nope",
+        "available": [
+          "notes"
+        ]
+      }
+    },
+    {
+      "argv": [
+        "mcp-uninstall",
+        "--origin",
+        "local:{LIB}/servers/notes",
+        "--scope",
+        "desktop"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "MCP servers removed: <ROOT>\\tools\\my-tools/servers/notes (1)",
+        "target": "<ROOT>\\Users\\alex\\AppData\\Roaming\\Claude\\claude_desktop_config.json",
+        "origin": "local:<ROOT>\\tools\\my-tools/servers/notes",
+        "removed": 1,
+        "changed": true
+      }
+    },
+    {
+      "argv": [
+        "mcp-uninstall",
+        "--origin",
+        "local:{LIB}/servers/notes",
+        "--scope",
+        "desktop"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "noop",
+        "message": "No install record (no-op)",
+        "changed": false
+      }
+    }
+  ]
+}

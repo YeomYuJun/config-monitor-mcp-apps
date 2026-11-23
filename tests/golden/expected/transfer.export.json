@@ -1,0 +1,410 @@
+{
+  "id": "transfer.export",
+  "module": "transfer",
+  "steps": [
+    {
+      "argv": [
+        "export",
+        "--out",
+        "{ROOT}/out/folder-bundle"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Created bundle: <ROOT>\\out\\folder-bundle (19 items, 4 external paths)",
+        "target": "<ROOT>\\out\\folder-bundle",
+        "bundle": "<ROOT>\\out\\folder-bundle",
+        "counts": {
+          "cc.skills": 4,
+          "cc.agents": 3,
+          "cc.commands": 2,
+          "cc.rules": 2,
+          "cc.output-styles": 1,
+          "cc.claude-md": 1,
+          "cc.settings": 1,
+          "cc.mcp-user": 2,
+          "desk.mcp": 2,
+          "cm.store": 1
+        },
+        "plugins": {
+          "declared": 0,
+          "market": [],
+          "builtin": [],
+          "inline": [],
+          "added_explicit": [],
+          "dropped": [],
+          "markets_added": []
+        },
+        "external": [
+          {
+            "kind": "mcp",
+            "path": "<ROOT>\\tools\\my-tools\\servers\\notes\\server.js",
+            "token": "<ROOT>\\tools\\my-tools\\servers\\notes\\server.js",
+            "exists": true,
+            "owners": [
+              "notes"
+            ],
+            "scopes": [
+              "cc.mcp-user",
+              "desk.mcp"
+            ],
+            "fields": [
+              "cc.mcp-user:args[0]",
+              "desk.mcp:args[0]"
+            ]
+          },
+          {
+            "kind": "mcp",
+            "path": "<ROOT>\\work\\acme-web",
+            "token": "<ROOT>\\work\\acme-web",
+            "exists": true,
+            "owners": [
+              "filesystem"
+            ],
+            "scopes": [
+              "desk.mcp"
+            ],
+            "fields": [
+              "desk.mcp:args[2]"
+            ]
+          },
+          {
+            "kind": "hook",
+            "path": "<ROOT>\\tools\\my-tools\\hooks\\format-on-save\\index.js",
+            "token": "<ROOT>\\tools\\my-tools\\hooks\\format-on-save\\index.js",
+            "exists": true,
+            "owners": [
+              "PostToolUse"
+            ],
+            "scopes": [
+              "cc.settings"
+            ],
+            "fields": [
+              "cc.settings:hooks.PostToolUse[0].hooks[0].command"
+            ]
+          },
+          {
+            "kind": "hook",
+            "path": "<ROOT>\\tools\\my-tools\\hooks\\guard-secrets\\index.js",
+            "token": "<ROOT>\\tools\\my-tools\\hooks\\guard-secrets\\index.js",
+            "exists": true,
+            "owners": [
+              "PreToolUse"
+            ],
+            "scopes": [
+              "cc.settings"
+            ],
+            "fields": [
+              "cc.settings:hooks.PreToolUse[0].hooks[0].command"
+            ]
+          }
+        ],
+        "skipped": [],
+        "warnings": [],
+        "secrets": [],
+        "include_secrets": false,
+        "report": [
+          "Export result: <ROOT>\\out\\folder-bundle",
+          "- Skill: 4",
+          "- Agent: 3",
+          "- Command: 2",
+          "- Rule: 2",
+          "- Output style: 1",
+          "- CLAUDE.md",
+          "- settings.json (permissions, hooks, env, plugin declarations)",
+          "- MCP server (Claude Code): 2",
+          "- MCP server (Desktop): 2",
+          "- config-monitor store settings",
+          "- Plugin declarations 0 (marketplace 0, built-in 0, inline 0); Claude Code on the new PC downloads them on its next start",
+          "- Not bundled (prepare these at the same paths on the new PC)",
+          "  - MCP servers",
+          "    - filesystem (Desktop): <ROOT>\\work\\acme-web",
+          "    - notes (Claude Code, Desktop): <ROOT>\\tools\\my-tools\\servers\\notes\\server.js",
+          "  - Hooks",
+          "    - <ROOT>\\tools\\my-tools\\hooks\\format-on-save\\index.js (PostToolUse)",
+          "    - <ROOT>\\tools\\my-tools\\hooks\\guard-secrets\\index.js (PreToolUse)"
+        ]
+      }
+    },
+    {
+      "argv": [
+        "export",
+        "--out",
+        "{ROOT}/out/folder-bundle"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "exists",
+        "message": "Already exists: <ROOT>\\out\\folder-bundle",
+        "target": "<ROOT>\\out\\folder-bundle"
+      }
+    },
+    {
+      "argv": [
+        "export",
+        "--out",
+        "{ROOT}/out/zip.cmbundle"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Created bundle: <ROOT>\\out\\zip.cmbundle (19 items, 4 external paths)",
+        "target": "<ROOT>\\out\\zip.cmbundle",
+        "bundle": "<ROOT>\\out\\zip.cmbundle",
+        "counts": {
+          "cc.skills": 4,
+          "cc.agents": 3,
+          "cc.commands": 2,
+          "cc.rules": 2,
+          "cc.output-styles": 1,
+          "cc.claude-md": 1,
+          "cc.settings": 1,
+          "cc.mcp-user": 2,
+          "desk.mcp": 2,
+          "cm.store": 1
+        },
+        "plugins": {
+          "declared": 0,
+          "market": [],
+          "builtin": [],
+          "inline": [],
+          "added_explicit": [],
+          "dropped": [],
+          "markets_added": []
+        },
+        "external": [
+          {
+            "kind": "mcp",
+            "path": "<ROOT>\\tools\\my-tools\\servers\\notes\\server.js",
+            "token": "<ROOT>\\tools\\my-tools\\servers\\notes\\server.js",
+            "exists": true,
+            "owners": [
+              "notes"
+            ],
+            "scopes": [
+              "cc.mcp-user",
+              "desk.mcp"
+            ],
+            "fields": [
+              "cc.mcp-user:args[0]",
+              "desk.mcp:args[0]"
+            ]
+          },
+          {
+            "kind": "mcp",
+            "path": "<ROOT>\\work\\acme-web",
+            "token": "<ROOT>\\work\\acme-web",
+            "exists": true,
+            "owners": [
+              "filesystem"
+            ],
+            "scopes": [
+              "desk.mcp"
+            ],
+            "fields": [
+              "desk.mcp:args[2]"
+            ]
+          },
+          {
+            "kind": "hook",
+            "path": "<ROOT>\\tools\\my-tools\\hooks\\format-on-save\\index.js",
+            "token": "<ROOT>\\tools\\my-tools\\hooks\\format-on-save\\index.js",
+            "exists": true,
+            "owners": [
+              "PostToolUse"
+            ],
+            "scopes": [
+              "cc.settings"
+            ],
+            "fields": [
+              "cc.settings:hooks.PostToolUse[0].hooks[0].command"
+            ]
+          },
+          {
+            "kind": "hook",
+            "path": "<ROOT>\\tools\\my-tools\\hooks\\guard-secrets\\index.js",
+            "token": "<ROOT>\\tools\\my-tools\\hooks\\guard-secrets\\index.js",
+            "exists": true,
+            "owners": [
+              "PreToolUse"
+            ],
+            "scopes": [
+              "cc.settings"
+            ],
+            "fields": [
+              "cc.settings:hooks.PreToolUse[0].hooks[0].command"
+            ]
+          }
+        ],
+        "skipped": [],
+        "warnings": [],
+        "secrets": [],
+        "include_secrets": false,
+        "report": [
+          "Export result: <ROOT>\\out\\zip.cmbundle",
+          "- Skill: 4",
+          "- Agent: 3",
+          "- Command: 2",
+          "- Rule: 2",
+          "- Output style: 1",
+          "- CLAUDE.md",
+          "- settings.json (permissions, hooks, env, plugin declarations)",
+          "- MCP server (Claude Code): 2",
+          "- MCP server (Desktop): 2",
+          "- config-monitor store settings",
+          "- Plugin declarations 0 (marketplace 0, built-in 0, inline 0); Claude Code on the new PC downloads them on its next start",
+          "- Not bundled (prepare these at the same paths on the new PC)",
+          "  - MCP servers",
+          "    - filesystem (Desktop): <ROOT>\\work\\acme-web",
+          "    - notes (Claude Code, Desktop): <ROOT>\\tools\\my-tools\\servers\\notes\\server.js",
+          "  - Hooks",
+          "    - <ROOT>\\tools\\my-tools\\hooks\\format-on-save\\index.js (PostToolUse)",
+          "    - <ROOT>\\tools\\my-tools\\hooks\\guard-secrets\\index.js (PreToolUse)"
+        ]
+      }
+    },
+    {
+      "argv": [
+        "inspect",
+        "--bundle",
+        "{ROOT}/out/zip.cmbundle"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Bundle zip.cmbundle: created on <HOST> at <TIME>, 19 items",
+        "target": "<ROOT>\\out\\zip.cmbundle",
+        "bundle": "<ROOT>\\out\\zip.cmbundle",
+        "hash": "sha256:<HASH>",
+        "created": "<TIME>",
+        "source": {
+          "host": "<HOST>",
+          "os": "win32",
+          "home": "<ROOT>\\Users\\alex",
+          "claude_home": "<ROOT>\\Users\\alex\\.claude",
+          "desktop_dir": "<ROOT>\\Users\\alex\\AppData\\Roaming\\Claude"
+        },
+        "counts": {
+          "cc.skills": 4,
+          "cc.agents": 3,
+          "cc.commands": 2,
+          "cc.rules": 2,
+          "cc.output-styles": 1,
+          "cc.claude-md": 1,
+          "cc.settings": 1,
+          "cc.mcp-user": 2,
+          "desk.mcp": 2,
+          "cm.store": 1
+        },
+        "skipped": [],
+        "external": [
+          {
+            "kind": "mcp",
+            "path": "<ROOT>\\tools\\my-tools\\servers\\notes\\server.js",
+            "token": "<ROOT>\\tools\\my-tools\\servers\\notes\\server.js",
+            "exists": true,
+            "owners": [
+              "notes"
+            ],
+            "scopes": [
+              "cc.mcp-user",
+              "desk.mcp"
+            ],
+            "fields": [
+              "cc.mcp-user:args[0]",
+              "desk.mcp:args[0]"
+            ]
+          },
+          {
+            "kind": "mcp",
+            "path": "<ROOT>\\work\\acme-web",
+            "token": "<ROOT>\\work\\acme-web",
+            "exists": true,
+            "owners": [
+              "filesystem"
+            ],
+            "scopes": [
+              "desk.mcp"
+            ],
+            "fields": [
+              "desk.mcp:args[2]"
+            ]
+          },
+          {
+            "kind": "hook",
+            "path": "<ROOT>\\tools\\my-tools\\hooks\\format-on-save\\index.js",
+            "token": "<ROOT>\\tools\\my-tools\\hooks\\format-on-save\\index.js",
+            "exists": true,
+            "owners": [
+              "PostToolUse"
+            ],
+            "scopes": [
+              "cc.settings"
+            ],
+            "fields": [
+              "cc.settings:hooks.PostToolUse[0].hooks[0].command"
+            ]
+          },
+          {
+            "kind": "hook",
+            "path": "<ROOT>\\tools\\my-tools\\hooks\\guard-secrets\\index.js",
+            "token": "<ROOT>\\tools\\my-tools\\hooks\\guard-secrets\\index.js",
+            "exists": true,
+            "owners": [
+              "PreToolUse"
+            ],
+            "scopes": [
+              "cc.settings"
+            ],
+            "fields": [
+              "cc.settings:hooks.PreToolUse[0].hooks[0].command"
+            ]
+          }
+        ],
+        "plugins": {
+          "declared": 0,
+          "market": [],
+          "builtin": [],
+          "inline": [],
+          "added_explicit": [],
+          "dropped": [],
+          "markets_added": []
+        },
+        "has_secrets": false
+      }
+    },
+    {
+      "argv": [
+        "history"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "0 import records, 2 export records",
+        "imports": [],
+        "exports": [
+          {
+            "at": "<TIME>",
+            "path": "<ROOT>\\out\\zip.cmbundle",
+            "hash": "sha256:<HASH>",
+            "items": 19,
+            "secrets": false
+          },
+          {
+            "at": "<TIME>",
+            "path": "<ROOT>\\out\\folder-bundle",
+            "hash": "sha256:<HASH>",
+            "items": 19,
+            "secrets": false
+          }
+        ],
+        "sync": null
+      }
+    }
+  ]
+}

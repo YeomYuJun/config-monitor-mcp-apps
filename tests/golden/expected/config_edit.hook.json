@@ -1,0 +1,54 @@
+{
+  "id": "config_edit.hook",
+  "module": "config_edit",
+  "steps": [
+    {
+      "argv": [
+        "hook-add",
+        "Stop",
+        "node notify.js",
+        "--matcher",
+        "*"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Hook added: Stop (matcher=*) <- node notify.js",
+        "changed": true,
+        "settings": "<ROOT>\\Users\\alex\\.claude\\settings.json",
+        "backup": "<ROOT>\\Users\\alex\\.claude\\settings.json.<TS14>.bak"
+      }
+    },
+    {
+      "argv": [
+        "hook-remove",
+        "Stop",
+        "node notify.js"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Hooks removed (1): Stop ~ 'node notify.js'",
+        "changed": true,
+        "settings": "<ROOT>\\Users\\alex\\.claude\\settings.json",
+        "backup": "<ROOT>\\Users\\alex\\.claude\\settings.json.<TS14>.bak"
+      }
+    },
+    {
+      "argv": [
+        "hook-remove",
+        "Stop",
+        "node notify.js"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "noop",
+        "message": "Hooks removed (0): Stop ~ 'node notify.js' (no-op)",
+        "changed": false
+      }
+    }
+  ]
+}

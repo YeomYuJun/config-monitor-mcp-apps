@@ -1,0 +1,34 @@
+{
+  "id": "prefs.get",
+  "module": "prefs",
+  "steps": [
+    {
+      "argv": [
+        "get",
+        "--store",
+        "{STORE}"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Display settings",
+        "ui": {
+          "sections": {
+            "preset": "all",
+            "hidden": [],
+            "hideEmpty": true,
+            "includeMissingProjects": false,
+            "groupsCollapsed": []
+          },
+          "view": {
+            "selectedPath": "",
+            "detailOpen": true,
+            "scope": "all",
+            "libTarget": ""
+          }
+        }
+      }
+    }
+  ]
+}

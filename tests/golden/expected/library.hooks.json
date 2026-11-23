@@ -1,0 +1,122 @@
+{
+  "id": "library.hooks",
+  "module": "library",
+  "steps": [
+    {
+      "argv": [
+        "hooks-install",
+        "--origin",
+        "local:{LIB}/hooks/lint",
+        "--dry-run"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "dry_run",
+        "message": "Would install hooks: <ROOT>\\tools\\my-tools/hooks/lint (1)",
+        "dry_run": true,
+        "origin": "local:<ROOT>\\tools\\my-tools/hooks/lint",
+        "root": "<ROOT>\\tools\\my-tools/hooks/lint",
+        "commands": [
+          "node <ROOT>\\tools\\my-tools/hooks/lint/index.js"
+        ],
+        "warnings": [],
+        "events": [
+          "Stop"
+        ]
+      }
+    },
+    {
+      "argv": [
+        "hooks-install",
+        "--origin",
+        "local:{LIB}/hooks/lint"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Hooks installed: <ROOT>\\tools\\my-tools/hooks/lint (1)",
+        "origin": "local:<ROOT>\\tools\\my-tools/hooks/lint",
+        "root": "<ROOT>\\tools\\my-tools/hooks/lint",
+        "settings": "<ROOT>\\Users\\alex\\.claude\\settings.json",
+        "removed": 0,
+        "added": 1,
+        "backup": "<ROOT>\\Users\\alex\\.claude\\settings.json.<TS14>.bak",
+        "warnings": [],
+        "warning": null
+      }
+    },
+    {
+      "argv": [
+        "hooks-install",
+        "--origin",
+        "local:{LIB}/hooks/lint"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Hooks installed: <ROOT>\\tools\\my-tools/hooks/lint (1)",
+        "origin": "local:<ROOT>\\tools\\my-tools/hooks/lint",
+        "root": "<ROOT>\\tools\\my-tools/hooks/lint",
+        "settings": "<ROOT>\\Users\\alex\\.claude\\settings.json",
+        "removed": 1,
+        "added": 1,
+        "backup": "<ROOT>\\Users\\alex\\.claude\\settings.json.<TS14>.bak",
+        "warnings": [],
+        "warning": null
+      }
+    },
+    {
+      "argv": [
+        "hooks-uninstall",
+        "--origin",
+        "local:{LIB}/hooks/lint"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Hooks removed: <ROOT>\\tools\\my-tools/hooks/lint (1)",
+        "origin": "local:<ROOT>\\tools\\my-tools/hooks/lint",
+        "removed": 1,
+        "changed": true,
+        "degraded": false,
+        "warning": null
+      }
+    },
+    {
+      "argv": [
+        "hooks-uninstall",
+        "--origin",
+        "local:{LIB}/hooks/lint"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Hooks removed: <ROOT>\\tools\\my-tools/hooks/lint (0)",
+        "origin": "local:<ROOT>\\tools\\my-tools/hooks/lint",
+        "removed": 0,
+        "changed": false,
+        "degraded": false,
+        "warning": null
+      }
+    },
+    {
+      "argv": [
+        "hooks-install",
+        "--origin",
+        "remote:nope"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "not_fetched",
+        "message": "Not fetched yet - run fetch first: remote:nope",
+        "target": "remote:nope"
+      }
+    }
+  ]
+}

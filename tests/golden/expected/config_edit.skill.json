@@ -1,0 +1,90 @@
+{
+  "id": "config_edit.skill",
+  "module": "config_edit",
+  "steps": [
+    {
+      "argv": [
+        "skill-scaffold",
+        "new-skill",
+        "--desc",
+        "Demo skill"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Skill scaffolded: <ROOT>\\Users\\alex\\.claude\\skills\\new-skill\\SKILL.md",
+        "path": "<ROOT>\\Users\\alex\\.claude\\skills\\new-skill\\SKILL.md"
+      }
+    },
+    {
+      "argv": [
+        "skill-scaffold",
+        "new-skill"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "exists",
+        "message": "Already exists: <ROOT>\\Users\\alex\\.claude\\skills\\new-skill\\SKILL.md",
+        "target": "<ROOT>\\Users\\alex\\.claude\\skills\\new-skill\\SKILL.md"
+      }
+    },
+    {
+      "argv": [
+        "--skills-dir",
+        "{PROJECT}/.claude/skills",
+        "skill-scaffold",
+        "proj-skill",
+        "--content",
+        "---\ndescription: x\n---\n\nbody\n"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Skill installed: <ROOT>\\work\\acme-web\\.claude\\skills\\proj-skill\\SKILL.md",
+        "path": "<ROOT>\\work\\acme-web\\.claude\\skills\\proj-skill\\SKILL.md"
+      }
+    },
+    {
+      "argv": [
+        "skill-remove",
+        "changelog"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Skill removed (moved to .trash): changelog",
+        "trashed": "<ROOT>\\Users\\alex\\.claude\\skills\\.trash\\changelog.<TS14>"
+      }
+    },
+    {
+      "argv": [
+        "skill-remove",
+        "changelog"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "not_found",
+        "message": "Skill not found: <ROOT>\\Users\\alex\\.claude\\skills\\changelog",
+        "target": "<ROOT>\\Users\\alex\\.claude\\skills\\changelog"
+      }
+    },
+    {
+      "argv": [
+        "skill-scaffold",
+        "synced"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "invalid_arg",
+        "message": "'synced' cannot be edited because claude.ai account skills sync into this folder",
+        "target": "<ROOT>\\Users\\alex\\.claude\\skills\\synced"
+      }
+    }
+  ]
+}

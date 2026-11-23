@@ -1,0 +1,84 @@
+{
+  "id": "config_edit.perm",
+  "module": "config_edit",
+  "steps": [
+    {
+      "argv": [
+        "perm-add",
+        "allow",
+        "Bash(ls:*)"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Added: permissions.allow += 'Bash(ls:*)'",
+        "changed": true,
+        "settings": "<ROOT>\\Users\\alex\\.claude\\settings.json",
+        "backup": "<ROOT>\\Users\\alex\\.claude\\settings.json.<TS14>.bak"
+      }
+    },
+    {
+      "argv": [
+        "perm-add",
+        "allow",
+        "Bash(ls:*)"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "noop",
+        "message": "Already exists: allow 'Bash(ls:*)' (no-op)",
+        "changed": false
+      }
+    },
+    {
+      "argv": [
+        "perm-remove",
+        "deny",
+        "Read(./.env)"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Removed: permissions.deny -= 'Read(./.env)'",
+        "changed": true,
+        "settings": "<ROOT>\\Users\\alex\\.claude\\settings.json",
+        "backup": "<ROOT>\\Users\\alex\\.claude\\settings.json.<TS14>.bak"
+      }
+    },
+    {
+      "argv": [
+        "perm-remove",
+        "ask",
+        "Nothing"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "noop",
+        "message": "Not found (unchanged): ask 'Nothing' (no-op)",
+        "changed": false
+      }
+    },
+    {
+      "argv": [
+        "--settings",
+        "{PROJECT}/.claude/settings.json",
+        "perm-add",
+        "deny",
+        "Bash(rm:*)"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Added: permissions.deny += 'Bash(rm:*)'",
+        "changed": true,
+        "settings": "<ROOT>\\work\\acme-web\\.claude\\settings.json",
+        "backup": "<ROOT>\\work\\acme-web\\.claude\\settings.json.<TS14>.bak"
+      }
+    }
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "id": "cas.gc",
+  "module": "cas",
+  "steps": [
+    {
+      "argv": [
+        "gc",
+        "--json",
+        "--keep-days",
+        "90",
+        "--dry-run"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "dry_run",
+        "message": "Would clean up: snapshots 0 · objects 0 · 0.0 MB (keep 90 days)",
+        "dry_run": true,
+        "keep_days": 90,
+        "removed_snapshots": 0,
+        "kept_snapshots": 4,
+        "removed_objects": 0,
+        "tmp_removed": 0
+      }
+    },
+    {
+      "argv": [
+        "gc",
+        "--json",
+        "--keep-days",
+        "0",
+        "--dry-run"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "dry_run",
+        "message": "Would clean up: snapshots 3 · objects 3 · 0.0 MB (keep 0 days)",
+        "dry_run": true,
+        "keep_days": 0,
+        "removed_snapshots": 3,
+        "kept_snapshots": 1,
+        "removed_objects": 3,
+        "tmp_removed": 0
+      }
+    },
+    {
+      "argv": [
+        "gc",
+        "--json",
+        "--keep-days",
+        "0"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Cleaned up: snapshots 3 · objects 3 · 0.0 MB (keep 0 days)",
+        "dry_run": false,
+        "keep_days": 0,
+        "removed_snapshots": 3,
+        "kept_snapshots": 1,
+        "removed_objects": 3,
+        "tmp_removed": 0
+      }
+    }
+  ]
+}

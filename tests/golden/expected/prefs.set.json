@@ -1,0 +1,99 @@
+{
+  "id": "prefs.set",
+  "module": "prefs",
+  "steps": [
+    {
+      "argv": [
+        "set",
+        "--store",
+        "{STORE}",
+        "--json",
+        "{\"sections\":{\"preset\":\"present\",\"hidden\":[\"themes\"],\"unknown\":1},\"view\":{\"scope\":\"global\"}}"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Display settings saved",
+        "ui": {
+          "sections": {
+            "preset": "all",
+            "hidden": [
+              "themes"
+            ],
+            "hideEmpty": true,
+            "includeMissingProjects": false,
+            "groupsCollapsed": []
+          },
+          "view": {
+            "selectedPath": "",
+            "detailOpen": true,
+            "scope": "global",
+            "libTarget": ""
+          }
+        }
+      }
+    },
+    {
+      "argv": [
+        "get",
+        "--store",
+        "{STORE}"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Display settings",
+        "ui": {
+          "sections": {
+            "preset": "all",
+            "hidden": [
+              "themes"
+            ],
+            "hideEmpty": true,
+            "includeMissingProjects": false,
+            "groupsCollapsed": []
+          },
+          "view": {
+            "selectedPath": "",
+            "detailOpen": true,
+            "scope": "global",
+            "libTarget": ""
+          }
+        }
+      }
+    },
+    {
+      "argv": [
+        "set",
+        "--store",
+        "{STORE}",
+        "--json",
+        "{not json"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "invalid_arg",
+        "message": "Failed to parse --json: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)",
+        "target": "--json"
+      }
+    },
+    {
+      "argv": [
+        "set",
+        "--store",
+        "{ROOT}/no-store",
+        "--json",
+        "{}"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "store_uninitialized",
+        "message": "Store is not initialized: <ROOT>\\no-store\\config.json"
+      }
+    }
+  ]
+}

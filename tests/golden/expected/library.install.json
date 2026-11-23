@@ -1,0 +1,259 @@
+{
+  "id": "library.install",
+  "module": "library",
+  "steps": [
+    {
+      "argv": [
+        "install",
+        "skills",
+        "sql-review"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Installed: skills/sql-review",
+        "target": "<ROOT>\\Users\\alex\\.claude\\skills\\sql-review",
+        "backup": null,
+        "synced": false,
+        "origin": "local:<ROOT>\\tools\\my-tools",
+        "warning": null
+      }
+    },
+    {
+      "argv": [
+        "install",
+        "skills",
+        "release-notes"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Synced: skills/release-notes",
+        "target": "<ROOT>\\Users\\alex\\.claude\\skills\\release-notes",
+        "backup": "<ROOT>\\Users\\alex\\.claude\\skills\\.trash\\release-notes.<TS14>",
+        "synced": true,
+        "origin": "local:<ROOT>\\tools\\my-tools",
+        "warning": null
+      }
+    },
+    {
+      "argv": [
+        "install",
+        "agents",
+        "security-auditor"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Installed: agents/security-auditor",
+        "target": "<ROOT>\\Users\\alex\\.claude\\agents\\security-auditor.md",
+        "backup": null,
+        "synced": false,
+        "origin": "local:<ROOT>\\tools\\my-tools",
+        "warning": null
+      }
+    },
+    {
+      "argv": [
+        "--target",
+        "{PROJECT}/.claude",
+        "install",
+        "commands",
+        "standup"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Installed: commands/standup",
+        "target": "<ROOT>\\work\\acme-web\\.claude\\commands\\standup.md",
+        "backup": null,
+        "synced": false,
+        "origin": "local:<ROOT>\\tools\\my-tools",
+        "warning": null
+      }
+    },
+    {
+      "argv": [
+        "install",
+        "skills",
+        "missing-skill"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "not_found",
+        "message": "Not in any library: skills/missing-skill",
+        "target": "skills/missing-skill"
+      }
+    },
+    {
+      "argv": [
+        "install",
+        "skills",
+        "sql-review",
+        "--origin",
+        "remote:nope"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "not_found",
+        "message": "Origin not found: remote:nope",
+        "target": "remote:nope"
+      }
+    },
+    {
+      "argv": [
+        "scan"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Libraries: 1",
+        "target": "<ROOT>\\Users\\alex\\.claude",
+        "libraries": [
+          {
+            "lib": "<ROOT>\\tools\\my-tools",
+            "source": "env",
+            "origin": "local:<ROOT>\\tools\\my-tools",
+            "marketplace": false,
+            "has_hooks": false,
+            "has_mcp": false,
+            "hooks_installed": false,
+            "mcp_installed": false,
+            "hooks_events": [],
+            "mcp_servers": [],
+            "units": [
+              {
+                "lib": "<ROOT>\\tools\\my-tools\\hooks\\format-on-save",
+                "name": "format-on-save",
+                "origin": "local:<ROOT>\\tools\\my-tools\\hooks\\format-on-save",
+                "has_hooks": true,
+                "has_mcp": false,
+                "hooks_installed": false,
+                "mcp_installed": false,
+                "hooks_events": [],
+                "mcp_servers": []
+              },
+              {
+                "lib": "<ROOT>\\tools\\my-tools\\hooks\\guard-secrets",
+                "name": "guard-secrets",
+                "origin": "local:<ROOT>\\tools\\my-tools\\hooks\\guard-secrets",
+                "has_hooks": true,
+                "has_mcp": false,
+                "hooks_installed": false,
+                "mcp_installed": false,
+                "hooks_events": [],
+                "mcp_servers": []
+              },
+              {
+                "lib": "<ROOT>\\tools\\my-tools\\hooks\\lint",
+                "name": "lint",
+                "origin": "local:<ROOT>\\tools\\my-tools\\hooks\\lint",
+                "has_hooks": true,
+                "has_mcp": false,
+                "hooks_installed": false,
+                "mcp_installed": false,
+                "hooks_events": [],
+                "mcp_servers": []
+              },
+              {
+                "lib": "<ROOT>\\tools\\my-tools\\servers\\notes",
+                "name": "notes",
+                "origin": "local:<ROOT>\\tools\\my-tools\\servers\\notes",
+                "has_hooks": false,
+                "has_mcp": true,
+                "hooks_installed": false,
+                "mcp_installed": false,
+                "hooks_events": [],
+                "mcp_servers": []
+              }
+            ],
+            "categories": {
+              "agents": [
+                {
+                  "name": "security-auditor",
+                  "group": "",
+                  "relpath": "security-auditor",
+                  "status": "installed",
+                  "owner": "local:<ROOT>\\tools\\my-tools",
+                  "origin": "local:<ROOT>\\tools\\my-tools",
+                  "kit_ref": false,
+                  "lib_path": "<ROOT>\\tools\\my-tools\\agents\\security-auditor.md",
+                  "target": "<ROOT>\\Users\\alex\\.claude\\agents\\security-auditor.md"
+                },
+                {
+                  "name": "test-writer",
+                  "group": "",
+                  "relpath": "test-writer",
+                  "status": "modified",
+                  "owner": null,
+                  "origin": "local:<ROOT>\\tools\\my-tools",
+                  "kit_ref": false,
+                  "lib_path": "<ROOT>\\tools\\my-tools\\agents\\test-writer.md",
+                  "target": "<ROOT>\\Users\\alex\\.claude\\agents\\test-writer.md"
+                }
+              ],
+              "skills": [
+                {
+                  "name": "api-docs",
+                  "group": "",
+                  "relpath": "api-docs",
+                  "status": "not_installed",
+                  "owner": null,
+                  "origin": "local:<ROOT>\\tools\\my-tools",
+                  "kit_ref": false,
+                  "lib_path": "<ROOT>\\tools\\my-tools\\skills\\api-docs",
+                  "target": "<ROOT>\\Users\\alex\\.claude\\skills\\api-docs"
+                },
+                {
+                  "name": "release-notes",
+                  "group": "",
+                  "relpath": "release-notes",
+                  "status": "installed",
+                  "owner": "local:<ROOT>\\tools\\my-tools",
+                  "origin": "local:<ROOT>\\tools\\my-tools",
+                  "kit_ref": false,
+                  "lib_path": "<ROOT>\\tools\\my-tools\\skills\\release-notes",
+                  "target": "<ROOT>\\Users\\alex\\.claude\\skills\\release-notes"
+                },
+                {
+                  "name": "sql-review",
+                  "group": "",
+                  "relpath": "sql-review",
+                  "status": "installed",
+                  "owner": "local:<ROOT>\\tools\\my-tools",
+                  "origin": "local:<ROOT>\\tools\\my-tools",
+                  "kit_ref": false,
+                  "lib_path": "<ROOT>\\tools\\my-tools\\skills\\sql-review",
+                  "target": "<ROOT>\\Users\\alex\\.claude\\skills\\sql-review"
+                }
+              ],
+              "commands": [
+                {
+                  "name": "standup",
+                  "group": "",
+                  "relpath": "standup",
+                  "status": "installed",
+                  "owner": null,
+                  "origin": "local:<ROOT>\\tools\\my-tools",
+                  "kit_ref": false,
+                  "lib_path": "<ROOT>\\tools\\my-tools\\commands\\standup.md",
+                  "target": "<ROOT>\\Users\\alex\\.claude\\commands\\standup.md"
+                }
+              ],
+              "rules": [],
+              "output-styles": [],
+              "workflows": []
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

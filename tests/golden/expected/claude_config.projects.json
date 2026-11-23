@@ -1,0 +1,45 @@
+{
+  "id": "claude_config.projects",
+  "module": "claude_config",
+  "steps": [
+    {
+      "argv": [
+        "projects"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Projects: 1",
+        "projects": [
+          {
+            "path": "<ROOT>/work/acme-web",
+            "name": "acme-web",
+            "claude_dir": "<ROOT>/work/acme-web\\.claude",
+            "has_claude": true
+          }
+        ]
+      }
+    },
+    {
+      "argv": [
+        "projects",
+        "--include-missing"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Projects: 1",
+        "projects": [
+          {
+            "path": "<ROOT>/work/acme-web",
+            "name": "acme-web",
+            "claude_dir": "<ROOT>/work/acme-web\\.claude",
+            "has_claude": true
+          }
+        ]
+      }
+    }
+  ]
+}

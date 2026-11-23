@@ -1,0 +1,67 @@
+{
+  "id": "cas.untrack",
+  "module": "cas",
+  "steps": [
+    {
+      "argv": [
+        "untrack",
+        "--json",
+        "{PROJECT}/.claude/settings.json"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Removed: 1 (index: 1)",
+        "removed": 1,
+        "index_removed": 1
+      }
+    },
+    {
+      "argv": [
+        "untrack",
+        "--json",
+        "{PROJECT}/.claude/settings.json"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "noop",
+        "message": "Removed: 0 (index: 0)",
+        "removed": 0,
+        "index_removed": 0
+      }
+    },
+    {
+      "argv": [
+        "status",
+        "--json"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Tracking status",
+        "new": [],
+        "modified": [],
+        "deleted": [],
+        "unchanged": [
+          "<ROOT>\\Users\\alex\\.claude.json",
+          "<ROOT>\\Users\\alex\\.claude\\settings.json",
+          "<ROOT>\\Users\\alex\\AppData\\Roaming\\Claude\\claude_desktop_config.json",
+          "<ROOT>\\work\\acme-web\\CLAUDE.md"
+        ],
+        "defaults": [
+          "<ROOT>\\Users\\alex\\.claude.json",
+          "<ROOT>\\Users\\alex\\.claude\\settings.json",
+          "<ROOT>\\Users\\alex\\AppData\\Roaming\\Claude\\claude_desktop_config.json"
+        ],
+        "watcher": {
+          "running": false,
+          "reason": "watcher.json not found (watcher is not running)"
+        },
+        "last_snapshot": "<SNAP>"
+      }
+    }
+  ]
+}

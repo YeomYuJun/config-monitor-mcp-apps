@@ -1,0 +1,6 @@
+{
+ "import json,sys; v=json.loads(sys.stdin.read()); print(json.dumps([json.dumps(v, ensure_ascii=False, indent=2), json.dumps(v, sort_keys=True, separators=(',',':'))])) {\"한\":[\"x\",1,-2.5,null,false],\"z\":{\"\":\"\\t\"},\"😀\":\" \"}": [
+  "{\n  \"한\": [\n    \"x\",\n    1,\n    -2.5,\n    null,\n    false\n  ],\n  \"z\": {\n    \"\": \"\\t\"\n  },\n  \"😀\": \" \"\n}",
+  "{\"z\":{\"\":\"\\t\"},\"\\ud55c\":[\"x\",1,-2.5,null,false],\"\\ud83d\\ude00\":\"\\u2028\"}"
+ ]
+}

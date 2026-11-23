@@ -1,0 +1,106 @@
+{
+  "id": "library.market",
+  "module": "library",
+  "note": "네트워크 없는 마켓 조회. remote-add/market-add/plugin-fetch/fetch 는 기준 출력 없음(docs/port-contract-2026-11-20.md 6.4절)",
+  "steps": [
+    {
+      "argv": [
+        "market-discover"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Markets to import: 0 · registered in both: 0",
+        "plugins_dir": "<ROOT>\\Users\\alex\\.claude\\plugins",
+        "new": [],
+        "both": [],
+        "unusable": []
+      }
+    },
+    {
+      "argv": [
+        "catalog"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Plugins: 0",
+        "total": 0,
+        "total_all": 0,
+        "offset": 0,
+        "limit": 50,
+        "categories": {},
+        "marketplaces": [],
+        "rows": []
+      }
+    },
+    {
+      "argv": [
+        "catalog",
+        "--limit",
+        "-1"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Plugins: 0",
+        "total": 0,
+        "total_all": 0,
+        "offset": 0,
+        "limit": -1,
+        "categories": {},
+        "marketplaces": [],
+        "rows": []
+      }
+    },
+    {
+      "argv": [
+        "plugin-fetch",
+        "--marketplace",
+        "nope",
+        "--plugin",
+        "x"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "not_found",
+        "message": "Marketplace not registered: nope",
+        "target": "nope"
+      }
+    },
+    {
+      "argv": [
+        "fetch",
+        "--origin",
+        "remote:nope"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "not_found",
+        "message": "Remote not registered: nope",
+        "target": "nope"
+      }
+    },
+    {
+      "argv": [
+        "remote-add",
+        "--url",
+        "https://example.invalid/x.git",
+        "--map",
+        "[1]"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "invalid_arg",
+        "message": "--map keys must be one of ['agents', 'skills', 'commands', 'rules', 'output-styles', 'workflows']",
+        "target": "--map"
+      }
+    }
+  ]
+}

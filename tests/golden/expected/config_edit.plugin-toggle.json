@@ -1,0 +1,52 @@
+{
+  "id": "config_edit.plugin-toggle",
+  "module": "config_edit",
+  "steps": [
+    {
+      "argv": [
+        "plugin-toggle",
+        "demo@market",
+        "off"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Plugin disabled: demo@market (applies from the next session)",
+        "changed": true,
+        "settings": "<ROOT>\\Users\\alex\\.claude\\settings.json",
+        "backup": "<ROOT>\\Users\\alex\\.claude\\settings.json.<TS14>.bak"
+      }
+    },
+    {
+      "argv": [
+        "plugin-toggle",
+        "demo@market",
+        "off"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "noop",
+        "message": "Already disabled: demo@market (no-op)",
+        "changed": false
+      }
+    },
+    {
+      "argv": [
+        "plugin-toggle",
+        "demo@market",
+        "on"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Plugin enabled: demo@market (applies from the next session)",
+        "changed": true,
+        "settings": "<ROOT>\\Users\\alex\\.claude\\settings.json",
+        "backup": "<ROOT>\\Users\\alex\\.claude\\settings.json.<TS14>.bak"
+      }
+    }
+  ]
+}

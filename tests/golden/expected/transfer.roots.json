@@ -1,0 +1,437 @@
+{
+  "id": "transfer.roots",
+  "module": "transfer",
+  "steps": [
+    {
+      "argv": [
+        "roots",
+        "--bundle",
+        "{BUNDLE}",
+        "--roots",
+        "{\"{J:ROOT}\\\\old-pc\\\\old-drive\": \"{J:ROOT}\\\\tools\"}"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "Saved 1 path pairs. Compare again on the import screen to use them",
+        "target": "<ROOT>\\bundles\\old-laptop",
+        "roots": [
+          {
+            "from": "<ROOT>\\old-pc\\old-drive",
+            "to": "<ROOT>\\tools",
+            "ok": true,
+            "total": 7,
+            "resolved": 5
+          }
+        ]
+      }
+    },
+    {
+      "argv": [
+        "plan",
+        "--bundle",
+        "{BUNDLE}"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "ok",
+        "message": "plan <HEX16>: new 3, changed 2, same 2, blocked 1, skipped 0. 2 paths that do not exist on this PC are not used (set pairs with roots to recompute)",
+        "target": "<ROOT>\\bundles\\old-laptop",
+        "bundle": "<ROOT>\\bundles\\old-laptop",
+        "plan_id": "<HEX>",
+        "source": {
+          "host": "old-laptop",
+          "os": "win32",
+          "home": "<ROOT>\\old-pc\\Users\\sam",
+          "claude_home": "<ROOT>\\old-pc\\Users\\sam\\.claude",
+          "desktop_dir": "<ROOT>\\old-pc\\Users\\sam\\AppData\\Roaming\\Claude"
+        },
+        "items": [
+          {
+            "id": "cc.skills/api-docs",
+            "category": "cc.skills",
+            "strategy": "tree",
+            "target": "<ROOT>\\Users\\alex\\.claude\\skills\\api-docs",
+            "state": "new"
+          },
+          {
+            "id": "cc.skills/code-review",
+            "category": "cc.skills",
+            "strategy": "tree",
+            "target": "<ROOT>\\Users\\alex\\.claude\\skills\\code-review",
+            "state": "same"
+          },
+          {
+            "id": "cc.skills/sql-review",
+            "category": "cc.skills",
+            "strategy": "tree",
+            "target": "<ROOT>\\Users\\alex\\.claude\\skills\\sql-review",
+            "state": "new"
+          },
+          {
+            "id": "cc.agents/security-auditor.md",
+            "category": "cc.agents",
+            "strategy": "file",
+            "target": "<ROOT>\\Users\\alex\\.claude\\agents\\security-auditor.md",
+            "state": "new"
+          },
+          {
+            "id": "cc.settings",
+            "category": "cc.settings",
+            "strategy": "json-keys",
+            "target": "<ROOT>\\Users\\alex\\.claude\\settings.json",
+            "hooks": [
+              {
+                "id": "hook:<HEX10>",
+                "event": "PostToolUse",
+                "matcher": "Edit|Write",
+                "command": "node \"<ROOT>\\tools\\my-tools\\hooks\\format-on-save\\index.js\"",
+                "remapped": [
+                  {
+                    "from": "<ROOT>\\old-pc\\old-drive",
+                    "to": "<ROOT>\\tools"
+                  }
+                ],
+                "state": "same",
+                "code": "dup"
+              },
+              {
+                "id": "hook:<HEX10>",
+                "event": "Stop",
+                "matcher": null,
+                "command": "node \"<ROOT>\\tools\\my-tools\\hooks\\notify\\index.js\"",
+                "remapped": [
+                  {
+                    "from": "<ROOT>\\old-pc\\old-drive",
+                    "to": "<ROOT>\\tools"
+                  }
+                ],
+                "state": "blocked",
+                "code": "path_missing",
+                "target": "<ROOT>\\tools\\my-tools\\hooks\\notify\\index.js"
+              },
+              {
+                "id": "hook:<HEX10>",
+                "event": "Stop",
+                "matcher": null,
+                "command": "node \"<ROOT>\\tools\\my-tools\\hooks\\lint\\index.js\"",
+                "remapped": [
+                  {
+                    "from": "<ROOT>\\old-pc\\old-drive",
+                    "to": "<ROOT>\\tools"
+                  }
+                ],
+                "state": "new"
+              },
+              {
+                "id": "hook:<HEX10>",
+                "event": "PreToolUse",
+                "matcher": "Bash",
+                "command": "node \"<ROOT>\\tools\\my-tools\\hooks\\guard-secrets\\index.js\"",
+                "remapped": [
+                  {
+                    "from": "<ROOT>\\old-pc\\old-drive",
+                    "to": "<ROOT>\\tools"
+                  }
+                ],
+                "state": "same",
+                "code": "dup"
+              }
+            ],
+            "dropped": [
+              {
+                "what": "hook",
+                "event": "Stop",
+                "target": "<ROOT>\\tools\\my-tools\\hooks\\notify\\index.js"
+              }
+            ],
+            "remapped": [
+              {
+                "from": "<ROOT>\\old-pc\\old-drive",
+                "to": "<ROOT>\\tools"
+              }
+            ],
+            "state": "changed",
+            "diff": [
+              "--- current",
+              "+++ bundle",
+              "@@ -22,4 +22,14 @@",
+              "         \"matcher\": \"Bash\"",
+              "       }",
+              "+    ],",
+              "+    \"Stop\": [",
+              "+      {",
+              "+        \"hooks\": [",
+              "+          {",
+              "+            \"command\": \"node \\\"<ROOT>\\\\tools\\\\my-tools\\\\hooks\\\\lint\\\\index.js\\\"\",",
+              "+            \"type\": \"command\"",
+              "+          }",
+              "+        ]",
+              "+      }",
+              "     ]",
+              "   },",
+              "@@ -31,5 +41,6 @@",
+              "       \"Bash(git status)\",",
+              "       \"Bash(git diff:*)\",",
+              "-      \"Bash(npm test)\"",
+              "+      \"Bash(npm test)\",",
+              "+      \"Bash(pytest:*)\"",
+              "     ],",
+              "     \"deny\": ["
+            ]
+          },
+          {
+            "id": "cc.mcp-user/jira",
+            "category": "cc.mcp-user",
+            "strategy": "json-keys",
+            "target": "<ROOT>\\Users\\alex\\.claude.json",
+            "key": "jira",
+            "remapped": [
+              {
+                "from": "<ROOT>\\old-pc\\old-drive",
+                "to": "<ROOT>\\tools"
+              }
+            ],
+            "state": "blocked",
+            "code": "path_missing",
+            "missing_paths": [
+              "<ROOT>\\tools\\jira-mcp\\index.js"
+            ],
+            "reason": "Path does not exist on this PC: <ROOT>\\tools\\jira-mcp\\index.js"
+          },
+          {
+            "id": "cc.mcp-user/notes",
+            "category": "cc.mcp-user",
+            "strategy": "json-keys",
+            "target": "<ROOT>\\Users\\alex\\.claude.json",
+            "key": "notes",
+            "remapped": [
+              {
+                "from": "<ROOT>\\old-pc\\old-drive",
+                "to": "<ROOT>\\tools"
+              }
+            ],
+            "state": "same"
+          },
+          {
+            "id": "cm.store",
+            "category": "cm.store",
+            "strategy": "json-keys",
+            "target": "<ROOT>\\Users\\alex\\.claude-snapshot\\config.json",
+            "state": "changed",
+            "diff": [
+              "--- current",
+              "+++ bundle",
+              "@@ -1,4 +1,6 @@",
+              " {",
+              "-  \"libraries\": [],",
+              "+  \"libraries\": [",
+              "+    \"<ROOT>\\\\tools\\\\my-tools\"",
+              "+  ],",
+              "   \"marketplaces\": [],",
+              "   \"remotes\": [],"
+            ],
+            "remapped": [
+              {
+                "from": "<ROOT>\\old-pc\\old-drive",
+                "to": "<ROOT>\\tools"
+              }
+            ]
+          }
+        ],
+        "summary": {
+          "new": 3,
+          "same": 2,
+          "changed": 2,
+          "blocked": 1,
+          "skipped": 0
+        },
+        "external": [
+          {
+            "kind": "mcp",
+            "owners": [
+              "jira"
+            ],
+            "scopes": [
+              "cc.mcp-user"
+            ],
+            "fields": [
+              "cc.mcp-user:args[0]"
+            ],
+            "path": "<ROOT>\\tools\\jira-mcp\\index.js",
+            "source_path": "<ROOT>\\old-pc\\old-drive\\jira-mcp\\index.js",
+            "exists": false,
+            "in_home": false,
+            "mapped_from": "<ROOT>\\old-pc\\old-drive\\jira-mcp\\index.js"
+          },
+          {
+            "kind": "mcp",
+            "owners": [
+              "notes"
+            ],
+            "scopes": [
+              "cc.mcp-user"
+            ],
+            "fields": [
+              "cc.mcp-user:args[0]"
+            ],
+            "path": "<ROOT>\\tools\\my-tools\\servers\\notes\\server.js",
+            "source_path": "<ROOT>\\old-pc\\old-drive\\my-tools\\servers\\notes\\server.js",
+            "exists": true,
+            "in_home": false,
+            "mapped_from": "<ROOT>\\old-pc\\old-drive\\my-tools\\servers\\notes\\server.js"
+          },
+          {
+            "kind": "hook",
+            "owners": [
+              "PostToolUse"
+            ],
+            "scopes": [
+              "cc.settings"
+            ],
+            "fields": [
+              "cc.settings:hooks.PostToolUse[0].hooks[0].command"
+            ],
+            "path": "<ROOT>\\tools\\my-tools\\hooks\\format-on-save\\index.js",
+            "source_path": "<ROOT>\\old-pc\\old-drive\\my-tools\\hooks\\format-on-save\\index.js",
+            "exists": true,
+            "in_home": false,
+            "mapped_from": "<ROOT>\\old-pc\\old-drive\\my-tools\\hooks\\format-on-save\\index.js"
+          },
+          {
+            "kind": "hook",
+            "owners": [
+              "PreToolUse"
+            ],
+            "scopes": [
+              "cc.settings"
+            ],
+            "fields": [
+              "cc.settings:hooks.PreToolUse[0].hooks[0].command"
+            ],
+            "path": "<ROOT>\\tools\\my-tools\\hooks\\guard-secrets\\index.js",
+            "source_path": "<ROOT>\\old-pc\\old-drive\\my-tools\\hooks\\guard-secrets\\index.js",
+            "exists": true,
+            "in_home": false,
+            "mapped_from": "<ROOT>\\old-pc\\old-drive\\my-tools\\hooks\\guard-secrets\\index.js"
+          },
+          {
+            "kind": "hook",
+            "owners": [
+              "Stop"
+            ],
+            "scopes": [
+              "cc.settings"
+            ],
+            "fields": [
+              "cc.settings:hooks.Stop[0].hooks[1].command"
+            ],
+            "path": "<ROOT>\\tools\\my-tools\\hooks\\lint\\index.js",
+            "source_path": "<ROOT>\\old-pc\\old-drive\\my-tools\\hooks\\lint\\index.js",
+            "exists": true,
+            "in_home": false,
+            "mapped_from": "<ROOT>\\old-pc\\old-drive\\my-tools\\hooks\\lint\\index.js"
+          },
+          {
+            "kind": "hook",
+            "owners": [
+              "Stop"
+            ],
+            "scopes": [
+              "cc.settings"
+            ],
+            "fields": [
+              "cc.settings:hooks.Stop[0].hooks[0].command"
+            ],
+            "path": "<ROOT>\\tools\\my-tools\\hooks\\notify\\index.js",
+            "source_path": "<ROOT>\\old-pc\\old-drive\\my-tools\\hooks\\notify\\index.js",
+            "exists": false,
+            "in_home": false,
+            "mapped_from": "<ROOT>\\old-pc\\old-drive\\my-tools\\hooks\\notify\\index.js"
+          },
+          {
+            "kind": "library",
+            "owners": [
+              "<ROOT>\\old-pc\\old-drive\\my-tools"
+            ],
+            "scopes": [
+              "cm.store"
+            ],
+            "fields": [
+              "cm.store:libraries[0]"
+            ],
+            "path": "<ROOT>\\tools\\my-tools",
+            "source_path": "<ROOT>\\old-pc\\old-drive\\my-tools",
+            "exists": true,
+            "in_home": false,
+            "mapped_from": "<ROOT>\\old-pc\\old-drive\\my-tools"
+          }
+        ],
+        "warnings": [
+          "2 paths do not exist on this PC; hooks and MCP servers that use them are left out"
+        ],
+        "warning_codes": [
+          {
+            "code": "paths_missing",
+            "n": 2
+          }
+        ],
+        "roots": [
+          {
+            "from": "<ROOT>\\old-pc\\old-drive",
+            "to": "<ROOT>\\tools",
+            "source": "claude",
+            "total": 7,
+            "resolved": 5
+          }
+        ],
+        "unresolved": [
+          {
+            "path": "<ROOT>\\tools\\jira-mcp\\index.js",
+            "kind": "mcp",
+            "owners": [
+              "jira"
+            ],
+            "source_path": "<ROOT>\\old-pc\\old-drive\\jira-mcp\\index.js",
+            "in_home": false
+          },
+          {
+            "path": "<ROOT>\\tools\\my-tools\\hooks\\notify\\index.js",
+            "kind": "hook",
+            "owners": [
+              "Stop"
+            ],
+            "source_path": "<ROOT>\\old-pc\\old-drive\\my-tools\\hooks\\notify\\index.js",
+            "in_home": false
+          }
+        ]
+      }
+    },
+    {
+      "argv": [
+        "roots",
+        "--bundle",
+        "{BUNDLE}",
+        "--roots",
+        "{\"{J:ROOT}\\\\nowhere\": \"{J:ROOT}\\\\missing\"}"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "invalid_arg",
+        "message": "No pairs were saved",
+        "target": "<ROOT>\\bundles\\old-laptop",
+        "roots": [
+          {
+            "from": "<ROOT>\\nowhere",
+            "to": "<ROOT>\\missing",
+            "ok": false,
+            "reason": "The bundle has no missing paths under this root"
+          }
+        ]
+      }
+    }
+  ]
+}

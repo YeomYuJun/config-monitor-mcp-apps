@@ -1,0 +1,231 @@
+{
+  "id": "plugin_cli.dry-run",
+  "module": "plugin_cli",
+  "note": "claude CLI 를 실행하지 않는 경로만",
+  "steps": [
+    {
+      "argv": [
+        "install",
+        "--marketplace",
+        "demo-market",
+        "--plugin",
+        "demo",
+        "--dry-run"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "dry_run",
+        "message": "Not run (dry-run)",
+        "target": "demo@demo-market",
+        "dry_run": true,
+        "command": [
+          "<CLAUDE>",
+          "plugin",
+          "install",
+          "demo@demo-market",
+          "--scope",
+          "user"
+        ],
+        "cwd": null,
+        "available": true
+      }
+    },
+    {
+      "argv": [
+        "update",
+        "--marketplace",
+        "demo-market",
+        "--plugin",
+        "demo",
+        "--scope",
+        "managed",
+        "--dry-run"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "dry_run",
+        "message": "Not run (dry-run)",
+        "target": "demo@demo-market",
+        "dry_run": true,
+        "command": [
+          "<CLAUDE>",
+          "plugin",
+          "update",
+          "demo@demo-market",
+          "--scope",
+          "managed"
+        ],
+        "cwd": null,
+        "available": true
+      }
+    },
+    {
+      "argv": [
+        "uninstall",
+        "--marketplace",
+        "demo-market",
+        "--plugin",
+        "demo",
+        "--keep-data",
+        "--dry-run"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "dry_run",
+        "message": "Not run (dry-run)",
+        "target": "demo@demo-market",
+        "dry_run": true,
+        "command": [
+          "<CLAUDE>",
+          "plugin",
+          "uninstall",
+          "demo@demo-market",
+          "--scope",
+          "user",
+          "-y",
+          "--keep-data"
+        ],
+        "cwd": null,
+        "available": true
+      }
+    },
+    {
+      "argv": [
+        "market-add",
+        "owner/repo",
+        "--sparse",
+        "plugins",
+        ".claude-plugin",
+        "--dry-run"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "dry_run",
+        "message": "Not run (dry-run)",
+        "target": "owner/repo",
+        "dry_run": true,
+        "command": [
+          "<CLAUDE>",
+          "plugin",
+          "marketplace",
+          "add",
+          "owner/repo",
+          "--scope",
+          "user",
+          "--sparse",
+          "plugins",
+          ".claude-plugin"
+        ],
+        "cwd": null,
+        "available": true
+      }
+    },
+    {
+      "argv": [
+        "market-update",
+        "--dry-run"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "dry_run",
+        "message": "Not run (dry-run)",
+        "target": "(all)",
+        "dry_run": true,
+        "command": [
+          "<CLAUDE>",
+          "plugin",
+          "marketplace",
+          "update"
+        ],
+        "cwd": null,
+        "available": true
+      }
+    },
+    {
+      "argv": [
+        "market-remove",
+        "--name",
+        "demo-market",
+        "--scope",
+        "user",
+        "--dry-run"
+      ],
+      "exit": 0,
+      "doc": {
+        "ok": true,
+        "code": "dry_run",
+        "message": "Not run (dry-run)",
+        "target": "demo-market",
+        "dry_run": true,
+        "command": [
+          "<CLAUDE>",
+          "plugin",
+          "marketplace",
+          "remove",
+          "demo-market",
+          "--scope",
+          "user"
+        ],
+        "cwd": null,
+        "available": true
+      }
+    },
+    {
+      "argv": [
+        "install",
+        "--marketplace",
+        "demo-market",
+        "--plugin",
+        "a/b",
+        "--dry-run"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "invalid_arg",
+        "message": "Invalid plugin name: 'a/b'",
+        "target": "a/b"
+      }
+    },
+    {
+      "argv": [
+        "install",
+        "--marketplace",
+        "-x",
+        "--plugin",
+        "demo",
+        "--dry-run"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "invalid_arg",
+        "message": "plugin_cli install: argument --marketplace: expected one argument"
+      }
+    },
+    {
+      "argv": [
+        "install",
+        "--marketplace",
+        "m",
+        "--plugin",
+        "demo",
+        "--cwd",
+        "{ROOT}/missing",
+        "--dry-run"
+      ],
+      "exit": 1,
+      "doc": {
+        "ok": false,
+        "code": "invalid_arg",
+        "message": "cwd is not a directory: <ROOT>\\missing",
+        "target": "<ROOT>\\missing"
+      }
+    }
+  ]
+}

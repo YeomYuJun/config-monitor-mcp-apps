@@ -1,0 +1,1688 @@
+{
+ "note": "src/marketplace.py, src/remote_fetch.py 의 출력. <ROOT> 는 실행 루트(realpath), <ROOT-REPR> 는 repr 안의 루트.",
+ "files": {
+  "fx/m0.json": "{\"name\": \"official\", \"plugins\": [{\"name\": \"convex\", \"displayName\": \"Convex\", \"source\": \"./plugins/convex\", \"category\": \"development\", \"description\": \"Backend DB\", \"author\": \"x\", \"homepage\": \"https://h\"}, {\"name\": \"beta\", \"description\": \"Stra\\u00dfe helper\", \"category\": \"database\", \"source\": {\"source\": \"url\", \"url\": \"https://e/b.git\", \"sha\": \"deadbeefcafe\"}}, {\"name\": \"..\", \"source\": \"./p\"}, {\"name\": \"bad-src\", \"source\": {\"source\": \"url\", \"url\": \"ftp://x\"}}, {\"name\": \"CON\", \"source\": \"./p\"}, {\"description\": \"no name\"}, \"str-entry\", {\"name\": \"gamma\", \"category\": \"development\", \"author\": {\"name\": \"obj\"}, \"source\": \"./plugins/gamma\"}], \"renames\": {\"convex-backend\": \"convex\", \"loop-a\": \"loop-b\", \"loop-b\": \"loop-a\", \"bad\": {\"x\": 1}, \"esc\": \"../x\"}}",
+  "fx/m1.json": "{\"name\": \"\", \"plugins\": []}",
+  "fx/m2.json": "{\"plugins\": [{\"name\": \"only\"}], \"owner\": {\"name\": \"o\"}, \"description\": \"d\"}",
+  "fx/bom.json": "﻿{\"plugins\": [{\"name\": \"only\"}], \"owner\": {\"name\": \"o\"}, \"description\": \"d\"}",
+  "fx/list.json": "[1, 2]",
+  "fx/noplug.json": "{\"plugins\": {}}",
+  "fx/layout/kit/s1/SKILL.md": "",
+  "fx/layout/dot/.x/s/skill.md": "",
+  "fx/layout/plain/README.md": "",
+  "fx/layout/deep/a/b/c/Skill.MD": ""
+ },
+ "dirs": [
+  "fx/adir",
+  "fx/layout/Agents",
+  "fx/layout/kit/s1",
+  "fx/layout/kit/skills",
+  "fx/layout/pkg/Commands",
+  "fx/layout/pkg/skills",
+  "fx/layout/dot/.x/s",
+  "fx/layout/plain",
+  "fx/layout/deep/a/b/c"
+ ],
+ "inputs": {
+  "segments": [
+   "ok",
+   "a/b",
+   "a\\b",
+   "C:foo",
+   "",
+   ".",
+   "..",
+   ".. ",
+   "..\t",
+   "...",
+   "CON",
+   "con.txt",
+   "Lpt9.md",
+   "conquest",
+   "it's",
+   "x:it's",
+   "a:'b\"",
+   "\u0007bell:",
+   "tab\there:",
+   "naïve",
+   "한글",
+   "ſon",
+   "com¹",
+   "ok.",
+   "x​:",
+   "x :",
+   "emoji😀:",
+   null,
+   5,
+   true,
+   [
+    "a"
+   ],
+   {
+    "a": 1
+   }
+  ],
+  "relpaths": [
+   "./plugins/x",
+   "plugins/a/b",
+   "../out",
+   "/abs",
+   "C:\\abs\\x",
+   "C:/abs",
+   "C:foo\\x",
+   "plugins//",
+   "plugins/./x",
+   ".\\plugins\\x",
+   "",
+   null,
+   "\\\\server\\share"
+  ],
+  "classify": [
+   "anthropics/claude-code",
+   "anthropics/claude-code#main",
+   "anthropics/claude-code@v1.0.0",
+   "a/b#feature/x",
+   "git@github.com:owner/repo.git",
+   "https://example.com/team/marketplace.json",
+   "https://example.com/a/mk.json?token=x",
+   "https://example.com/marketplace.json",
+   "https://example.com/index.json",
+   "https://host/MARKETPLACE.JSON",
+   "ssh://git@example.com/mk.json",
+   "git@example.com:mk.json",
+   "-upload-pack=evil",
+   "ext::sh -c evil",
+   "  ",
+   "",
+   "owner/re:po",
+   "owner/con",
+   "own\\er/repo",
+   "owner/",
+   "owner/..",
+   "/owner/repo/extra",
+   "C:foo",
+   "owner/repo/extra",
+   "https://[::1]/r.git",
+   "ftp://x/y.git",
+   "HTTPS://Example.com/R.git",
+   "https://example.com/r.git/",
+   "https://example.com/",
+   "owner/repo",
+   "﻿owner/repo",
+   " anthropics/claude-code \n",
+   "a/b#",
+   "a/b#-x",
+   "C:\\definitely\\not\\here",
+   "./nope-dir",
+   "git@h:x\n",
+   "user@host:path\rmore"
+  ],
+  "specs": [
+   {
+    "source": "./plugins/p"
+   },
+   {
+    "source": "../evil"
+   },
+   {
+    "source": 5
+   },
+   {
+    "source": null
+   },
+   {},
+   {
+    "source": {
+     "source": "github",
+     "repo": "o/r",
+     "commit": "c",
+     "sha": "deadbeef"
+    }
+   },
+   {
+    "source": {
+     "source": "github",
+     "repo": "../evil"
+    }
+   },
+   {
+    "source": {
+     "source": "github",
+     "repo": "a/b/c"
+    }
+   },
+   {
+    "source": {
+     "source": "github"
+    }
+   },
+   {
+    "source": {
+     "source": "github",
+     "repo": "o/r",
+     "commit": "-x"
+    }
+   },
+   {
+    "source": {
+     "source": "git-subdir",
+     "url": "https://e/x.git",
+     "path": "plugins/x",
+     "ref": "v1",
+     "sha": "abc"
+    }
+   },
+   {
+    "source": {
+     "source": "git-subdir",
+     "url": "https://e/x.git"
+    }
+   },
+   {
+    "source": {
+     "source": "git-subdir",
+     "url": "ext::sh",
+     "path": "p"
+    }
+   },
+   {
+    "source": {
+     "source": "url",
+     "url": "https://e/x.git",
+     "sha": "not-hex!"
+    }
+   },
+   {
+    "source": {
+     "source": "url",
+     "url": "https://e/x.git",
+     "sha": "abc\n"
+    }
+   },
+   {
+    "source": {
+     "source": "url",
+     "url": "--upload-pack=evil"
+    }
+   },
+   {
+    "source": {
+     "source": "url",
+     "url": "javascript:alert(1)"
+    }
+   },
+   {
+    "source": {
+     "source": "url",
+     "url": "git@github.com:o/r.git",
+     "path": "a/b"
+    }
+   },
+   {
+    "source": {
+     "source": "url",
+     "url": ""
+    }
+   },
+   {
+    "source": {
+     "source": "url"
+    }
+   },
+   {
+    "source": {
+     "source": "npm",
+     "package": "x"
+    }
+   },
+   {
+    "source": {
+     "source": "npm",
+     "sha": 5
+    }
+   },
+   {
+    "source": [
+     "a"
+    ]
+   }
+  ],
+  "manifests": [
+   {
+    "name": "official",
+    "plugins": [
+     {
+      "name": "convex",
+      "displayName": "Convex",
+      "source": "./plugins/convex",
+      "category": "development",
+      "description": "Backend DB",
+      "author": "x",
+      "homepage": "https://h"
+     },
+     {
+      "name": "beta",
+      "description": "Straße helper",
+      "category": "database",
+      "source": {
+       "source": "url",
+       "url": "https://e/b.git",
+       "sha": "deadbeefcafe"
+      }
+     },
+     {
+      "name": "..",
+      "source": "./p"
+     },
+     {
+      "name": "bad-src",
+      "source": {
+       "source": "url",
+       "url": "ftp://x"
+      }
+     },
+     {
+      "name": "CON",
+      "source": "./p"
+     },
+     {
+      "description": "no name"
+     },
+     "str-entry",
+     {
+      "name": "gamma",
+      "category": "development",
+      "author": {
+       "name": "obj"
+      },
+      "source": "./plugins/gamma"
+     }
+    ],
+    "renames": {
+     "convex-backend": "convex",
+     "loop-a": "loop-b",
+     "loop-b": "loop-a",
+     "bad": {
+      "x": 1
+     },
+     "esc": "../x"
+    }
+   },
+   {
+    "name": "",
+    "plugins": []
+   },
+   {
+    "plugins": [
+     {
+      "name": "only"
+     }
+    ],
+    "owner": {
+     "name": "o"
+    },
+    "description": "d"
+   }
+  ],
+  "queries": [
+   [
+    null,
+    null,
+    50,
+    0
+   ],
+   [
+    "dev",
+    null,
+    50,
+    0
+   ],
+   [
+    "STRASSE",
+    null,
+    50,
+    0
+   ],
+   [
+    null,
+    "development",
+    50,
+    0
+   ],
+   [
+    null,
+    null,
+    1,
+    1
+   ],
+   [
+    null,
+    null,
+    0,
+    0
+   ],
+   [
+    null,
+    null,
+    -1,
+    0
+   ],
+   [
+    null,
+    null,
+    2,
+    -1
+   ],
+   [
+    "db",
+    "database",
+    50,
+    0
+   ]
+  ],
+  "resolves": [
+   "convex",
+   "convex-backend",
+   "loop-a",
+   "bad",
+   "esc",
+   "missing",
+   "",
+   "constructor",
+   "beta"
+  ],
+  "classify_local": [
+   "fx",
+   "./fx",
+   "fx/",
+   "<ROOT>\\fx\\sub\\..",
+   "FX"
+  ],
+  "parse_files": [
+   "m0.json",
+   "m1.json",
+   "m2.json",
+   "bom.json",
+   "list.json",
+   "noplug.json",
+   "missing.json",
+   "adir"
+  ],
+  "fetched": {
+   "convex": {
+    "sha": "abc"
+   },
+   "beta": {}
+  }
+ },
+ "expected": {
+  "segments": [
+   {
+    "ok": "ok"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "이름가 유효하지 않음: 'a/b'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "이름가 유효하지 않음: 'a\\\\b'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "이름가 유효하지 않음: 'C:foo'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "이름가 유효하지 않음: ''"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "이름가 유효하지 않음: '.'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "이름가 유효하지 않음: '..'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "이름가 유효하지 않음: '.. '"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "이름가 유효하지 않음: '..\\t'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "이름가 유효하지 않음: '...'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "이름가 예약된 이름임: 'CON'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "이름가 예약된 이름임: 'con.txt'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "이름가 예약된 이름임: 'Lpt9.md'"
+   },
+   {
+    "ok": "conquest"
+   },
+   {
+    "ok": "it's"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "이름가 유효하지 않음: \"x:it's\""
+   },
+   {
+    "err": "ManifestError",
+    "msg": "이름가 유효하지 않음: 'a:\\'b\"'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "이름가 유효하지 않음: '\\x07bell:'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "이름가 유효하지 않음: 'tab\\there:'"
+   },
+   {
+    "ok": "naïve"
+   },
+   {
+    "ok": "한글"
+   },
+   {
+    "ok": "ſon"
+   },
+   {
+    "ok": "com¹"
+   },
+   {
+    "ok": "ok."
+   },
+   {
+    "err": "ManifestError",
+    "msg": "이름가 유효하지 않음: 'x\\u200b:'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "이름가 유효하지 않음: 'x\\xa0:'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "이름가 유효하지 않음: 'emoji😀:'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "이름가 유효하지 않음: None"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "이름가 유효하지 않음: 5"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "이름가 유효하지 않음: True"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "이름가 유효하지 않음: ['a']"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "이름가 유효하지 않음: {'a': 1}"
+   }
+  ],
+  "segments_what": [
+   {
+    "ok": "ok"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "플러그인 이름가 유효하지 않음: 'a/b'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "플러그인 이름가 유효하지 않음: 'a\\\\b'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "플러그인 이름가 유효하지 않음: 'C:foo'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "플러그인 이름가 유효하지 않음: ''"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "플러그인 이름가 유효하지 않음: '.'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "플러그인 이름가 유효하지 않음: '..'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "플러그인 이름가 유효하지 않음: '.. '"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "플러그인 이름가 유효하지 않음: '..\\t'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "플러그인 이름가 유효하지 않음: '...'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "플러그인 이름가 예약된 이름임: 'CON'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "플러그인 이름가 예약된 이름임: 'con.txt'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "플러그인 이름가 예약된 이름임: 'Lpt9.md'"
+   },
+   {
+    "ok": "conquest"
+   },
+   {
+    "ok": "it's"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "플러그인 이름가 유효하지 않음: \"x:it's\""
+   },
+   {
+    "err": "ManifestError",
+    "msg": "플러그인 이름가 유효하지 않음: 'a:\\'b\"'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "플러그인 이름가 유효하지 않음: '\\x07bell:'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "플러그인 이름가 유효하지 않음: 'tab\\there:'"
+   },
+   {
+    "ok": "naïve"
+   },
+   {
+    "ok": "한글"
+   },
+   {
+    "ok": "ſon"
+   },
+   {
+    "ok": "com¹"
+   },
+   {
+    "ok": "ok."
+   },
+   {
+    "err": "ManifestError",
+    "msg": "플러그인 이름가 유효하지 않음: 'x\\u200b:'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "플러그인 이름가 유효하지 않음: 'x\\xa0:'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "플러그인 이름가 유효하지 않음: 'emoji😀:'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "플러그인 이름가 유효하지 않음: None"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "플러그인 이름가 유효하지 않음: 5"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "플러그인 이름가 유효하지 않음: True"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "플러그인 이름가 유효하지 않음: ['a']"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "플러그인 이름가 유효하지 않음: {'a': 1}"
+   }
+  ],
+  "relpaths": [
+   {
+    "ok": "plugins/x"
+   },
+   {
+    "ok": "plugins/a/b"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "경로가 유효하지 않음: '..'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "경로는 상대경로여야 합니다: '/abs'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "경로는 상대경로여야 합니다: 'C:\\\\abs\\\\x'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "경로는 상대경로여야 합니다: 'C:/abs'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "경로가 유효하지 않음: 'C:foo'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "경로가 유효하지 않음: ''"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "경로가 유효하지 않음: '.'"
+   },
+   {
+    "ok": "plugins/x"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "경로가 유효하지 않음: ''"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "경로가 유효하지 않음: None"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "경로는 상대경로여야 합니다: '\\\\\\\\server\\\\share'"
+   }
+  ],
+  "classify": [
+   {
+    "ok": {
+     "kind": "git",
+     "url": "https://github.com/anthropics/claude-code.git",
+     "path": null,
+     "id": "claude-code",
+     "ref": null
+    }
+   },
+   {
+    "ok": {
+     "kind": "git",
+     "url": "https://github.com/anthropics/claude-code.git",
+     "path": null,
+     "id": "claude-code",
+     "ref": "main"
+    }
+   },
+   {
+    "ok": {
+     "kind": "git",
+     "url": "https://github.com/anthropics/claude-code.git",
+     "path": null,
+     "id": "claude-code",
+     "ref": "v1.0.0"
+    }
+   },
+   {
+    "ok": {
+     "kind": "git",
+     "url": "https://github.com/a/b.git",
+     "path": null,
+     "id": "b",
+     "ref": "feature/x"
+    }
+   },
+   {
+    "ok": {
+     "kind": "git",
+     "url": "git@github.com:owner/repo.git",
+     "path": null,
+     "ref": null,
+     "id": "repo"
+    }
+   },
+   {
+    "ok": {
+     "kind": "json",
+     "url": "https://example.com/team/marketplace.json",
+     "path": null,
+     "ref": null,
+     "id": "team"
+    }
+   },
+   {
+    "ok": {
+     "kind": "json",
+     "url": "https://example.com/a/mk.json?token=x",
+     "path": null,
+     "ref": null,
+     "id": "mk"
+    }
+   },
+   {
+    "ok": {
+     "kind": "json",
+     "url": "https://example.com/marketplace.json",
+     "path": null,
+     "ref": null,
+     "id": "example.com"
+    }
+   },
+   {
+    "ok": {
+     "kind": "json",
+     "url": "https://example.com/index.json",
+     "path": null,
+     "ref": null,
+     "id": "example.com"
+    }
+   },
+   {
+    "ok": {
+     "kind": "json",
+     "url": "https://host/MARKETPLACE.JSON",
+     "path": null,
+     "ref": null,
+     "id": "host"
+    }
+   },
+   {
+    "err": "ManifestError",
+    "msg": "marketplace.json 은 http/https 로만 받습니다: 'ssh://git@example.com/mk.json'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "marketplace.json 은 http/https 로만 받습니다: 'git@example.com:mk.json'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "마켓 소스가 옵션처럼 시작함(주입 위험): '-upload-pack=evil'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "마켓 소스에 전송 헬퍼 구문은 허용하지 않음(예: ext::): 'ext::sh -c evil'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "마켓 소스가 비어 있습니다: '  '"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "마켓 소스가 비어 있습니다: ''"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "마켓 소스가 유효하지 않음: 're:po'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "마켓 소스가 예약된 이름임: 'con'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "마켓 소스가 유효하지 않음: 'own\\\\er'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "마켓 소스가 유효하지 않음: ''"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "마켓 소스가 유효하지 않음: '..'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "로컬 마켓 경로가 디렉토리가 아닙니다: '/owner/repo/extra'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "마켓 소스 형식을 알 수 없습니다: 'C:foo' - owner/repo, git URL, marketplace.json URL, 로컬 경로 중 하나여야 합니다"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "마켓 소스 형식을 알 수 없습니다: 'owner/repo/extra' - owner/repo, git URL, marketplace.json URL, 로컬 경로 중 하나여야 합니다"
+   },
+   {
+    "ok": {
+     "kind": "git",
+     "url": "https://[::1]/r.git",
+     "path": null,
+     "ref": null,
+     "id": "r"
+    }
+   },
+   {
+    "err": "ManifestError",
+    "msg": "마켓 소스 형식을 알 수 없습니다: 'ftp://x/y.git' - owner/repo, git URL, marketplace.json URL, 로컬 경로 중 하나여야 합니다"
+   },
+   {
+    "ok": {
+     "kind": "git",
+     "url": "HTTPS://Example.com/R.git",
+     "path": null,
+     "ref": null,
+     "id": "R"
+    }
+   },
+   {
+    "ok": {
+     "kind": "git",
+     "url": "https://example.com/r.git/",
+     "path": null,
+     "ref": null,
+     "id": "r"
+    }
+   },
+   {
+    "ok": {
+     "kind": "git",
+     "url": "https://example.com/",
+     "path": null,
+     "ref": null,
+     "id": "example.com"
+    }
+   },
+   {
+    "ok": {
+     "kind": "git",
+     "url": "https://github.com/owner/repo.git",
+     "path": null,
+     "id": "repo",
+     "ref": null
+    }
+   },
+   {
+    "ok": {
+     "kind": "git",
+     "url": "https://github.com/﻿owner/repo.git",
+     "path": null,
+     "id": "repo",
+     "ref": null
+    }
+   },
+   {
+    "ok": {
+     "kind": "git",
+     "url": "https://github.com/anthropics/claude-code.git",
+     "path": null,
+     "id": "claude-code",
+     "ref": null
+    }
+   },
+   {
+    "ok": {
+     "kind": "git",
+     "url": "https://github.com/a/b#.git",
+     "path": null,
+     "id": "b#",
+     "ref": null
+    }
+   },
+   {
+    "err": "ManifestError",
+    "msg": "마켓 소스 ref가 유효하지 않음: '-x'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "로컬 마켓 경로가 디렉토리가 아닙니다: 'C:\\\\definitely\\\\not\\\\here'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "로컬 마켓 경로가 디렉토리가 아닙니다: './nope-dir'"
+   },
+   {
+    "ok": {
+     "kind": "git",
+     "url": "git@h:x",
+     "path": null,
+     "ref": null,
+     "id": ""
+    }
+   },
+   {
+    "ok": {
+     "kind": "git",
+     "url": "user@host:path\rmore",
+     "path": null,
+     "ref": null,
+     "id": ""
+    }
+   }
+  ],
+  "classify_local": [
+   {
+    "ok": {
+     "kind": "local",
+     "url": null,
+     "path": "<ROOT>\\fx",
+     "ref": null,
+     "id": "fx"
+    }
+   },
+   {
+    "ok": {
+     "kind": "local",
+     "url": null,
+     "path": "<ROOT>\\fx",
+     "ref": null,
+     "id": "fx"
+    }
+   },
+   {
+    "err": "ManifestError",
+    "msg": "마켓 소스가 유효하지 않음: ''"
+   },
+   {
+    "ok": {
+     "kind": "local",
+     "url": null,
+     "path": "<ROOT>\\fx",
+     "ref": null,
+     "id": "fx"
+    }
+   },
+   {
+    "ok": {
+     "kind": "local",
+     "url": null,
+     "path": "<ROOT>\\fx",
+     "ref": null,
+     "id": "fx"
+    }
+   }
+  ],
+  "specs": [
+   {
+    "ok": {
+     "kind": "str-path",
+     "url": null,
+     "path": "plugins/p",
+     "ref": null,
+     "sha": null
+    }
+   },
+   {
+    "err": "ManifestError",
+    "msg": "source.path가 유효하지 않음: '..'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "source 형식을 알 수 없음: 5"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "source 형식을 알 수 없음: None"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "source 형식을 알 수 없음: None"
+   },
+   {
+    "ok": {
+     "kind": "github",
+     "url": "https://github.com/o/r.git",
+     "path": null,
+     "ref": "c",
+     "sha": "deadbeef"
+    }
+   },
+   {
+    "err": "ManifestError",
+    "msg": "github repo가 유효하지 않음: '..'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "github repo 형식이 아님: 'a/b/c'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "github repo 형식이 아님: ''"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "ref가 유효하지 않음: '-x'"
+   },
+   {
+    "ok": {
+     "kind": "git-subdir",
+     "url": "https://e/x.git",
+     "path": "plugins/x",
+     "ref": "v1",
+     "sha": "abc"
+    }
+   },
+   {
+    "err": "ManifestError",
+    "msg": "source.path가 유효하지 않음: ''"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "source.url에 전송 헬퍼 구문은 허용하지 않음(예: ext::): 'ext::sh'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "sha가 유효하지 않음(hex 아님): 'not-hex!'"
+   },
+   {
+    "ok": {
+     "kind": "url",
+     "url": "https://e/x.git",
+     "path": null,
+     "ref": null,
+     "sha": "abc\n"
+    }
+   },
+   {
+    "err": "ManifestError",
+    "msg": "source.url가 옵션처럼 시작함(주입 위험): '--upload-pack=evil'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "source.url 스킴이 허용 목록에 없음: 'javascript:alert(1)'"
+   },
+   {
+    "ok": {
+     "kind": "url",
+     "url": "git@github.com:o/r.git",
+     "path": "a/b",
+     "ref": null,
+     "sha": null
+    }
+   },
+   {
+    "err": "ManifestError",
+    "msg": "source.url가 유효하지 않음: ''"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "source.url가 유효하지 않음: None"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "지원하지 않는 source 종류: 'npm'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "sha가 유효하지 않음(hex 아님): 5"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "source 형식을 알 수 없음: ['a']"
+   }
+  ],
+  "parse": [
+   {
+    "ok": {
+     "name": "official",
+     "description": "",
+     "owner": null,
+     "plugins": [
+      {
+       "name": "convex",
+       "displayName": "Convex",
+       "source": "./plugins/convex",
+       "category": "development",
+       "description": "Backend DB",
+       "author": "x",
+       "homepage": "https://h"
+      },
+      {
+       "name": "beta",
+       "description": "Straße helper",
+       "category": "database",
+       "source": {
+        "source": "url",
+        "url": "https://e/b.git",
+        "sha": "deadbeefcafe"
+       }
+      },
+      {
+       "name": "..",
+       "source": "./p"
+      },
+      {
+       "name": "bad-src",
+       "source": {
+        "source": "url",
+        "url": "ftp://x"
+       }
+      },
+      {
+       "name": "CON",
+       "source": "./p"
+      },
+      {
+       "description": "no name"
+      },
+      "str-entry",
+      {
+       "name": "gamma",
+       "category": "development",
+       "author": {
+        "name": "obj"
+       },
+       "source": "./plugins/gamma"
+      }
+     ],
+     "renames": {
+      "convex-backend": "convex",
+      "loop-a": "loop-b",
+      "loop-b": "loop-a",
+      "bad": {
+       "x": 1
+      },
+      "esc": "../x"
+     },
+     "by_name": [
+      "bad-src",
+      "beta",
+      "convex",
+      "gamma"
+     ]
+    }
+   },
+   {
+    "ok": {
+     "name": "",
+     "description": "",
+     "owner": null,
+     "plugins": [],
+     "renames": {},
+     "by_name": []
+    }
+   },
+   {
+    "ok": {
+     "name": "",
+     "description": "d",
+     "owner": {
+      "name": "o"
+     },
+     "plugins": [
+      {
+       "name": "only"
+      }
+     ],
+     "renames": {},
+     "by_name": [
+      "only"
+     ]
+    }
+   },
+   {
+    "ok": {
+     "name": "",
+     "description": "d",
+     "owner": {
+      "name": "o"
+     },
+     "plugins": [
+      {
+       "name": "only"
+      }
+     ],
+     "renames": {},
+     "by_name": [
+      "only"
+     ]
+    }
+   },
+   {
+    "err": "AttributeError"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "매니페스트에 plugins 배열이 없습니다"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "매니페스트를 읽을 수 없음: [Errno 2] No such file or directory: '<ROOT-REPR>\\\\fx\\\\missing.json'"
+   },
+   {
+    "err": "ManifestError",
+    "msg": "매니페스트를 읽을 수 없음: [Errno 13] Permission denied: '<ROOT-REPR>\\\\fx\\\\adir'"
+   }
+  ],
+  "catalog": [
+   {
+    "ok": {
+     "total": 4,
+     "offset": 0,
+     "limit": 50,
+     "categories": {
+      "development": 2,
+      "database": 1,
+      "": 1
+     },
+     "rows": [
+      {
+       "name": "convex",
+       "display": "Convex",
+       "description": "Backend DB",
+       "category": "development",
+       "author": "x",
+       "homepage": "https://h",
+       "kind": "str-path",
+       "sha": "abc",
+       "fetched": true,
+       "origin": "market:official/convex"
+      },
+      {
+       "name": "beta",
+       "display": "beta",
+       "description": "Straße helper",
+       "category": "database",
+       "author": "",
+       "homepage": "",
+       "kind": "url",
+       "sha": "deadbeefcafe",
+       "fetched": false,
+       "origin": "market:official/beta"
+      },
+      {
+       "name": "bad-src",
+       "display": "bad-src",
+       "description": "",
+       "category": "",
+       "author": "",
+       "homepage": "",
+       "kind": "invalid",
+       "sha": null,
+       "fetched": false,
+       "origin": "market:official/bad-src"
+      },
+      {
+       "name": "gamma",
+       "display": "gamma",
+       "description": "",
+       "category": "development",
+       "author": "",
+       "homepage": "",
+       "kind": "str-path",
+       "sha": null,
+       "fetched": false,
+       "origin": "market:official/gamma"
+      }
+     ]
+    }
+   },
+   {
+    "ok": {
+     "total": 0,
+     "offset": 0,
+     "limit": 50,
+     "categories": {
+      "development": 2,
+      "database": 1,
+      "": 1
+     },
+     "rows": []
+    }
+   },
+   {
+    "ok": {
+     "total": 1,
+     "offset": 0,
+     "limit": 50,
+     "categories": {
+      "development": 2,
+      "database": 1,
+      "": 1
+     },
+     "rows": [
+      {
+       "name": "beta",
+       "display": "beta",
+       "description": "Straße helper",
+       "category": "database",
+       "author": "",
+       "homepage": "",
+       "kind": "url",
+       "sha": "deadbeefcafe",
+       "fetched": false,
+       "origin": "market:official/beta"
+      }
+     ]
+    }
+   },
+   {
+    "ok": {
+     "total": 2,
+     "offset": 0,
+     "limit": 50,
+     "categories": {
+      "development": 2,
+      "database": 1,
+      "": 1
+     },
+     "rows": [
+      {
+       "name": "convex",
+       "display": "Convex",
+       "description": "Backend DB",
+       "category": "development",
+       "author": "x",
+       "homepage": "https://h",
+       "kind": "str-path",
+       "sha": "abc",
+       "fetched": true,
+       "origin": "market:official/convex"
+      },
+      {
+       "name": "gamma",
+       "display": "gamma",
+       "description": "",
+       "category": "development",
+       "author": "",
+       "homepage": "",
+       "kind": "str-path",
+       "sha": null,
+       "fetched": false,
+       "origin": "market:official/gamma"
+      }
+     ]
+    }
+   },
+   {
+    "ok": {
+     "total": 4,
+     "offset": 1,
+     "limit": 1,
+     "categories": {
+      "development": 2,
+      "database": 1,
+      "": 1
+     },
+     "rows": [
+      {
+       "name": "beta",
+       "display": "beta",
+       "description": "Straße helper",
+       "category": "database",
+       "author": "",
+       "homepage": "",
+       "kind": "url",
+       "sha": "deadbeefcafe",
+       "fetched": false,
+       "origin": "market:official/beta"
+      }
+     ]
+    }
+   },
+   {
+    "ok": {
+     "total": 4,
+     "offset": 0,
+     "limit": 0,
+     "categories": {
+      "development": 2,
+      "database": 1,
+      "": 1
+     },
+     "rows": [
+      {
+       "name": "convex",
+       "display": "Convex",
+       "description": "Backend DB",
+       "category": "development",
+       "author": "x",
+       "homepage": "https://h",
+       "kind": "str-path",
+       "sha": "abc",
+       "fetched": true,
+       "origin": "market:official/convex"
+      },
+      {
+       "name": "beta",
+       "display": "beta",
+       "description": "Straße helper",
+       "category": "database",
+       "author": "",
+       "homepage": "",
+       "kind": "url",
+       "sha": "deadbeefcafe",
+       "fetched": false,
+       "origin": "market:official/beta"
+      },
+      {
+       "name": "bad-src",
+       "display": "bad-src",
+       "description": "",
+       "category": "",
+       "author": "",
+       "homepage": "",
+       "kind": "invalid",
+       "sha": null,
+       "fetched": false,
+       "origin": "market:official/bad-src"
+      },
+      {
+       "name": "gamma",
+       "display": "gamma",
+       "description": "",
+       "category": "development",
+       "author": "",
+       "homepage": "",
+       "kind": "str-path",
+       "sha": null,
+       "fetched": false,
+       "origin": "market:official/gamma"
+      }
+     ]
+    }
+   },
+   {
+    "ok": {
+     "total": 4,
+     "offset": 0,
+     "limit": -1,
+     "categories": {
+      "development": 2,
+      "database": 1,
+      "": 1
+     },
+     "rows": [
+      {
+       "name": "convex",
+       "display": "Convex",
+       "description": "Backend DB",
+       "category": "development",
+       "author": "x",
+       "homepage": "https://h",
+       "kind": "str-path",
+       "sha": "abc",
+       "fetched": true,
+       "origin": "market:official/convex"
+      },
+      {
+       "name": "beta",
+       "display": "beta",
+       "description": "Straße helper",
+       "category": "database",
+       "author": "",
+       "homepage": "",
+       "kind": "url",
+       "sha": "deadbeefcafe",
+       "fetched": false,
+       "origin": "market:official/beta"
+      },
+      {
+       "name": "bad-src",
+       "display": "bad-src",
+       "description": "",
+       "category": "",
+       "author": "",
+       "homepage": "",
+       "kind": "invalid",
+       "sha": null,
+       "fetched": false,
+       "origin": "market:official/bad-src"
+      }
+     ]
+    }
+   },
+   {
+    "ok": {
+     "total": 4,
+     "offset": -1,
+     "limit": 2,
+     "categories": {
+      "development": 2,
+      "database": 1,
+      "": 1
+     },
+     "rows": []
+    }
+   },
+   {
+    "ok": {
+     "total": 0,
+     "offset": 0,
+     "limit": 50,
+     "categories": {
+      "development": 2,
+      "database": 1,
+      "": 1
+     },
+     "rows": []
+    }
+   }
+  ],
+  "resolve": [
+   {
+    "ok": [
+     {
+      "name": "convex",
+      "displayName": "Convex",
+      "source": "./plugins/convex",
+      "category": "development",
+      "description": "Backend DB",
+      "author": "x",
+      "homepage": "https://h"
+     },
+     "convex"
+    ]
+   },
+   {
+    "ok": [
+     {
+      "name": "convex",
+      "displayName": "Convex",
+      "source": "./plugins/convex",
+      "category": "development",
+      "description": "Backend DB",
+      "author": "x",
+      "homepage": "https://h"
+     },
+     "convex"
+    ]
+   },
+   {
+    "ok": [
+     null,
+     null
+    ]
+   },
+   {
+    "ok": [
+     null,
+     null
+    ]
+   },
+   {
+    "ok": [
+     null,
+     null
+    ]
+   },
+   {
+    "ok": [
+     null,
+     null
+    ]
+   },
+   {
+    "ok": [
+     null,
+     null
+    ]
+   },
+   {
+    "ok": [
+     null,
+     null
+    ]
+   },
+   {
+    "ok": [
+     {
+      "name": "beta",
+      "description": "Straße helper",
+      "category": "database",
+      "source": {
+       "source": "url",
+       "url": "https://e/b.git",
+       "sha": "deadbeefcafe"
+      }
+     },
+     "beta"
+    ]
+   }
+  ],
+  "display": [
+   "Convex",
+   "beta",
+   "..",
+   "bad-src",
+   "CON",
+   "",
+   "gamma"
+  ],
+  "layout": {
+   "map": {
+    "agents": "Agents"
+   },
+   "found": [
+    "agents"
+   ],
+   "candidates": [
+    {
+     "category": "skills",
+     "path": "deep"
+    },
+    {
+     "category": "skills",
+     "path": "kit\\skills"
+    },
+    {
+     "category": "skills",
+     "path": "kit"
+    },
+    {
+     "category": "commands",
+     "path": "pkg\\Commands"
+    },
+    {
+     "category": "skills",
+     "path": "pkg\\skills"
+    }
+   ]
+  }
+ }
+}
