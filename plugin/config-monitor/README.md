@@ -59,6 +59,7 @@ Config Monitor sends no telemetry and talks to no other service.
 Claude Desktop chat does not load local MCP servers from plugins. To use Config Monitor there:
 
 1. Download `config-monitor-<version>.mcpb` from the project's GitHub releases and double-click it, or drag it into the Claude Desktop window, or choose **Settings > Extensions > Advanced settings > Install Extension**. Desktop runs it with its built-in Node.js.
+   If `claude_desktop_config.json` already has a server named `config-monitor`, remove or rename that entry first. Desktop picks the runtime by server name, so it would run the hand-registered command inside its built-in Node.js and that server would fail to start.
 2. Or register the server by hand: open `claude_desktop_config.json` (**Settings > Developer > Edit Config**), add the entry below with the full path of this plugin's `server.mjs`, and restart Claude Desktop. This needs Node.js 20 or later on `PATH`.
 
 ```json

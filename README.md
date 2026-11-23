@@ -32,6 +32,7 @@ claude --plugin-dir config-monitor-mcp-apps/plugin/config-monitor
 **Claude Desktop chat** — Desktop does not load local MCP servers from plugins, so install the server on its own:
 
 1. Download `config-monitor-<version>.mcpb` from the GitHub releases and double-click it (or drag it into the Desktop window, or use *Settings → Extensions → Advanced settings → Install Extension*). Desktop runs it with its built-in Node.js.
+   If `claude_desktop_config.json` already has a server named `config-monitor`, remove or rename that entry first. Desktop picks the runtime by server name, so it would run the hand-registered command inside its built-in Node.js and that server would fail to start.
 2. Or register it by hand: open `claude_desktop_config.json` (*Settings → Developer → Edit Config*), add the entry below, and restart Claude Desktop. This needs **Node.js** 20 or later on `PATH`.
 
 ```json
