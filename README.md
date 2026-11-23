@@ -20,37 +20,38 @@ It is an [MCP App](https://modelcontextprotocol.io): the dashboard renders insid
 
 ## Quick start
 
-You need **Windows**, **Claude Desktop**, **Node.js** (LTS) and **Python 3.10+** on `PATH`.
+You need **Windows**. The server is one Node.js file, `plugin/config-monitor/server.js`; it needs no Python and no `npm install`.
 
-**1. Install**
+**Claude Code** — load the plugin folder:
 
 ```bash
 git clone https://github.com/YeomYuJun/config-monitor-mcp-apps.git
-cd config-monitor-mcp-apps
-npm install
-npm run build
+claude --plugin-dir config-monitor-mcp-apps/plugin/config-monitor
 ```
 
-**2. Register the server** — open Claude Desktop's `claude_desktop_config.json` (*Settings → Developer → Edit Config*) and add:
+**Claude Desktop chat** — Desktop does not load local MCP servers from plugins, so install the server on its own:
+
+1. Download `config-monitor-<version>.mcpb` from the GitHub releases and double-click it (or drag it into the Desktop window, or use *Settings → Extensions → Advanced settings → Install Extension*). Desktop runs it with its built-in Node.js.
+2. Or register it by hand: open `claude_desktop_config.json` (*Settings → Developer → Edit Config*), add the entry below, and restart Claude Desktop. This needs **Node.js** 20 or later on `PATH`.
 
 ```json
 "mcpServers": {
   "config-monitor": {
-    "command": "npx",
-    "args": ["tsx", "C:/path/to/config-monitor-mcp-apps/src/server-stdio.ts"],
+    "command": "node",
+    "args": ["C:/path/to/config-monitor-mcp-apps/plugin/config-monitor/server.js"],
     "env": { "CONFIG_MONITOR_LANG": "en" }
   }
 }
 ```
 
-**3. Restart Claude Desktop** and send **`Show config-monitor`**.
+Then send **`Show config-monitor`**. What the server reads, changes, runs and connects to is listed in the [plugin README](plugin/config-monitor/README.md).
 
 <details>
 <summary>Optional settings (<code>env</code>)</summary>
 
 | Variable | What it does |
 |---|---|
-| `CONFIG_MONITOR_LANG` | `en` starts in English; anything else starts in Korean. You can switch any time from the header. |
+| `CONFIG_MONITOR_LANG` | `en` starts in English; `auto` or unset keeps the language last chosen in the dashboard (Korean at first); anything else starts in Korean. You can switch any time from the header. |
 | `CLAUDE_SNAPSHOT_STORE` | Where snapshots are kept. Default `~/.claude-snapshot` (or `D:\.claude-snapshot` if it already exists). Keep it short. |
 | `CLAUDE_CONFIG_LIBRARIES` | One or more library folders (`;`-separated) for the Library panel. |
 | `CONFIG_MONITOR_WATCHER` | `auto` starts the file watcher with the server, so outside edits are snapshotted too. |
@@ -162,13 +163,21 @@ Only the fields shown on cards are read. Conversation history in `~/.claude.json
 - Commands, themes, `CLAUDE.md` and a project's `.mcp.json` are view-only.
 - New skills and agents are scaffolded globally; add them to a project from the Library.
 - Remote libraries never update on their own.
+- Settings are changed only when you ask, in the dashboard or in chat; reading never writes.
+- Marketplace downloads by URL follow `HTTPS_PROXY`, `HTTP_PROXY` and `NO_PROXY`; the Windows system proxy setting is not used.
+- Snapshot stores written by the earlier Python version are read as they are. Their compressed object bytes can differ from new ones; names and contents are the same.
+- Paths longer than 260 characters are listed, a looping link is listed once, and a symbolic link to a folder is treated like a junction.
+- A broken JSON settings file is shown with the JavaScript parser's error text.
 
 ## Development
 
 ```bash
 npm run typecheck
-python -m unittest discover -s tests
-python scripts/demo_profile.py Z:\   # demo profile used for the screenshots
+npm test
+npm run build:plugin                  # plugin/config-monitor/server.js, dist/dashboard.html and release/*.mcpb
+npx tsx scripts/demo_profile.ts Z:\   # demo profile used for the screenshots
 ```
+
+Running from source without the bundle: `npx tsx src/server-stdio.ts` (stdio) or `npm run serve` (browser dashboard).
 
 Precedence rules follow the official Claude Code docs and may shift between versions.
