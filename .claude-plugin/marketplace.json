@@ -1,0 +1,15 @@
+{
+  "name": "config-monitor-mcp-apps",
+  "description": "Config Monitor, a dashboard and MCP tools for the Claude settings on a Windows PC",
+  "owner": {
+    "name": "YeomYuJun",
+    "url": "https://github.com/YeomYuJun"
+  },
+  "plugins": [
+    {
+      "name": "config-monitor",
+      "source": "./plugin/config-monitor",
+      "description": "See, edit and roll back the Claude settings on this PC (skills, agents, hooks, MCP servers, permissions, plugins, CLAUDE.md) from one dashboard, with snapshots of every change"
+    }
+  ]
+}

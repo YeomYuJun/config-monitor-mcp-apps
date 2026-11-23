@@ -16,7 +16,6 @@
       "type": "string",
       "title": "Dashboard language",
       "description": "auto keeps the language chosen in the dashboard (Korean by default), en starts in English, ko starts in Korean",
-      "options": ["auto", "en", "ko"],
       "default": "auto"
     }
   }

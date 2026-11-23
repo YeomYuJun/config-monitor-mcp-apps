@@ -4,6 +4,14 @@ Config Monitor shows every Claude setting on this PC in one dashboard and lets y
 
 Windows only. macOS and Linux paths are not probed.
 
+## Install
+
+In Claude Code 2.1.275 or later:
+
+```
+/plugin install config-monitor --marketplace YeomYuJun/config-monitor-mcp-apps
+```
+
 ## What it does
 
 - Reads the settings files listed below and shows them as cards, marked with the scope they come from and whether they load at session start.

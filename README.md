@@ -22,7 +22,13 @@ It is an [MCP App](https://modelcontextprotocol.io): the dashboard renders insid
 
 You need **Windows**. The server is one Node.js file, `plugin/config-monitor/server.mjs`; it needs no Python and no `npm install`.
 
-**Claude Code** — load the plugin folder:
+**Claude Code** — install the plugin from this repository's marketplace (Claude Code 2.1.275 or later):
+
+```
+/plugin install config-monitor --marketplace YeomYuJun/config-monitor-mcp-apps
+```
+
+Or load the plugin folder for one session:
 
 ```bash
 git clone https://github.com/YeomYuJun/config-monitor-mcp-apps.git
